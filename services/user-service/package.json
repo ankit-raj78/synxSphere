@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/user-service/src/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "mock": "ts-node-dev --respawn --transpile-only src/mock-service.ts",
     "test": "jest",
     "lint": "eslint src --ext .ts",
     "clean": "rimraf dist"
