@@ -1,7 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import { MongoClient, GridFSBucket, Db } from 'mongodb';
 import { createClient, RedisClientType } from 'redis';
-import { DatabaseConfig, HealthCheckResult } from '../types';
+import { HealthCheckResult } from '../types';
 
 class DatabaseManager {
   public postgres: Pool | null = null;

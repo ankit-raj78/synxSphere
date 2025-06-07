@@ -6,7 +6,6 @@ export interface User {
     password_hash?: string;
     profile: UserProfile;
     created_at: Date;
-    updated_at: Date;
 }
 export interface UserProfile {
     role?: 'user' | 'admin' | 'moderator';
@@ -62,24 +61,50 @@ export interface RoomParticipant {
     last_active: Date;
 }
 export interface AudioFile {
-    _id: string;
+    _id?: string;
+    id?: string;
     userId: string;
+    user_id?: string;
     originalName: string;
+    original_name?: string;
     filename: string;
     filepath: string;
+    file_path?: string;
     size: number;
+    file_size?: number;
     mimeType: string;
+    mime_type?: string;
     uploadedAt: Date;
+    created_at?: Date;
+    updated_at?: Date;
     analysisStatus: 'pending' | 'processing' | 'completed' | 'failed';
     analysisId?: string;
     error?: string;
+    duration?: number;
+    sample_rate?: number;
+    channels?: number;
+    bit_rate?: number;
+    format?: string;
+    is_processed?: boolean;
 }
 export interface AudioAnalysis {
-    _id: string;
+    _id?: string;
+    id?: string;
     fileId: string;
+    file_id?: string;
     userId: string;
     features: AudioFeatures;
     createdAt: Date;
+    created_at?: Date;
+    updated_at?: Date;
+    duration?: number;
+    sample_rate?: number;
+    channels?: number;
+    bit_rate?: number;
+    codec?: string;
+    format?: string;
+    size?: number;
+    analyzed_at?: Date;
 }
 export interface AudioFeatures {
     duration: number;
@@ -108,6 +133,24 @@ export interface AudioProcessingJob {
     error_message?: string;
     created_at: Date;
     updated_at: Date;
+}
+export interface AudioMixingSettings {
+    volumes: {
+        [trackId: string]: number;
+    };
+    effects: {
+        [trackId: string]: string[];
+    };
+    masterVolume: number;
+    masterEffects: string[];
+    fadeIn: number;
+    fadeOut: number;
+    crossfade: number;
+    outputFormat: string;
+    format?: string;
+    bitrate: number;
+    sampleRate: number;
+    codec?: string;
 }
 export interface UserCompatibility {
     id: string;
@@ -189,6 +232,67 @@ export interface PlaybackSyncData {
     isPlaying?: boolean;
     action: 'play' | 'pause' | 'seek' | 'track_change';
 }
+export interface Session {
+    id: string;
+    roomId: string;
+    name: string;
+    createdBy: string;
+    creatorId: string;
+    status: SessionState;
+    state: any;
+    settings: SessionSettings;
+    participants: SessionParticipant[];
+    currentTrack?: string;
+    playbackPosition: number;
+    isPlaying: boolean;
+    isActive: boolean;
+    lastActivity: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export declare enum SessionState {
+    ACTIVE = "active",
+    PAUSED = "paused",
+    ENDED = "ended"
+}
+export interface SessionSettings {
+    allowGuestControl: boolean;
+    maxParticipants: number;
+    autoPlay: boolean;
+    crossfade: boolean;
+    volume: number;
+    requireApproval?: boolean;
+}
+export interface SessionParticipant {
+    userId: string;
+    username: string;
+    role: 'host' | 'moderator' | 'participant';
+    joinedAt: Date;
+    isActive: boolean;
+    permissions: string[];
+}
+export interface SessionEvent {
+    type: 'play' | 'pause' | 'skip' | 'seek' | 'volume' | 'join' | 'leave';
+    sessionId: string;
+    userId: string;
+    data: any;
+    timestamp: Date;
+}
+export interface CreateSessionRequest {
+    roomId: string;
+    name: string;
+    settings?: Partial<SessionSettings>;
+    maxParticipants?: number;
+    allowGuestControl?: boolean;
+    requireApproval?: boolean;
+    autoPlay?: boolean;
+}
+export interface UpdateSessionRequest {
+    name?: string;
+    settings?: Partial<SessionSettings>;
+    status?: SessionState;
+    isActive?: boolean;
+}
 export interface AuthenticatedRequest extends Request {
     user?: User;
     sessionId?: string;
@@ -223,6 +327,58 @@ export interface DatabaseConfig {
         brokers: string[];
         clientId: string;
     };
+}
+export interface RoomRecommendation {
+    room: CollaborationRoom;
+    compatibilityScore: number;
+    compatibilityFactors: {
+        musicalStyle: number;
+        instrumentMatch: number;
+        genreMatch: number;
+        tempoCompatibility: number;
+        experienceLevel: number;
+    };
+    explanation: string[];
+}
+export interface UserRecommendation {
+    userId: string;
+    username: string;
+    compatibilityScore: number;
+    sharedInterests: string[];
+    complementarySkills: string[];
+    musicalSynergy: number;
+    profile: UserProfile;
+}
+export interface RecommendationRequest {
+    userId: string;
+    type: 'rooms' | 'users' | 'collaborators';
+    limit?: number;
+    filters?: RecommendationFilters;
+}
+export interface RecommendationFilters {
+    genres?: string[];
+    instruments?: string[];
+    experienceLevel?: string[];
+    minCompatibilityScore?: number;
+    excludeExistingConnections?: boolean;
+}
+export interface MusicalCompatibilityScore {
+    overall: number;
+    factors: {
+        genreAlignment: number;
+        instrumentCompatibility: number;
+        tempoAlignment: number;
+        experienceBalance: number;
+        collaborationStyleMatch: number;
+        audioFeaturesSimilarity: number;
+    };
+    details: string[];
+}
+export interface MLModelPrediction {
+    collaborationSuccess: number;
+    musicalSynergy: number;
+    longTermCompatibility: number;
+    confidence: number;
 }
 export interface ServiceConfig {
     port: number;

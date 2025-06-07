@@ -123,7 +123,7 @@ class AudioService {
     this.app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
     // Request logging
-    this.app.use((req, res, next) => {
+    this.app.use((req, _res, next) => {
       logger.info(`${req.method} ${req.path}`, {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
@@ -135,7 +135,7 @@ class AudioService {
 
   private setupRoutes(): void {
     // Health check
-    this.app.get('/health', (req, res) => {
+    this.app.get('/health', (_req, res) => {
       res.json({
         service: this.config.name,
         version: this.config.version,

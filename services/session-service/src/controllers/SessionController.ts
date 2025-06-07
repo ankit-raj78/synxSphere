@@ -1,0 +1,605 @@
+import { Request, Response } from 'express';
+import DatabaseManager from '../../../shared/config/database';
+import { EventPublisher } from '../services/EventPublisher';
+import { logger } from '../utils/logger';
+import { 
+  Session, 
+  SessionState, 
+  SessionParticipant,
+  SessionEvent,
+  CreateSessionRequest,
+  UpdateSessionRequest 
+} from '../../../shared/types';
+
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    username: string;
+    email: string;
+  };
+}
+
+export class SessionController {
+  private static dbManager = DatabaseManager;
+  private static eventPublisher = new EventPublisher();
+
+  static async createSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const sessionData: CreateSessionRequest = req.body;
+      const userId = req.user.id;
+
+      // Validate required fields
+      if (!sessionData.roomId || !sessionData.name) {
+        res.status(400).json({ error: 'Room ID and session name are required' });
+        return;
+      }
+
+      // Check if room exists and user has access
+      const room = await SessionController.dbManager.executeQuery(
+        'SELECT * FROM rooms WHERE id = $1 AND (is_public = true OR creator_id = $2)',
+        [sessionData.roomId, userId]
+      );
+
+      if (!room.rows.length) {
+        res.status(404).json({ error: 'Room not found or access denied' });
+        return;
+      }
+
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const session: Session = {
+        id: sessionId,
+        name: sessionData.name,
+        roomId: sessionData.roomId,
+        createdBy: userId,
+        creatorId: userId,
+        status: SessionState.ACTIVE,
+        participants: [],
+        state: {
+          currentTrack: null,
+          position: 0,
+          isPlaying: false,
+          volume: 0.8,
+          queue: [],
+          playbackMode: 'normal'
+        },
+        settings: {
+          maxParticipants: sessionData.maxParticipants || 50,
+          allowGuestControl: sessionData.allowGuestControl || false,
+          requireApproval: sessionData.requireApproval || false,
+          autoPlay: sessionData.autoPlay || true,
+          crossfade: false,
+          volume: 0.8
+        },
+        currentTrack: undefined,
+        playbackPosition: 0,
+        isPlaying: false,
+        isActive: true,
+        lastActivity: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // Save session to database
+      await SessionController.dbManager.executeQuery(
+        `INSERT INTO sessions (id, name, room_id, creator_id, settings, state, is_active, created_at, last_activity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          session.id,
+          session.name,
+          session.roomId,
+          session.creatorId,
+          JSON.stringify(session.settings),
+          JSON.stringify(session.state),
+          session.isActive,
+          session.createdAt,
+          session.lastActivity
+        ]
+      );
+
+      // Publish session created event
+      await SessionController.eventPublisher.publishSessionEvent(
+        session.id,
+        'created',
+        { sessionName: session.name },
+        userId,
+        session.roomId
+      );
+
+      logger.info(`Session created: ${sessionId} by user ${userId}`);
+      res.status(201).json({ session });
+
+    } catch (error) {
+      logger.error('Error creating session:', error);
+      res.status(500).json({ error: 'Failed to create session' });
+    }
+  }
+
+  static async getSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+
+      const result = await SessionController.dbManager.executeQuery(
+        `SELECT s.*, r.name as room_name, u.username as creator_name
+         FROM sessions s
+         JOIN rooms r ON s.room_id = r.id
+         JOIN users u ON s.creator_id = u.id
+         WHERE s.id = $1`,
+        [sessionId]
+      );
+
+      if (!result.rows.length) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      const sessionData = result.rows[0];
+      
+      // Get participants
+      const participantsResult = await SessionController.dbManager.executeQuery(
+        `SELECT sp.*, u.username, u.profile_picture_url
+         FROM session_participants sp
+         JOIN users u ON sp.user_id = u.id
+         WHERE sp.session_id = $1 AND sp.is_active = true`,
+        [sessionId]
+      );
+
+      const session: Session = {
+        id: sessionData.id,
+        name: sessionData.name,
+        roomId: sessionData.room_id,
+        createdBy: sessionData.creator_id,
+        creatorId: sessionData.creator_id,
+        status: SessionState.ACTIVE,
+        participants: participantsResult.rows.map((p: any) => ({
+          userId: p.user_id,
+          username: p.username,
+          role: p.role,
+          joinedAt: p.joined_at,
+          isActive: p.is_active,
+          permissions: JSON.parse(p.permissions || '[]')
+        })),
+        state: JSON.parse(sessionData.state),
+        settings: JSON.parse(sessionData.settings),
+        currentTrack: undefined,
+        playbackPosition: 0,
+        isPlaying: false,
+        isActive: sessionData.is_active,
+        lastActivity: sessionData.last_activity,
+        createdAt: sessionData.created_at,
+        updatedAt: sessionData.updated_at || sessionData.created_at
+      };
+
+      res.json({ session });
+
+    } catch (error) {
+      logger.error('Error getting session:', error);
+      res.status(500).json({ error: 'Failed to get session' });
+    }
+  }
+
+  static async updateSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { sessionId } = req.params;
+      const updateData: UpdateSessionRequest = req.body;
+      const userId = req.user.id;
+
+      // Check if user has permission to update session
+      const session = await SessionController.dbManager.executeQuery(
+        'SELECT * FROM sessions WHERE id = $1',
+        [sessionId]
+      );
+
+      if (!session.rows.length) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      const sessionData = session.rows[0];
+      
+      // Check if user is creator or has admin permissions
+      if (sessionData.creator_id !== userId) {
+        const participant = await SessionController.dbManager.executeQuery(
+          'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2 AND role = $3',
+          [sessionId, userId, 'admin']
+        );
+
+        if (!participant.rows.length) {
+          res.status(403).json({ error: 'Permission denied' });
+          return;
+        }
+      }
+
+      // Update session
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 1;
+
+      if (updateData.name) {
+        updateFields.push(`name = $${paramIndex++}`);
+        updateValues.push(updateData.name);
+      }
+
+      if (updateData.settings) {
+        updateFields.push(`settings = $${paramIndex++}`);
+        updateValues.push(JSON.stringify(updateData.settings));
+      }
+
+      if (updateData.isActive !== undefined) {
+        updateFields.push(`is_active = $${paramIndex++}`);
+        updateValues.push(updateData.isActive);
+      }
+
+      updateFields.push(`last_activity = $${paramIndex++}`);
+      updateValues.push(new Date());
+
+      updateValues.push(sessionId);
+
+      await SessionController.dbManager.executeQuery(
+        `UPDATE sessions SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
+        updateValues
+      );
+
+      // Publish session updated event
+      await SessionController.eventPublisher.publishSessionEvent(
+        sessionId,
+        'updated',
+        updateData,
+        userId,
+        sessionData.room_id
+      );
+
+      logger.info(`Session updated: ${sessionId} by user ${userId}`);
+      res.json({ message: 'Session updated successfully' });
+
+    } catch (error) {
+      logger.error('Error updating session:', error);
+      res.status(500).json({ error: 'Failed to update session' });
+    }
+  }
+
+  static async deleteSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { sessionId } = req.params;
+      const userId = req.user.id;
+
+      // Check if user is session creator
+      const session = await SessionController.dbManager.executeQuery(
+        'SELECT * FROM sessions WHERE id = $1 AND creator_id = $2',
+        [sessionId, userId]
+      );
+
+      if (!session.rows.length) {
+        res.status(404).json({ error: 'Session not found or permission denied' });
+        return;
+      }
+
+      // Soft delete session (mark as inactive)
+      await SessionController.dbManager.executeQuery(
+        'UPDATE sessions SET is_active = false, last_activity = $1 WHERE id = $2',
+        [new Date(), sessionId]
+      );
+
+      // Remove all participants
+      await SessionController.dbManager.executeQuery(
+        'UPDATE session_participants SET is_active = false WHERE session_id = $1',
+        [sessionId]
+      );
+
+      // Publish session deleted event
+      await SessionController.eventPublisher.publishSessionEvent(
+        sessionId,
+        'deleted',
+        {},
+        userId,
+        session.rows[0].room_id
+      );
+
+      logger.info(`Session deleted: ${sessionId} by user ${userId}`);
+      res.json({ message: 'Session deleted successfully' });
+
+    } catch (error) {
+      logger.error('Error deleting session:', error);
+      res.status(500).json({ error: 'Failed to delete session' });
+    }
+  }
+
+  static async joinSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { sessionId } = req.params;
+      const userId = req.user.id;
+
+      // Check if session exists and is active
+      const session = await SessionController.dbManager.executeQuery(
+        'SELECT * FROM sessions WHERE id = $1 AND is_active = true',
+        [sessionId]
+      );
+
+      if (!session.rows.length) {
+        res.status(404).json({ error: 'Session not found or inactive' });
+        return;
+      }
+
+      const sessionData = session.rows[0];
+      const settings = JSON.parse(sessionData.settings);
+
+      // Check if user is already a participant
+      const existingParticipant = await SessionController.dbManager.executeQuery(
+        'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2',
+        [sessionId, userId]
+      );
+
+      if (existingParticipant.rows.length) {
+        // Reactivate if inactive
+        await SessionController.dbManager.executeQuery(
+          'UPDATE session_participants SET is_active = true, joined_at = $1 WHERE session_id = $2 AND user_id = $3',
+          [new Date(), sessionId, userId]
+        );
+      } else {
+        // Check participant limit
+        const participantCount = await SessionController.dbManager.executeQuery(
+          'SELECT COUNT(*) FROM session_participants WHERE session_id = $1 AND is_active = true',
+          [sessionId]
+        );
+
+        if (parseInt(participantCount.rows[0].count) >= settings.maxParticipants) {
+          res.status(400).json({ error: 'Session is full' });
+          return;
+        }
+
+        // Add new participant
+        await SessionController.dbManager.executeQuery(
+          `INSERT INTO session_participants (session_id, user_id, role, joined_at, is_active, permissions)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [sessionId, userId, 'participant', new Date(), true, JSON.stringify({})]
+        );
+      }
+
+      // Update session last activity
+      await SessionController.dbManager.executeQuery(
+        'UPDATE sessions SET last_activity = $1 WHERE id = $2',
+        [new Date(), sessionId]
+      );
+
+      // Publish participant joined event
+      await SessionController.eventPublisher.publishSessionEvent(
+        sessionId,
+        'participant.joined',
+        { username: req.user.username },
+        userId,
+        sessionData.room_id
+      );
+
+      logger.info(`User ${userId} joined session ${sessionId}`);
+      res.json({ message: 'Successfully joined session' });
+
+    } catch (error) {
+      logger.error('Error joining session:', error);
+      res.status(500).json({ error: 'Failed to join session' });
+    }
+  }
+
+  static async leaveSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { sessionId } = req.params;
+      const userId = req.user.id;
+
+      // Remove participant
+      await SessionController.dbManager.executeQuery(
+        'UPDATE session_participants SET is_active = false WHERE session_id = $1 AND user_id = $2',
+        [sessionId, userId]
+      );
+
+      // Get session info for event
+      const session = await SessionController.dbManager.executeQuery(
+        'SELECT room_id FROM sessions WHERE id = $1',
+        [sessionId]
+      );
+
+      if (session.rows.length) {
+        // Publish participant left event
+        await SessionController.eventPublisher.publishSessionEvent(
+          sessionId,
+          'participant.left',
+          { username: req.user.username },
+          userId,
+          session.rows[0].room_id
+        );
+      }
+
+      logger.info(`User ${userId} left session ${sessionId}`);
+      res.json({ message: 'Successfully left session' });
+
+    } catch (error) {
+      logger.error('Error leaving session:', error);
+      res.status(500).json({ error: 'Failed to leave session' });
+    }
+  }
+
+  static async getSessionParticipants(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+
+      const participants = await SessionController.dbManager.executeQuery(
+        `SELECT sp.*, u.username, u.profile_picture_url, u.email
+         FROM session_participants sp
+         JOIN users u ON sp.user_id = u.id
+         WHERE sp.session_id = $1 AND sp.is_active = true
+         ORDER BY sp.joined_at ASC`,
+        [sessionId]
+      );
+
+      const participantList = participants.rows.map(p => ({
+        userId: p.user_id,
+        username: p.username,
+        email: p.email,
+        profilePictureUrl: p.profile_picture_url,
+        role: p.role,
+        joinedAt: p.joined_at,
+        permissions: JSON.parse(p.permissions || '{}')
+      }));
+
+      res.json({ participants: participantList });
+
+    } catch (error) {
+      logger.error('Error getting session participants:', error);
+      res.status(500).json({ error: 'Failed to get session participants' });
+    }
+  }
+
+  static async updateSessionState(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { sessionId } = req.params;
+      const stateUpdate: Partial<SessionState> = req.body;
+      const userId = req.user.id;
+
+      // Check if user has permission to update state
+      const participant = await SessionController.dbManager.executeQuery(
+        `SELECT sp.*, s.creator_id, s.room_id
+         FROM session_participants sp
+         JOIN sessions s ON sp.session_id = s.id
+         WHERE sp.session_id = $1 AND sp.user_id = $2 AND sp.is_active = true`,
+        [sessionId, userId]
+      );
+
+      if (!participant.rows.length) {
+        res.status(403).json({ error: 'Permission denied or not a participant' });
+        return;
+      }
+
+      const participantData = participant.rows[0];
+      const isCreator = participantData.creator_id === userId;
+      const isAdmin = participantData.role === 'admin';
+
+      if (!isCreator && !isAdmin) {
+        res.status(403).json({ error: 'Insufficient permissions to update session state' });
+        return;
+      }
+
+      // Get current state
+      const currentSession = await SessionController.dbManager.executeQuery(
+        'SELECT state FROM sessions WHERE id = $1',
+        [sessionId]
+      );
+
+      if (!currentSession.rows.length) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      const currentState = JSON.parse(currentSession.rows[0].state);
+      const updatedState = Object.assign({}, currentState, stateUpdate);
+
+      // Update session state
+      await SessionController.dbManager.executeQuery(
+        'UPDATE sessions SET state = $1, last_activity = $2 WHERE id = $3',
+        [JSON.stringify(updatedState), new Date(), sessionId]
+      );
+
+      // Publish state update event
+      await SessionController.eventPublisher.publishSessionEvent(
+        sessionId,
+        'state.updated',
+        { stateUpdate },
+        userId,
+        participantData.room_id
+      );
+
+      logger.info(`Session state updated: ${sessionId} by user ${userId}`);
+      res.json({ state: updatedState });
+
+    } catch (error) {
+      logger.error('Error updating session state:', error);
+      res.status(500).json({ error: 'Failed to update session state' });
+    }
+  }
+
+  static async getSessionState(req: Request, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.params;
+
+      const session = await SessionController.dbManager.executeQuery(
+        'SELECT state FROM sessions WHERE id = $1 AND is_active = true',
+        [sessionId]
+      );
+
+      if (!session.rows.length) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      const state = JSON.parse(session.rows[0].state);
+      res.json({ state });
+
+    } catch (error) {
+      logger.error('Error getting session state:', error);
+      res.status(500).json({ error: 'Failed to get session state' });
+    }
+  }
+
+  static async getUserSessionHistory(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      const { limit = 20, offset = 0 } = req.query;
+
+      const sessions = await SessionController.dbManager.executeQuery(
+        `SELECT s.*, r.name as room_name
+         FROM sessions s
+         JOIN rooms r ON s.room_id = r.id
+         JOIN session_participants sp ON s.id = sp.session_id
+         WHERE sp.user_id = $1
+         ORDER BY sp.joined_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+      );
+
+      const sessionHistory = sessions.rows.map(s => ({
+        id: s.id,
+        name: s.name,
+        roomName: s.room_name,
+        roomId: s.room_id,
+        joinedAt: s.joined_at,
+        duration: s.last_activity - s.created_at,
+        isActive: s.is_active
+      }));
+
+      res.json({ sessions: sessionHistory });
+
+    } catch (error) {
+      logger.error('Error getting user session history:', error);
+      res.status(500).json({ error: 'Failed to get session history' });
+    }
+  }
+}
+
+export default SessionController;
