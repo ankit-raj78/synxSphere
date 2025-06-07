@@ -1,6 +1,8 @@
 import request from 'supertest';
 import express from 'express';
+import { describe, it, expect, beforeAll } from '@jest/globals';
 
+// Rest of your test code
 // Mock test for user service endpoints
 describe('User Service API Tests', () => {
   let app: express.Application;
