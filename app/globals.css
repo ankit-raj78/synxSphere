@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-gray-900 text-white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary-600 hover:bg-secondary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .card {
+    @apply bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  }
+  
+  .music-wave {
+    @apply h-8 w-1 bg-gradient-to-t from-primary-600 to-secondary-500 rounded-full;
+    animation: wave 1s ease-in-out infinite alternate;
+  }
+  
+  .music-wave:nth-child(2) { animation-delay: 0.1s; }
+  .music-wave:nth-child(3) { animation-delay: 0.2s; }
+  .music-wave:nth-child(4) { animation-delay: 0.3s; }
+  .music-wave:nth-child(5) { animation-delay: 0.4s; }
+}
+
+@keyframes wave {
+  0% { transform: scaleY(0.3); }
+  100% { transform: scaleY(1); }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
