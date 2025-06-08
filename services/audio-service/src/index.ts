@@ -15,8 +15,8 @@ import analysisRoutes from './routes/analysisRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import { ServiceConfig } from '../../shared/types';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from root directory
+dotenv.config({ path: '/Users/ankitraj2/Documents/GitHub/synxSphere/.env' });
 
 const logger = createLogger('AudioService');
 
