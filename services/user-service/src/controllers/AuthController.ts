@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { validationResult } from 'express-validator';
+const { validationResult } = require('express-validator');
 import DatabaseManager from '../../../shared/config/database';
 import authMiddleware from '../../../shared/middleware/auth';
 import { User, UserProfile } from '../../../shared/types';

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { validationResult } from 'express-validator';
+const { validationResult } = require('express-validator');
 import DatabaseManager from '../../../shared/config/database';
 import { User, MusicalPreferences } from '../../../shared/types';
 import { createError } from '../middleware/errorHandler';
