@@ -1,42 +1,13 @@
-import { MongoClient, Db } from 'mongodb'
+// MongoDB functionality has been disabled - using PostgreSQL instead
+// This file is kept to avoid import errors but all functions are disabled
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_URI"')
+export async function getDatabase(): Promise<any> {
+  throw new Error('MongoDB is disabled. Please use PostgreSQL through DatabaseManager instead.')
 }
 
-const uri = process.env.MONGODB_URI
-const options = {}
-
-let client: MongoClient
-let clientPromise: Promise<MongoClient>
-
-if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  let globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>
-  }
-
-  if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options)
-    globalWithMongo._mongoClientPromise = client.connect()
-  }
-  clientPromise = globalWithMongo._mongoClientPromise
-} else {
-  // In production mode, it's best to not use a global variable.
-  client = new MongoClient(uri, options)
-  clientPromise = client.connect()
+export async function connectToDatabase(): Promise<any> {
+  throw new Error('MongoDB is disabled. Please use PostgreSQL through DatabaseManager instead.')
 }
 
-export async function getDatabase(): Promise<Db> {
-  const client = await clientPromise
-  return client.db('syncsphere')
-}
-
-export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
-  const client = await clientPromise
-  const db = client.db('syncsphere')
-  return { client, db }
-}
-
-export default clientPromise
+// Export a dummy default to avoid import errors
+export default Promise.resolve(null)

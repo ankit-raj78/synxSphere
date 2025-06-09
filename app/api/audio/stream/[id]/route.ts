@@ -22,10 +22,9 @@ export async function GET(
     }
 
     const { db } = await connectToDatabase()
-    
-    const audioFile = await db.collection('audioFiles').findOne({
+      const audioFile = await db.collection('audioFiles').findOne({
       _id: new ObjectId(params.id),
-      userId: user.userId
+      userId: user.id
     })
 
     if (!audioFile) {

@@ -23,9 +23,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { db } = await connectToDatabase()
-    
-    const files = await db.collection('audioFiles')
-      .find({ userId: user.userId })
+      const files = await db.collection('audioFiles')
+      .find({ userId: user.id })
       .sort({ uploadedAt: -1 })
       .toArray()
 

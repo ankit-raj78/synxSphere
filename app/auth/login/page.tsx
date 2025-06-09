@@ -10,6 +10,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -21,30 +22,38 @@ export default function LoginPage() {
       [e.target.name]: e.target.value
     }))
   }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setSuccess('')
 
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
+        body: JSON.stringify(formData)      })
 
       const data = await response.json()
-
-      if (data.success) {
+      
+      if (response.ok && data.token) {
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
-        router.push('/dashboard')
+        
+        // Show success message briefly before redirecting
+        setError('') // Clear any previous errors
+        setSuccess('Login successful! Redirecting...')
+        
+        // Add a small delay to show the success state
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1000)
       } else {
-        setError(data.message || 'Login failed')
-      }
-    } catch (error) {
+        setError(data.error || data.message || 'Login failed')
+        setSuccess('')
+      }    } catch (error) {
       setError('Network error. Please try again.')
+      setSuccess('')
     } finally {
       setLoading(false)
     }
@@ -96,11 +105,15 @@ export default function LoginPage() {
                 onChange={handleInputChange}
               />
             </div>
-          </div>
-
-          {error && (
+          </div>          {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg">
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-3 rounded-lg">
+              {success}
             </div>
           )}
 

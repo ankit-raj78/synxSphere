@@ -53,14 +53,14 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer()
       await writeFile(filepath, Buffer.from(bytes))
 
-      // Create database record
+              // Create database record
       const audioFile = {
         filename,
         originalName: file.name,
         filepath,
         fileSize: file.size,
         mimeType: file.type,
-        userId: user.userId,
+        userId: user.id,
         uploadedAt: new Date(),
         analysisStatus: 'pending' as const,
         audioFeatures: null
