@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import SessionController from '../controllers/SessionController';
+import sessionController from '../controllers/SessionController';
 import { authWrapper } from '../middleware/authWrapper';
 
 const router = Router();
@@ -7,22 +7,26 @@ const router = Router();
 // All session routes require authentication
 router.use(authWrapper);
 
+// Import types from the controller
+import { AuthenticatedRequest } from '../controllers/SessionController';
+import { Response, Request, RequestHandler } from 'express';
+
 // Session management
-router.post('/create', SessionController.createSession);
-router.get('/:sessionId', SessionController.getSession);
-router.put('/:sessionId', SessionController.updateSession);
-router.delete('/:sessionId', SessionController.deleteSession);
+router.post('/create', (sessionController.createSession as RequestHandler));
+router.get('/:sessionId', (sessionController.getSession as RequestHandler));
+router.put('/:sessionId', (sessionController.updateSession as RequestHandler));
+router.delete('/:sessionId', (sessionController.deleteSession as RequestHandler));
 
 // Session participants
-router.post('/:sessionId/join', SessionController.joinSession);
-router.post('/:sessionId/leave', SessionController.leaveSession);
-router.get('/:sessionId/participants', SessionController.getSessionParticipants);
+router.post('/:sessionId/join', (sessionController.joinSession as RequestHandler));
+router.post('/:sessionId/leave', (sessionController.leaveSession as RequestHandler));
+router.get('/:sessionId/participants', (sessionController.getSessionParticipants as RequestHandler));
 
 // Session state
-router.put('/:sessionId/state', SessionController.updateSessionState);
-router.get('/:sessionId/state', SessionController.getSessionState);
+router.put('/:sessionId/state', (sessionController.updateSessionState as RequestHandler));
+router.get('/:sessionId/state', (sessionController.getSessionState as RequestHandler));
 
 // Session history
-router.get('/user/:userId/history', SessionController.getUserSessionHistory);
+router.get('/user/:userId/history', (sessionController.getUserSessionHistory as RequestHandler));
 
 export default router;

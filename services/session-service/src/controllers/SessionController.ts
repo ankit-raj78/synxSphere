@@ -11,19 +11,41 @@ import {
   UpdateSessionRequest 
 } from '../../../shared/types';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
-    username: string;
     email: string;
+    username: string;
+    profile: {
+      role?: 'user' | 'admin' | 'moderator';
+      musicalPreferences?: {
+        genres: string[];
+        instruments: string[];
+        experience: 'beginner' | 'intermediate' | 'advanced' | 'professional';
+        collaborationStyle: 'leader' | 'follower' | 'flexible';
+        preferredTempo: {
+          min: number;
+          max: number;
+        };
+        preferredKeys: string[];
+      };
+      bio?: string;
+      avatar?: string;
+    };
+    created_at: Date;
   };
 }
 
-export class SessionController {
-  private static dbManager = DatabaseManager;
-  private static eventPublisher = new EventPublisher();
+class SessionController {  private readonly dbManager;
+  private readonly eventPublisher;
 
-  static async createSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  constructor() {
+    this.dbManager = DatabaseManager;
+    this.eventPublisher = new EventPublisher();
+  }
+
+  // Convert all static methods to instance methods
+  async createSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'User not authenticated' });
@@ -40,7 +62,7 @@ export class SessionController {
       }
 
       // Check if room exists and user has access
-      const room = await SessionController.dbManager.executeQuery(
+      const room = await this.dbManager.executeQuery(
         'SELECT * FROM rooms WHERE id = $1 AND (is_public = true OR creator_id = $2)',
         [sessionData.roomId, userId]
       );
@@ -86,7 +108,7 @@ export class SessionController {
       };
 
       // Save session to database
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         `INSERT INTO sessions (id, name, room_id, creator_id, settings, state, is_active, created_at, last_activity)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
@@ -103,7 +125,7 @@ export class SessionController {
       );
 
       // Publish session created event
-      await SessionController.eventPublisher.publishSessionEvent(
+      await this.eventPublisher.publishSessionEvent(
         session.id,
         'created',
         { sessionName: session.name },
@@ -120,11 +142,11 @@ export class SessionController {
     }
   }
 
-  static async getSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { sessionId } = req.params;
 
-      const result = await SessionController.dbManager.executeQuery(
+      const result = await this.dbManager.executeQuery(
         `SELECT s.*, r.name as room_name, u.username as creator_name
          FROM sessions s
          JOIN rooms r ON s.room_id = r.id
@@ -141,7 +163,7 @@ export class SessionController {
       const sessionData = result.rows[0];
       
       // Get participants
-      const participantsResult = await SessionController.dbManager.executeQuery(
+      const participantsResult = await this.dbManager.executeQuery(
         `SELECT sp.*, u.username, u.profile_picture_url
          FROM session_participants sp
          JOIN users u ON sp.user_id = u.id
@@ -156,7 +178,7 @@ export class SessionController {
         createdBy: sessionData.creator_id,
         creatorId: sessionData.creator_id,
         status: SessionState.ACTIVE,
-        participants: participantsResult.rows.map((p: any) => ({
+        participants: participantsResult.rows.map(p => ({
           userId: p.user_id,
           username: p.username,
           role: p.role,
@@ -183,7 +205,7 @@ export class SessionController {
     }
   }
 
-  static async updateSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async updateSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'User not authenticated' });
@@ -195,7 +217,7 @@ export class SessionController {
       const userId = req.user.id;
 
       // Check if user has permission to update session
-      const session = await SessionController.dbManager.executeQuery(
+      const session = await this.dbManager.executeQuery(
         'SELECT * FROM sessions WHERE id = $1',
         [sessionId]
       );
@@ -209,7 +231,7 @@ export class SessionController {
       
       // Check if user is creator or has admin permissions
       if (sessionData.creator_id !== userId) {
-        const participant = await SessionController.dbManager.executeQuery(
+        const participant = await this.dbManager.executeQuery(
           'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2 AND role = $3',
           [sessionId, userId, 'admin']
         );
@@ -245,13 +267,13 @@ export class SessionController {
 
       updateValues.push(sessionId);
 
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         `UPDATE sessions SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
         updateValues
       );
 
       // Publish session updated event
-      await SessionController.eventPublisher.publishSessionEvent(
+      await this.eventPublisher.publishSessionEvent(
         sessionId,
         'updated',
         updateData,
@@ -268,7 +290,7 @@ export class SessionController {
     }
   }
 
-  static async deleteSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async deleteSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'User not authenticated' });
@@ -279,7 +301,7 @@ export class SessionController {
       const userId = req.user.id;
 
       // Check if user is session creator
-      const session = await SessionController.dbManager.executeQuery(
+      const session = await this.dbManager.executeQuery(
         'SELECT * FROM sessions WHERE id = $1 AND creator_id = $2',
         [sessionId, userId]
       );
@@ -290,19 +312,19 @@ export class SessionController {
       }
 
       // Soft delete session (mark as inactive)
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         'UPDATE sessions SET is_active = false, last_activity = $1 WHERE id = $2',
         [new Date(), sessionId]
       );
 
       // Remove all participants
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         'UPDATE session_participants SET is_active = false WHERE session_id = $1',
         [sessionId]
       );
 
       // Publish session deleted event
-      await SessionController.eventPublisher.publishSessionEvent(
+      await this.eventPublisher.publishSessionEvent(
         sessionId,
         'deleted',
         {},
@@ -319,7 +341,7 @@ export class SessionController {
     }
   }
 
-  static async joinSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async joinSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'User not authenticated' });
@@ -330,7 +352,7 @@ export class SessionController {
       const userId = req.user.id;
 
       // Check if session exists and is active
-      const session = await SessionController.dbManager.executeQuery(
+      const session = await this.dbManager.executeQuery(
         'SELECT * FROM sessions WHERE id = $1 AND is_active = true',
         [sessionId]
       );
@@ -344,20 +366,20 @@ export class SessionController {
       const settings = JSON.parse(sessionData.settings);
 
       // Check if user is already a participant
-      const existingParticipant = await SessionController.dbManager.executeQuery(
+      const existingParticipant = await this.dbManager.executeQuery(
         'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2',
         [sessionId, userId]
       );
 
       if (existingParticipant.rows.length) {
         // Reactivate if inactive
-        await SessionController.dbManager.executeQuery(
+        await this.dbManager.executeQuery(
           'UPDATE session_participants SET is_active = true, joined_at = $1 WHERE session_id = $2 AND user_id = $3',
           [new Date(), sessionId, userId]
         );
       } else {
         // Check participant limit
-        const participantCount = await SessionController.dbManager.executeQuery(
+        const participantCount = await this.dbManager.executeQuery(
           'SELECT COUNT(*) FROM session_participants WHERE session_id = $1 AND is_active = true',
           [sessionId]
         );
@@ -368,7 +390,7 @@ export class SessionController {
         }
 
         // Add new participant
-        await SessionController.dbManager.executeQuery(
+        await this.dbManager.executeQuery(
           `INSERT INTO session_participants (session_id, user_id, role, joined_at, is_active, permissions)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [sessionId, userId, 'participant', new Date(), true, JSON.stringify({})]
@@ -376,13 +398,13 @@ export class SessionController {
       }
 
       // Update session last activity
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         'UPDATE sessions SET last_activity = $1 WHERE id = $2',
         [new Date(), sessionId]
       );
 
       // Publish participant joined event
-      await SessionController.eventPublisher.publishSessionEvent(
+      await this.eventPublisher.publishSessionEvent(
         sessionId,
         'participant.joined',
         { username: req.user.username },
@@ -399,7 +421,7 @@ export class SessionController {
     }
   }
 
-  static async leaveSession(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async leaveSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'User not authenticated' });
@@ -410,20 +432,20 @@ export class SessionController {
       const userId = req.user.id;
 
       // Remove participant
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         'UPDATE session_participants SET is_active = false WHERE session_id = $1 AND user_id = $2',
         [sessionId, userId]
       );
 
       // Get session info for event
-      const session = await SessionController.dbManager.executeQuery(
+      const session = await this.dbManager.executeQuery(
         'SELECT room_id FROM sessions WHERE id = $1',
         [sessionId]
       );
 
       if (session.rows.length) {
         // Publish participant left event
-        await SessionController.eventPublisher.publishSessionEvent(
+        await this.eventPublisher.publishSessionEvent(
           sessionId,
           'participant.left',
           { username: req.user.username },
@@ -441,11 +463,11 @@ export class SessionController {
     }
   }
 
-  static async getSessionParticipants(req: Request, res: Response): Promise<void> {
+  async getSessionParticipants(req: Request, res: Response): Promise<void> {
     try {
       const { sessionId } = req.params;
 
-      const participants = await SessionController.dbManager.executeQuery(
+      const participants = await this.dbManager.executeQuery(
         `SELECT sp.*, u.username, u.profile_picture_url, u.email
          FROM session_participants sp
          JOIN users u ON sp.user_id = u.id
@@ -472,7 +494,7 @@ export class SessionController {
     }
   }
 
-  static async updateSessionState(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async updateSessionState(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'User not authenticated' });
@@ -484,7 +506,7 @@ export class SessionController {
       const userId = req.user.id;
 
       // Check if user has permission to update state
-      const participant = await SessionController.dbManager.executeQuery(
+      const participant = await this.dbManager.executeQuery(
         `SELECT sp.*, s.creator_id, s.room_id
          FROM session_participants sp
          JOIN sessions s ON sp.session_id = s.id
@@ -507,7 +529,7 @@ export class SessionController {
       }
 
       // Get current state
-      const currentSession = await SessionController.dbManager.executeQuery(
+      const currentSession = await this.dbManager.executeQuery(
         'SELECT state FROM sessions WHERE id = $1',
         [sessionId]
       );
@@ -521,13 +543,13 @@ export class SessionController {
       const updatedState = Object.assign({}, currentState, stateUpdate);
 
       // Update session state
-      await SessionController.dbManager.executeQuery(
+      await this.dbManager.executeQuery(
         'UPDATE sessions SET state = $1, last_activity = $2 WHERE id = $3',
         [JSON.stringify(updatedState), new Date(), sessionId]
       );
 
       // Publish state update event
-      await SessionController.eventPublisher.publishSessionEvent(
+      await this.eventPublisher.publishSessionEvent(
         sessionId,
         'state.updated',
         { stateUpdate },
@@ -544,11 +566,11 @@ export class SessionController {
     }
   }
 
-  static async getSessionState(req: Request, res: Response): Promise<void> {
+  async getSessionState(req: Request, res: Response): Promise<void> {
     try {
       const { sessionId } = req.params;
 
-      const session = await SessionController.dbManager.executeQuery(
+      const session = await this.dbManager.executeQuery(
         'SELECT state FROM sessions WHERE id = $1 AND is_active = true',
         [sessionId]
       );
@@ -567,12 +589,12 @@ export class SessionController {
     }
   }
 
-  static async getUserSessionHistory(req: Request, res: Response): Promise<void> {
+  async getUserSessionHistory(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
       const { limit = 20, offset = 0 } = req.query;
 
-      const sessions = await SessionController.dbManager.executeQuery(
+      const sessions = await this.dbManager.executeQuery(
         `SELECT s.*, r.name as room_name
          FROM sessions s
          JOIN rooms r ON s.room_id = r.id
@@ -602,4 +624,6 @@ export class SessionController {
   }
 }
 
-export default SessionController;
+// Create and export a singleton instance
+export const sessionController = new SessionController();
+export default sessionController;

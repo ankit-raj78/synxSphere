@@ -32,7 +32,6 @@ class AudioService {
     this.setupRoutes();
     this.setupErrorHandling();
   }
-
   private loadConfig(): ServiceConfig {
     return {
       port: parseInt(process.env.AUDIO_SERVICE_PORT || '3002'),
@@ -41,6 +40,17 @@ class AudioService {
       environment: (process.env.NODE_ENV as 'development' | 'staging' | 'production') || 'development',
       corsOrigin: process.env.CORS_ORIGIN || '*',
       jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
+      requestLimit: '50mb', // Same as body parser limit
+      rateLimit: {
+        general: {
+          windowMs: 15 * 60 * 1000, // 15 minutes
+          max: 100 // 100 requests per windowMs
+        },
+        upload: {
+          windowMs: 15 * 60 * 1000, // 15 minutes
+          max: 10 // 10 uploads per windowMs
+        }
+      },
       database: {
         postgres: {
           host: process.env.POSTGRES_HOST || 'localhost',

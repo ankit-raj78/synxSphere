@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { verifyToken } from '@/lib/auth'
 
+// Mark route as dynamic since it requires request headers
+export const dynamic = 'force-dynamic'
+
+// Mark route as server-side only
+export const runtime = 'nodejs'
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')

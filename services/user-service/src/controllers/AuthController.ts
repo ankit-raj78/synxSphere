@@ -22,11 +22,9 @@ class AuthController {
         return;
       }
 
-      const { email, password } = req.body;
-
-      // Find user by email
+      const { email, password } = req.body;      // Find user by email
       const userResult = await DatabaseManager.executeQuery<User>(
-        'SELECT * FROM users WHERE email = $1',
+        'SELECT id, email, username, password_hash, profile, created_at, updated_at FROM users WHERE email = $1',
         [email]
       );
 
@@ -109,9 +107,7 @@ class AuthController {
         },
         bio: profile?.bio || '',
         avatar: profile?.avatar || null
-      };
-
-      // Insert user
+      };      // Insert user
       const userResult = await DatabaseManager.executeQuery<User>(
         `INSERT INTO users (id, email, username, password_hash, profile, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -145,15 +141,25 @@ class AuthController {
   /**
    * Refresh JWT token
    */
-  async refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
+  async refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {    try {
       if (!req.user || !req.sessionId) {
         res.status(401).json({ error: 'Authentication required' });
         return;
       }
 
-      // Generate new token
-      const newToken = authMiddleware.generateToken(req.user);
+      // Get user with created_at from database
+      const userResult = await DatabaseManager.executeQuery<User>(
+        'SELECT id, email, username, profile, created_at FROM users WHERE id = $1',
+        [req.user.id]
+      );
+
+      if (userResult.rows.length === 0) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      // Generate new token with complete user data
+      const newToken = authMiddleware.generateToken(userResult.rows[0]);
 
       // Update session with new token
       await DatabaseManager.executeQuery(
