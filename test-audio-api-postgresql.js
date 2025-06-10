@@ -12,7 +12,7 @@ const axios = require('axios');
 
 // Configuration
 const CONFIG = {
-  baseUrl: 'http://localhost:3001',
+  baseUrl: 'http://localhost:3000',
   testUser: {
     username: 'audiotest',
     email: 'audiotest@example.com',

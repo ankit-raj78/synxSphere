@@ -19,14 +19,15 @@ interface UploadFile extends File {
 export default function FileUpload({ onFilesUploaded }: FileUploadProps) {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
-
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles: UploadFile[] = acceptedFiles.map(file => ({
-      ...file,
-      id: Math.random().toString(36).substring(7),
-      progress: 0,
-      status: 'pending'
-    }))
+    const newFiles: UploadFile[] = acceptedFiles.map(file => {
+      const uploadFile = Object.assign(file, {
+        id: Math.random().toString(36).substring(7),
+        progress: 0,
+        status: 'pending' as const
+      })
+      return uploadFile
+    })
     
     setUploadFiles(prev => [...prev, ...newFiles])
   }, [])

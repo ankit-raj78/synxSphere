@@ -17,9 +17,11 @@ export async function POST(request: NextRequest) {
 
     const user = await verifyToken(token)
     if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-    }    const formData = await request.formData()
-    const files = formData.getAll('audio') as File[];
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })    }
+
+    const formData = await request.formData()
+    const files = formData.getAll('audio') as File[]
+    
     if (files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
@@ -37,25 +39,22 @@ export async function POST(request: NextRequest) {
     for (const file of files) {
       if (file.size > 50 * 1024 * 1024) { // 50MB limit
         continue // Skip files that are too large
-      }
-
-      // Generate unique filename
+      }      // Generate unique filename
       const timestamp = Date.now()
       const randomString = Math.random().toString(36).substring(7)
-      const filename = `${timestamp}_${randomString}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      const filepath = join(uploadsDir, filename)      // Save file to disk
+      const safeName = (file.name || 'unknown-file').replace(/[^a-zA-Z0-9.-]/g, '_')
+      const filename = `${timestamp}_${randomString}_${safeName}`
+      const filepath = join(uploadsDir, filename)// Save file to disk
       const bytes = await file.arrayBuffer()
-      await writeFile(filepath, Buffer.from(bytes))
-
-      // Create database record
+      await writeFile(filepath, Buffer.from(bytes))      // Create database record
       const audioFileId = uuidv4()
       const audioFile = {
         id: audioFileId,
         filename,
-        original_name: file.name,
+        original_name: file.name || 'unknown-file',
         file_path: filepath,
-        file_size: file.size,
-        mime_type: file.type,
+        file_size: file.size || 0,
+        mime_type: file.type || 'application/octet-stream',
         user_id: user.id,
         created_at: new Date(),
         updated_at: new Date(),
@@ -134,11 +133,11 @@ export async function POST(request: NextRequest) {
         uploadedFiles.push({
           id: audioFileId,
           filename,
-          originalName: file.name,
-          filePath: filepath,
-          fileSize: file.size,
-          mimeType: file.type,
-          userId: user.id
+          original_name: file.name || 'unknown-file',
+          file_path: filepath,
+          file_size: file.size || 0,
+          mime_type: file.type || 'application/octet-stream',
+          user_id: user.id
         })
       }
     }
