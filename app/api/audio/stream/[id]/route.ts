@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import DatabaseManager from '@/lib/database'
 import { verifyToken } from '@/lib/auth'
-import { ObjectId } from 'mongodb'
 import { readFile } from 'fs/promises'
 
 export async function GET(
@@ -19,24 +18,22 @@ export async function GET(
     const user = await verifyToken(token)
     if (!user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-    }
-
-    const { db } = await connectToDatabase()
-      const audioFile = await db.collection('audioFiles').findOne({
-      _id: new ObjectId(params.id),
-      userId: user.id
-    })
-
-    if (!audioFile) {
+    }    // Query for audio file
+    const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2'
+    const result = await DatabaseManager.executeQuery(fileQuery, [params.id, user.id])
+    
+    if (result.rows.length === 0) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
+    const audioFile = result.rows[0]
+
     try {
-      const fileBuffer = await readFile(audioFile.filepath)
+      const fileBuffer = await readFile(audioFile.file_path)
       
       return new NextResponse(fileBuffer, {
         headers: {
-          'Content-Type': audioFile.mimeType || 'audio/mpeg',
+          'Content-Type': audioFile.mime_type || 'audio/mpeg',
           'Content-Length': fileBuffer.length.toString(),
           'Cache-Control': 'public, max-age=3600'
         }

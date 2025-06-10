@@ -71,16 +71,75 @@ CREATE TABLE IF NOT EXISTS audio_tracks (
     metadata JSONB DEFAULT '{}'
 );
 
+-- Create audio_files table for individual file management
+CREATE TABLE IF NOT EXISTS audio_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size BIGINT NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    duration NUMERIC(10,2),
+    sample_rate INTEGER,
+    channels INTEGER,
+    bit_rate INTEGER,
+    format VARCHAR(50),
+    is_processed BOOLEAN DEFAULT false,
+    is_public BOOLEAN DEFAULT false,
+    room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create audio_analysis table for storing analysis results
+CREATE TABLE IF NOT EXISTS audio_analysis (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_id UUID REFERENCES audio_files(id) ON DELETE CASCADE UNIQUE,
+    duration NUMERIC(10,2),
+    sample_rate INTEGER,
+    channels INTEGER,
+    bit_rate INTEGER,
+    codec VARCHAR(50),
+    format VARCHAR(50),
+    size BIGINT,
+    tempo NUMERIC(6,2),
+    key_signature VARCHAR(10),
+    loudness NUMERIC(8,2),
+    waveform_data JSONB,
+    analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_rooms_creator ON rooms (creator_id);
 CREATE INDEX IF NOT EXISTS idx_room_participants_room ON room_participants (room_id);
 CREATE INDEX IF NOT EXISTS idx_room_participants_user ON room_participants (user_id);
 CREATE INDEX IF NOT EXISTS idx_audio_tracks_room ON audio_tracks (room_id);
 CREATE INDEX IF NOT EXISTS idx_audio_tracks_uploader ON audio_tracks (uploader_id);
+CREATE INDEX IF NOT EXISTS idx_audio_files_user ON audio_files (user_id);
+CREATE INDEX IF NOT EXISTS idx_audio_files_room ON audio_files (room_id);
+CREATE INDEX IF NOT EXISTS idx_audio_files_created ON audio_files (created_at);
+CREATE INDEX IF NOT EXISTS idx_audio_analysis_file ON audio_analysis (file_id);
 
 -- Create triggers for rooms
 DROP TRIGGER IF EXISTS update_rooms_updated_at ON rooms;
 CREATE TRIGGER update_rooms_updated_at 
     BEFORE UPDATE ON rooms
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create triggers for audio_files
+DROP TRIGGER IF EXISTS update_audio_files_updated_at ON audio_files;
+CREATE TRIGGER update_audio_files_updated_at 
+    BEFORE UPDATE ON audio_files
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create triggers for audio_analysis
+DROP TRIGGER IF EXISTS update_audio_analysis_updated_at ON audio_analysis;
+CREATE TRIGGER update_audio_analysis_updated_at 
+    BEFORE UPDATE ON audio_analysis
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();

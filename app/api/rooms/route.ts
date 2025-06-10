@@ -167,12 +167,14 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(responseRoom, { status: 201 })
-    } catch (dbError) {
-      console.log('Database not available for room creation, using mock response:', dbError)
+    } catch (dbError) {    console.log('Database not available for room creation, using mock response:', dbError)
+      
+      // Generate a proper UUID for fallback
+      const { v4: uuidv4 } = require('uuid')
       
       // Fallback to mock room creation if database is not available
       const mockRoom = {
-        id: Date.now().toString(),
+        id: uuidv4(),
         name,
         description,
         genre: genre || 'General',
