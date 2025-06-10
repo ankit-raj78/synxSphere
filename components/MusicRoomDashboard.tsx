@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 
 interface Participant {
-  _id: string
+  id: string
   username: string
   avatar?: string
   isOnline: boolean
@@ -18,7 +18,7 @@ interface Participant {
 }
 
 interface Track {
-  _id: string
+  id: string
   name: string
   artist: string
   duration: string
@@ -28,7 +28,7 @@ interface Track {
 }
 
 interface MusicRoom {
-  _id: string
+  id: string
   name: string
   description: string
   genre: string
@@ -262,7 +262,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               <div className="space-y-3">
                 {room.tracks.map((track, index) => (
                   <div 
-                    key={track._id}
+                    key={track.id}
                     className={`flex items-center space-x-4 p-3 rounded-lg transition-colors ${
                       track.isCurrentlyPlaying ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-gray-700/50'
                     }`}
@@ -304,7 +304,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               <h2 className="text-xl font-bold mb-4">Participants</h2>
               <div className="space-y-3">
                 {room.participants.map((participant) => (
-                  <div key={participant._id} className="flex items-center space-x-3">
+                  <div key={participant.id} className="flex items-center space-x-3">
                     <div className="relative">
                       <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
                         <span className="text-sm font-bold">

@@ -42,11 +42,10 @@ export default function RoomPage() {
   if (!user) {
     return null
   }
-
   return (
     <MusicRoomDashboard 
       roomId={params.id as string} 
-      userId={user._id} 
+      userId={user.id} 
     />
   )
 }
