@@ -31,14 +31,13 @@ class NextJSDatabaseManager {
     }
     return this.pool
   }
-
-  async executeQuery<T = any>(query: string, params: any[] = []): Promise<{ rows: T[] }> {
+  async executeQuery<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const pool = await this.getPool()
     const client = await pool.connect()
     
     try {
       const result = await client.query(query, params)
-      return { rows: result.rows }
+      return { rows: result.rows, rowCount: result.rowCount || 0 }
     } finally {
       client.release()
     }

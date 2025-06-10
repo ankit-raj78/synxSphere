@@ -5,8 +5,9 @@ import { motion } from 'framer-motion'
 import { 
   Music, Users, Clock, Play, Pause, Volume2, Share2, 
   MoreHorizontal, Heart, MessageCircle, UserPlus,
-  Mic, Headphones, Radio, Settings, Crown
+  Mic, Headphones, Radio, Settings, Crown, Upload, Layers, Trash2
 } from 'lucide-react'
+import FileUpload from './FileUpload'
 
 interface Participant {
   id: string
@@ -49,22 +50,27 @@ interface MusicRoomDashboardProps {
 export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboardProps) {
   const [room, setRoom] = useState<MusicRoom | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [volume, setVolume] = useState(75)
-  const [currentTime, setCurrentTime] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showComposeModal, setShowComposeModal] = useState(false)
+  const [uploadedTracks, setUploadedTracks] = useState<any[]>([])
+  const [compositions, setCompositions] = useState<any[]>([])
+  const [selectedTracks, setSelectedTracks] = useState<string[]>([])
+  const [isComposing, setIsComposing] = useState(false)
+  const [currentPlayingTrack, setCurrentPlayingTrack] = useState<string | null>(null)
+  const [currentPlayingType, setCurrentPlayingType] = useState<'track' | 'composition' | null>(null)
+  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
+  const [audioProgress, setAudioProgress] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
 
+  // Fetch room data and tracks
   useEffect(() => {
-    loadRoomData()
-    // Simulate real-time updates every 5 seconds
-    const interval = setInterval(() => {
-      setCurrentTime(prev => prev + 1)
-    }, 1000)
-    
-    return () => clearInterval(interval)
+    fetchRoomData()
+    fetchUploadedTracks()
+    fetchCompositions()
   }, [roomId])
 
-  const loadRoomData = async () => {
+  const fetchRoomData = async () => {
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(`/api/rooms/${roomId}`, {
@@ -72,17 +78,240 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           'Authorization': `Bearer ${token}`
         }
       })
-
+      
       if (response.ok) {
-        const roomData = await response.json()
-        setRoom(roomData)
+        const data = await response.json()
+        setRoom(data)
       }
     } catch (error) {
-      console.error('Error loading room data:', error)
+      console.error('Error fetching room:', error)
     } finally {
       setLoading(false)
     }
   }
+
+  const fetchUploadedTracks = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/audio/files', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const tracks = await response.json()
+        setUploadedTracks(tracks)
+      }
+    } catch (error) {
+      console.error('Error fetching tracks:', error)
+    }
+  }
+
+  const fetchCompositions = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/audio/compositions', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const compositionData = await response.json()
+        setCompositions(compositionData)
+      }
+    } catch (error) {
+      console.error('Error fetching compositions:', error)
+    }
+  }
+
+  const handleAddTrack = () => {
+    setShowUploadModal(true)
+  }
+
+  const handleFilesUploaded = (files: any[]) => {
+    setShowUploadModal(false)
+    fetchUploadedTracks() // Refresh tracks list
+  }
+
+  const handleCompose = async () => {
+    if (selectedTracks.length < 2) {
+      alert('Please select at least 2 tracks to compose')
+      return
+    }
+
+    setIsComposing(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/audio/compose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`        },
+        body: JSON.stringify({
+          trackIds: selectedTracks,
+          roomId: roomId,
+          settings: {
+            format: 'mp3',
+            bitrate: '192k',
+            sampleRate: 44100
+          }
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json()
+        // Refresh both lists to show new composition
+        await fetchUploadedTracks()
+        await fetchCompositions()
+        alert(`Composition successful! File saved as: ${result.outputFile}`)
+        setSelectedTracks([])
+        setShowComposeModal(false)
+      } else {
+        const error = await response.json()
+        alert(`Composition failed: ${error.error}`)
+      }    } catch (error) {
+      console.error('Error composing tracks:', error)
+      alert('Composition failed')
+    } finally {
+      setIsComposing(false)
+    }
+  }
+
+  const toggleTrackSelection = (trackId: string) => {
+    setSelectedTracks(prev => 
+      prev.includes(trackId) 
+        ? prev.filter(id => id !== trackId)
+        : [...prev, trackId]
+    )
+  }
+  const handleDeleteTrack = async (trackId: string) => {
+    if (!confirm('确定要删除此音频文件吗？此操作无法撤销。')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/audio/delete?id=${trackId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        // 刷新音频文件列表
+        await fetchUploadedTracks()
+        alert('文件删除成功！')
+      } else {
+        const error = await response.json()
+        alert(`删除失败: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting track:', error)
+      alert('删除失败')    }
+  }
+  
+  const handlePlayTrack = async (track: any) => {
+    try {
+      // If currently playing the same track, pause it
+      if (currentPlayingTrack === track.id && currentPlayingType === 'track' && audioRef && !audioRef.paused) {
+        audioRef.pause()
+        setCurrentPlayingTrack(null)
+        setCurrentPlayingType(null)
+        setIsPlaying(false)
+        return
+      }
+
+      // Stop current playback
+      if (audioRef) {
+        audioRef.pause()
+        audioRef.currentTime = 0
+      }
+
+      // Create new audio element
+      const newAudio = new Audio()
+      setAudioRef(newAudio)
+
+      // Get audio file URL
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/audio/stream/${track.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const audioUrl = URL.createObjectURL(blob)
+        
+        newAudio.src = audioUrl
+        newAudio.onplay = () => {
+          setCurrentPlayingTrack(track.id)
+          setCurrentPlayingType('track')
+          setIsPlaying(true)
+        }
+        newAudio.onpause = () => {
+          setIsPlaying(false)
+        }
+        newAudio.onended = () => {
+          setCurrentPlayingTrack(null)
+          setCurrentPlayingType(null)
+          setIsPlaying(false)
+          setAudioProgress(0)
+          URL.revokeObjectURL(audioUrl)
+        }
+        newAudio.onloadedmetadata = () => {
+          setAudioDuration(newAudio.duration)
+        }
+        newAudio.ontimeupdate = () => {
+          if (newAudio.duration) {
+            setAudioProgress((newAudio.currentTime / newAudio.duration) * 100)
+          }
+        }
+
+        await newAudio.play()
+      } else {
+        alert('Unable to load audio file')
+      }
+    } catch (error) {
+      console.error('Error playing track:', error)
+      alert('Playback failed')
+    }
+  }
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef || !audioDuration) return
+    
+    const rect = e.currentTarget.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const width = rect.width
+    const newTime = (clickX / width) * audioDuration
+    
+    audioRef.currentTime = newTime
+    setAudioProgress((newTime / audioDuration) * 100)
+  }
+
+  const formatAudioTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00"
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const [volume, setVolume] = useState(75)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+
+  useEffect(() => {
+    // Simulate real-time updates every 5 seconds
+    const interval = setInterval(() => {
+      setCurrentTime(prev => prev + 1)
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [roomId])
 
   const togglePlayback = () => {
     setIsPlaying(!isPlaying)
@@ -93,6 +322,102 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const handleDeleteComposition = async (compositionId: string) => {
+    if (!confirm('Are you sure you want to delete this composition? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/audio/compositions/delete?id=${compositionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        // Refresh compositions list
+        await fetchCompositions()
+        alert('Composition deleted successfully!')
+      } else {
+        const error = await response.json()
+        alert(`Delete failed: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting composition:', error)
+      alert('Delete failed')
+    }
+  }
+
+  const handlePlayComposition = async (composition: any) => {
+    try {
+      // If currently playing the same composition, pause it
+      if (currentPlayingTrack === composition.id && currentPlayingType === 'composition' && audioRef && !audioRef.paused) {
+        audioRef.pause()
+        setCurrentPlayingTrack(null)
+        setCurrentPlayingType(null)
+        setIsPlaying(false)
+        return
+      }
+
+      // Stop current playback
+      if (audioRef) {
+        audioRef.pause()
+        audioRef.currentTime = 0
+      }
+
+      // Create new audio element
+      const newAudio = new Audio()
+      setAudioRef(newAudio)
+
+      // Get composition file URL
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/audio/compositions/stream/${composition.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const audioUrl = URL.createObjectURL(blob)
+        
+        newAudio.src = audioUrl
+        newAudio.onplay = () => {
+          setCurrentPlayingTrack(composition.id)
+          setCurrentPlayingType('composition')
+          setIsPlaying(true)
+        }
+        newAudio.onpause = () => {
+          setIsPlaying(false)
+        }
+        newAudio.onended = () => {
+          setCurrentPlayingTrack(null)
+          setCurrentPlayingType(null)
+          setIsPlaying(false)
+          setAudioProgress(0)
+          URL.revokeObjectURL(audioUrl)
+        }
+        newAudio.onloadedmetadata = () => {
+          setAudioDuration(newAudio.duration)
+        }
+        newAudio.ontimeupdate = () => {
+          if (newAudio.duration) {
+            setAudioProgress((newAudio.currentTime / newAudio.duration) * 100)
+          }
+        }
+
+        await newAudio.play()
+      } else {
+        alert('Unable to load composition file')
+      }
+    } catch (error) {
+      console.error('Error playing composition:', error)
+      alert('Playback failed')
+    }
   }
 
   if (loading) {
@@ -245,49 +570,217 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                   <p>No track currently playing</p>
                 </div>
               )}
-            </motion.div>
-
-            {/* Playlist */}
+            </motion.div>            {/* Uploaded Tracks */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
               className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Playlist</h2>
-                <span className="text-sm text-gray-400">{room.tracks.length} tracks</span>
+            >              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Uploaded Audio</h2>
+                <span className="text-sm text-gray-400">
+                  {uploadedTracks.length} files
+                </span>
               </div>
 
               <div className="space-y-3">
-                {room.tracks.map((track, index) => (
-                  <div 
-                    key={track.id}
-                    className={`flex items-center space-x-4 p-3 rounded-lg transition-colors ${
-                      track.isCurrentlyPlaying ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-gray-700/50'
-                    }`}
-                  >
-                    <div className="w-8 h-8 flex items-center justify-center text-sm text-gray-400">
-                      {track.isCurrentlyPlaying ? (
-                        <div className="flex space-x-1">
-                          <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse" />
-                          <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                          <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                {uploadedTracks.length > 0 ? (
+                  uploadedTracks.map((track, index) => (
+                    <div 
+                      key={track.id}
+                      className={`p-3 rounded-lg transition-colors ${
+                        currentPlayingTrack === track.id && currentPlayingType === 'track'
+                          ? 'bg-purple-600/20 border border-purple-500/30' 
+                          : 'bg-gray-700/50 hover:bg-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-8 h-8 flex items-center justify-center text-sm text-gray-400">
+                          {currentPlayingTrack === track.id && currentPlayingType === 'track' ? (
+                            <div className="flex space-x-1">
+                              <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse" />
+                              <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                              <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                            </div>
+                          ) : (
+                            index + 1
+                          )}
                         </div>
-                      ) : (
-                        index + 1
+                        <div className="flex-1">
+                          <h4 className="font-medium">{track.original_name}</h4>
+                          <div className="text-sm text-gray-400 flex items-center space-x-2">
+                            <span>{Math.round(track.file_size / 1024)} KB</span>
+                            <span>•</span>
+                            <span>{track.mime_type}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button 
+                            onClick={() => handlePlayTrack(track)}
+                            className={`p-2 hover:bg-gray-600 rounded-lg transition-colors ${
+                              currentPlayingTrack === track.id && currentPlayingType === 'track'
+                                ? 'text-purple-400 hover:text-purple-300' 
+                                : 'text-green-400 hover:text-green-300'
+                            }`}
+                            title={currentPlayingTrack === track.id && currentPlayingType === 'track' ? "Pause" : "Play"}
+                          >
+                            {currentPlayingTrack === track.id && currentPlayingType === 'track' ? (
+                              <Pause className="w-4 h-4" />
+                            ) : (
+                              <Play className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTrack(track.id)}
+                            className="p-2 hover:bg-gray-600 rounded-lg transition-colors text-red-400 hover:text-red-300"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      {currentPlayingTrack === track.id && currentPlayingType === 'track' && (
+                        <div className="mt-3 space-y-2">
+                          <div 
+                            className="w-full h-2 bg-gray-700 rounded-full cursor-pointer"
+                            onClick={handleProgressClick}
+                          >
+                            <div 
+                              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-100"
+                              style={{ width: `${audioProgress}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-400">
+                            <span>{formatAudioTime(audioRef?.currentTime || 0)}</span>
+                            <span>{formatAudioTime(audioDuration)}</span>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">{track.name}</h4>
-                      <p className="text-sm text-gray-400">{track.artist}</p>
-                    </div>
-                    <div className="text-sm text-gray-400">{track.duration}</div>
-                    <button className="p-2 hover:bg-gray-600 rounded-lg transition-colors">
-                      <Play className="w-4 h-4" />
-                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No audio files uploaded yet</p>
+                    <p className="text-sm mt-1">Click "Add Track" to get started</p>
                   </div>
-                ))}
+                )}
+              </div>
+            </motion.div>            {/* Compositions */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Compositions</h2>
+                <span className="text-sm text-gray-400">
+                  {compositions.length} files
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {compositions.length > 0 ? (
+                  compositions.map((composition, index) => (
+                    <div 
+                      key={composition.id}
+                      className={`p-3 rounded-lg transition-colors ${
+                        currentPlayingTrack === composition.id && currentPlayingType === 'composition'
+                          ? 'bg-pink-600/20 border border-pink-500/30' 
+                          : 'bg-gray-700/50 hover:bg-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-8 h-8 flex items-center justify-center text-sm text-gray-400">
+                          {currentPlayingTrack === composition.id && currentPlayingType === 'composition' ? (
+                            <div className="flex space-x-1">
+                              <div className="w-1 h-4 bg-pink-400 rounded-full animate-pulse" />
+                              <div className="w-1 h-4 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                              <div className="w-1 h-4 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full flex items-center justify-center">
+                              <Layers className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium flex items-center space-x-2">
+                            <span>{composition.title}</span>
+                            <span className="text-xs bg-pink-600/20 text-pink-400 px-2 py-1 rounded-full">
+                              Composition
+                            </span>
+                          </h4>
+                          <div className="text-sm text-gray-400 flex items-center space-x-2">
+                            <span>{Math.round(composition.file_size / 1024)} KB</span>
+                            <span>•</span>
+                            <span>{composition.mime_type}</span>
+                            <span>•</span>
+                            <span className="text-pink-400">
+                              {composition.source_track_count} tracks mixed
+                            </span>
+                            <span>•</span>
+                            <span className="text-pink-400">
+                              {new Date(composition.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button 
+                            onClick={() => handlePlayComposition(composition)}
+                            className={`p-2 hover:bg-gray-600 rounded-lg transition-colors ${
+                              currentPlayingTrack === composition.id && currentPlayingType === 'composition'
+                                ? 'text-pink-400 hover:text-pink-300' 
+                                : 'text-green-400 hover:text-green-300'
+                            }`}
+                            title={currentPlayingTrack === composition.id && currentPlayingType === 'composition' ? "Pause" : "Play"}
+                          >
+                            {currentPlayingTrack === composition.id && currentPlayingType === 'composition' ? (
+                              <Pause className="w-4 h-4" />
+                            ) : (
+                              <Play className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteComposition(composition.id)}
+                            className="p-2 hover:bg-gray-600 rounded-lg transition-colors text-red-400 hover:text-red-300"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      {currentPlayingTrack === composition.id && currentPlayingType === 'composition' && (
+                        <div className="mt-3 space-y-2">
+                          <div 
+                            className="w-full h-2 bg-gray-700 rounded-full cursor-pointer"
+                            onClick={handleProgressClick}
+                          >
+                            <div 
+                              className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-100"
+                              style={{ width: `${audioProgress}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-400">
+                            <span>{formatAudioTime(audioRef?.currentTime || 0)}</span>
+                            <span>{formatAudioTime(audioDuration)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Layers className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No compositions created yet</p>
+                    <p className="text-sm mt-1">Select multiple audio files to compose</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
@@ -331,20 +824,29 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                   </div>
                 ))}
               </div>
-            </motion.div>
-
-            {/* Room Stats */}
+            </motion.div>            {/* Room Stats */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
               className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
             >
-              <h2 className="text-xl font-bold mb-4">Room Stats</h2>
-              <div className="space-y-4">
+              <h2 className="text-xl font-bold mb-4">Room Stats</h2>              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Tracks</span>
-                  <span className="font-bold">{room.tracks.length}</span>
+                  <span className="text-gray-400">Uploaded Audio</span>
+                  <span className="font-bold text-purple-400">
+                    {uploadedTracks.length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Compositions</span>
+                  <span className="font-bold text-pink-400">
+                    {compositions.length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Total Files</span>
+                  <span className="font-bold">{uploadedTracks.length + compositions.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400">Session Time</span>
@@ -365,12 +867,22 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
               className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
-            >
-              <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
+            >              <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
               <div className="space-y-3">
-                <button className="w-full flex items-center space-x-3 p-3 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors">
-                  <Music className="w-5 h-5" />
+                <button 
+                  onClick={handleAddTrack}
+                  className="w-full flex items-center space-x-3 p-3 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                >
+                  <Upload className="w-5 h-5" />
                   <span>Add Track</span>
+                </button>
+                <button 
+                  onClick={() => setShowComposeModal(true)}
+                  disabled={uploadedTracks.length < 2}
+                  className="w-full flex items-center space-x-3 p-3 bg-pink-600 hover:bg-pink-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  <Layers className="w-5 h-5" />
+                  <span>Compose Tracks</span>
                 </button>
                 <button className="w-full flex items-center space-x-3 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
                   <Radio className="w-5 h-5" />
@@ -416,6 +928,128 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                   className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </motion.div>        </div>
+      )}
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Upload Audio Tracks</h3>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ×
+              </button>
+            </div>
+            <FileUpload onFilesUploaded={handleFilesUploaded} />
+          </motion.div>
+        </div>
+      )}
+
+      {/* Compose Modal */}
+      {showComposeModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Compose Audio Tracks</h3>
+              <button
+                onClick={() => setShowComposeModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-400 mb-4">Select tracks to compose together:</p>
+              <div className="grid gap-3 max-h-60 overflow-y-auto">
+                {uploadedTracks.map((track) => (
+                  <div
+                    key={track.id}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedTracks.includes(track.id)
+                        ? 'border-purple-500 bg-purple-600/20'
+                        : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                    }`}
+                    onClick={() => toggleTrackSelection(track.id)}
+                  >                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium">{track.original_name}</div>
+                        <div className="text-sm text-gray-400">
+                          {Math.round(track.file_size / 1024)} KB • {track.mime_type}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteTrack(track.id)
+                          }}
+                          className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+                          title="Delete file"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <div className={`w-5 h-5 rounded border-2 ${
+                          selectedTracks.includes(track.id)
+                            ? 'border-purple-500 bg-purple-500'
+                            : 'border-gray-400'
+                        }`}>
+                          {selectedTracks.includes(track.id) && (
+                            <svg className="w-3 h-3 text-white m-0.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-400">
+                {selectedTracks.length} tracks selected
+                {selectedTracks.length < 2 && ' (minimum 2 required)'}
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowComposeModal(false)}
+                  className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCompose}
+                  disabled={selectedTracks.length < 2 || isComposing}
+                  className="px-6 py-2 bg-pink-600 hover:bg-pink-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  {isComposing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Composing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Layers className="w-4 h-4" />
+                      <span>Compose Tracks</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
