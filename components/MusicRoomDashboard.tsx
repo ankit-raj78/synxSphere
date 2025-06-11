@@ -8,6 +8,7 @@ import {
   Mic, Headphones, Radio, Settings, Crown, Upload, Layers, Trash2
 } from 'lucide-react'
 import FileUpload from './FileUpload'
+import { formatDateTime } from '../lib/date-utils'
 
 interface Participant {
   id: string
@@ -607,11 +608,12 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                           )}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-medium">{track.original_name}</h4>
-                          <div className="text-sm text-gray-400 flex items-center space-x-2">
+                          <h4 className="font-medium">{track.original_name}</h4>                          <div className="text-sm text-gray-400 flex items-center space-x-2">
                             <span>{Math.round(track.file_size / 1024)} KB</span>
                             <span>•</span>
                             <span>{track.mime_type}</span>
+                            <span>•</span>
+                            <span>{formatDateTime(track.created_at)}</span>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -722,9 +724,8 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                             <span className="text-pink-400">
                               {composition.source_track_count} tracks mixed
                             </span>
-                            <span>•</span>
-                            <span className="text-pink-400">
-                              {new Date(composition.created_at).toLocaleString()}
+                            <span>•</span>                            <span className="text-pink-400">
+                              {formatDateTime(composition.created_at)}
                             </span>
                           </div>
                         </div>

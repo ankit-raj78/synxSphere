@@ -11,6 +11,7 @@ import RoomRecommendations from '../../components/RoomRecommendations'
 import FileUpload from '../../components/FileUpload'
 import AudioPlayer from '../../components/AudioPlayer'
 import RoomCreation from '../../components/RoomCreation'
+import { formatDate, formatDateTime } from '../../lib/date-utils'
 
 interface User {
   _id: string
@@ -26,10 +27,10 @@ interface User {
 }
 
 interface AudioFile {
-  _id: string
+  id: string
   filename: string
-  originalName: string
-  uploadedAt: string
+  original_name: string
+  created_at: string
   audioFeatures?: any
   analysisStatus: 'pending' | 'processing' | 'completed' | 'failed'
 }
@@ -67,7 +68,6 @@ export default function DashboardPage() {
       router.push('/auth/login')
     }
   }, [router])
-
   const loadUserFiles = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -79,6 +79,14 @@ export default function DashboardPage() {
 
       if (response.ok) {
         const files = await response.json()
+        console.log('Loaded audio files:', files) // Debug log
+        files.forEach((file: AudioFile, index: number) => {
+          console.log(`File ${index}:`, {
+            id: file.id,
+            original_name: file.original_name,
+            created_at: file.created_at
+          })
+        })
         setAudioFiles(files)
       }
     } catch (error) {
@@ -243,16 +251,14 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {audioFiles.slice(0, 5).map((file) => (
-                      <div key={file._id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                    {audioFiles.slice(0, 5).map((file: AudioFile) => (
+                      <div key={file.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
                             <Music className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{file.originalName}</p>
-                            <p className="text-sm text-gray-400">
-                              {new Date(file.uploadedAt).toLocaleDateString()}
+                          </div>                          <div>
+                            <p className="font-medium">{file.original_name}</p>                            <p className="text-sm text-gray-400">
+                              {formatDateTime(file.created_at)}
                             </p>
                           </div>
                         </div>
@@ -267,7 +273,7 @@ export default function DashboardPage() {
                               Processing
                             </span>
                           )}
-                          <AudioPlayer fileId={file._id} />
+                          <AudioPlayer fileId={file.id} />
                         </div>
                       </div>
                     ))}
@@ -314,10 +320,9 @@ export default function DashboardPage() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {audioFiles
-                      .filter(f => f.analysisStatus === 'completed')
-                      .map((file) => (
-                        <div key={file._id} className="bg-gray-700 rounded-lg p-4">
-                          <h4 className="font-semibold mb-3">{file.originalName}</h4>
+                      .filter(f => f.analysisStatus === 'completed')                      .map((file) => (
+                        <div key={file.id} className="bg-gray-700 rounded-lg p-4">
+                          <h4 className="font-semibold mb-3">{file.original_name}</h4>
                           {file.audioFeatures && (
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">

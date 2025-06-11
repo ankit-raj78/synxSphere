@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Formatting Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: #fff; }
+        .test-case { margin: 10px 0; padding: 10px; background: #2a2a2a; border-radius: 5px; }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .input { color: #94a3b8; }
+        .result { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Date Formatting Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Copy the date utility functions here for testing
+        function formatDate(date, fallback = 'Unknown date') {
+            if (!date) return fallback;
+            
+            try {
+                const dateObj = new Date(date);
+                
+                // Check if date is valid
+                if (isNaN(dateObj.getTime())) {
+                    return fallback;
+                }
+                
+                return dateObj.toLocaleDateString();
+            } catch (error) {
+                console.warn('Date formatting error:', error);
+                return fallback;
+            }
+        }
+
+        function formatDateTime(date, fallback = 'Unknown date') {
+            if (!date) return fallback;
+            
+            try {
+                const dateObj = new Date(date);
+                
+                // Check if date is valid
+                if (isNaN(dateObj.getTime())) {
+                    return fallback;
+                }
+                
+                return dateObj.toLocaleString();
+            } catch (error) {
+                console.warn('Date formatting error:', error);
+                return fallback;
+            }
+        }
+
+        // Test cases
+        const testCases = [
+            { input: new Date('2024-01-15T10:30:00Z'), desc: 'Valid Date object' },
+            { input: '2024-01-15T10:30:00Z', desc: 'Valid ISO string' },
+            { input: '2024-01-15', desc: 'Valid date string' },
+            { input: null, desc: 'null value' },
+            { input: undefined, desc: 'undefined value' },
+            { input: '', desc: 'empty string' },
+            { input: 'invalid-date', desc: 'invalid date string' },
+            { input: 'Invalid Date', desc: 'Invalid Date string' },
+            { input: new Date('invalid'), desc: 'Invalid Date object' },
+        ];
+
+        const resultsDiv = document.getElementById('results');
+        
+        testCases.forEach((testCase, index) => {
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test-case';
+            
+            try {
+                const formatted = formatDate(testCase.input);
+                const dateTime = formatDateTime(testCase.input);
+                
+                testDiv.innerHTML = `
+                    <strong>Test ${index + 1}: ${testCase.desc}</strong><br>
+                    <span class="input">Input: ${JSON.stringify(testCase.input)}</span><br>
+                    <span class="success">✅ formatDate: "${formatted}"</span><br>
+                    <span class="success">✅ formatDateTime: "${dateTime}"</span>
+                `;
+            } catch (error) {
+                testDiv.innerHTML = `
+                    <strong>Test ${index + 1}: ${testCase.desc}</strong><br>
+                    <span class="input">Input: ${JSON.stringify(testCase.input)}</span><br>
+                    <span class="error">❌ Error: ${error.message}</span>
+                `;
+            }
+            
+            resultsDiv.appendChild(testDiv);
+        });
+
+        // Add summary
+        const summaryDiv = document.createElement('div');
+        summaryDiv.innerHTML = `
+            <h2>✅ All tests completed!</h2>
+            <p>The date formatting utilities should now handle invalid dates gracefully, 
+            preventing "Invalid Date" from appearing in the UI.</p>
+        `;
+        resultsDiv.appendChild(summaryDiv);
+    </script>
+</body>
+</html>

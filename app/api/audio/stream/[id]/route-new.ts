@@ -14,9 +14,10 @@ export async function GET(
     if (!params.id || params.id === 'undefined') {
       console.error('Invalid ID parameter:', params.id)
       return NextResponse.json({ error: 'Invalid file ID' }, { status: 400 })
-    }    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '') || 
-                  new URL(request.url).searchParams.get('auth') // 支持URL参数中的token
+    }
+
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
     
     if (!token) {
       return NextResponse.json({ error: 'No token provided' }, { status: 401 })
@@ -37,12 +38,14 @@ export async function GET(
     
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
-    }    const audioFile = result.rows[0]
+    }
+
+    const audioFile = result.rows[0]
     console.log('Audio file path:', audioFile.file_path)
 
     try {
       const fileBuffer = await readFile(audioFile.file_path)
-      console.log('File read successfully, size:', fileBuffer.length, 'bytes')
+      console.log('File stream starting, size:', fileBuffer.length, 'bytes')
       
       return new NextResponse(fileBuffer, {
         headers: {
@@ -50,9 +53,7 @@ export async function GET(
           'Content-Length': fileBuffer.length.toString(),
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'public, max-age=3600',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type'
+          'Access-Control-Allow-Origin': '*'
         }
       })
     } catch (error) {

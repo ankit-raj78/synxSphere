@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Play, Pause, Volume2, VolumeX, RotateCcw } from 'lucide-react'
+import { Play, Pause, Volume2, VolumeX } from 'lucide-react'
 
 interface AudioPlayerProps {
   fileId: string
@@ -37,50 +37,41 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
     } else {
       if (!audioRef.current.src) {
         setLoading(true)
-        try {
-          const token = localStorage.getItem('token')
+        try {          const token = localStorage.getItem('token')
           console.log('Fetching audio stream for fileId:', fileId)
+          
+          // Add timeout and better error handling for large files
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
           
           const response = await fetch(`/api/audio/stream/${fileId}`, {
             headers: {
               'Authorization': `Bearer ${token}`
-            }
+            },
+            signal: controller.signal
           })
-          
+            clearTimeout(timeoutId)
           console.log('Audio stream response:', response.status, response.statusText)
           console.log('Response content-type:', response.headers.get('content-type'))
           console.log('Response content-length:', response.headers.get('content-length'))
-            if (response.ok) {
-            // 对于大文件，直接使用响应URL而不是转换为Blob
-            const contentLength = parseInt(response.headers.get('content-length') || '0')
-            if (contentLength > 20 * 1024 * 1024) { // 20MB以上使用直接URL
-              console.log('Large file detected, using direct streaming')
-              
-              // 直接设置API URL，让浏览器处理流式加载
-              const directUrl = `/api/audio/stream/${fileId}?auth=${encodeURIComponent(token || '')}`
-              audioRef.current.src = directUrl
-              audioRef.current.load()
-              console.log('Audio element loaded with direct URL')
-            } else {
-              console.log('Starting blob conversion...')
-              const blob = await response.blob()
-              console.log('Blob created, size:', blob.size, 'type:', blob.type)
-              const audioUrl = URL.createObjectURL(blob)
-              console.log('Audio src set:', audioUrl.substring(0, 50) + '...')
-              
-              // Set src and load the audio
-              audioRef.current.src = audioUrl
-              audioRef.current.load()
-              console.log('Audio element loaded with blob URL')
-            }
+          
+          if (response.ok) {
+            console.log('Starting blob conversion...')
+            const blob = await response.blob()
+            console.log('Blob created, size:', blob.size, 'type:', blob.type)
+            const audioUrl = URL.createObjectURL(blob)
+            console.log('Audio src set:', audioUrl.substring(0, 50) + '...')
+            
+            // Set src and load the audio
+            audioRef.current.src = audioUrl
+            audioRef.current.load()
             
             // Wait for audio to be ready, then play
             try {
               console.log('Audio loaded, attempting to play...')
               await audioRef.current.play()
               setIsPlaying(true)
-              console.log('Audio playback started successfully')
-            } catch (playError) {
+              console.log('Audio playback started successfully')            } catch (playError) {
               console.error('Error playing audio:', playError)
               // Handle autoplay restrictions
               if ((playError as Error).name === 'NotAllowedError') {
@@ -95,8 +86,7 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
             const errorText = await response.text()
             console.error('Audio stream error:', errorText)
             setError('Failed to load audio')
-          }
-        } catch (error) {
+          }        } catch (error) {
           console.error('Error loading audio:', error)
           console.error('Error details:', {
             message: (error as Error).message,
@@ -104,7 +94,11 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
             stack: (error as Error).stack
           })
           
-          setError(`Network error: ${(error as Error).message || 'Unknown error'}`)
+          if ((error as Error).name === 'AbortError') {
+            setError('Download timeout - file too large')
+          } else {
+            setError(`Network error: ${(error as Error).message || 'Unknown error'}`)
+          }
         } finally {
           setLoading(false)
         }
@@ -114,8 +108,7 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           console.log('Audio already loaded, playing...')
           await audioRef.current.play()
           setIsPlaying(true)
-          console.log('Audio playback started successfully')
-        } catch (error) {
+          console.log('Audio playback started successfully')        } catch (error) {
           console.error('Error playing audio:', error)
           // Handle autoplay restrictions
           if ((error as Error).name === 'NotAllowedError') {
@@ -128,25 +121,13 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
       }
     }
   }
+
   const toggleMute = () => {
     if (audioRef.current) {
       audioRef.current.muted = !isMuted
       setIsMuted(!isMuted)
     }
   }
-
-  const restartAudio = () => {
-    if (audioRef.current && audioRef.current.src) {
-      audioRef.current.currentTime = 0
-      setCurrentTime(0)
-      if (!isPlaying) {
-        audioRef.current.play()
-        setIsPlaying(true)
-      }
-      console.log('Audio restarted from beginning')
-    }
-  }
-
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime)
@@ -165,7 +146,6 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
     setCurrentTime(0)
     console.log('Audio playback ended')
   }
-
   const handleError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     console.error('Audio error event:', e)
     setLoading(false)
@@ -200,7 +180,6 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
     audioRef.current.currentTime = newTime
     setCurrentTime(newTime)
   }
-
   return (
     <div className={`flex items-center space-x-2 ${className}`}>
       <audio
@@ -244,22 +223,14 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
               style={{ width: `${(currentTime / duration) * 100}%` }}
             />
           </div>
-            <span className="text-xs text-gray-400 min-w-[40px]">
+          
+          <span className="text-xs text-gray-400 min-w-[40px]">
             {formatTime(currentTime)}
           </span>
           
           <button
-            onClick={restartAudio}
-            className="text-gray-400 hover:text-white"
-            title="从头播放"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-          
-          <button
             onClick={toggleMute}
             className="text-gray-400 hover:text-white"
-            title={isMuted ? "取消静音" : "静音"}
           >
             {isMuted ? (
               <VolumeX className="w-4 h-4" />
