@@ -1,18 +1,20 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { ObjectId } from 'mongodb'
-import { getDatabase } from './mongodb'
+import DatabaseManager from './database'
 
 export interface User {
-  _id?: ObjectId
+  id: string
   email: string
   username: string
-  password?: string
+  password_hash?: string
   profile: {
-    instruments: string[]
-    genres: string[]
-    experience: string
-    collaborationGoals: string[]
+    role?: 'user' | 'admin' | 'moderator'
+    bio?: string
+    avatar?: string
+    instruments?: string[]
+    genres?: string[]
+    experience?: string
+    collaborationGoals?: string[]
     musicalAnalysis?: {
       preferredTempo: number[]
       harmonicComplexity: number
@@ -20,14 +22,14 @@ export interface User {
       createdAt: Date
     }
   }
-  createdAt: Date
-  updatedAt: Date
+  created_at: Date
+  updated_at: Date
 }
 
 export interface AuthResult {
   success: boolean
   message: string
-  user?: Omit<User, 'password'>
+  user?: Omit<User, 'password_hash'>
   token?: string
 }
 
@@ -41,140 +43,118 @@ export async function verifyPassword(password: string, hashedPassword: string): 
   return bcrypt.compare(password, hashedPassword)
 }
 
-export function generateToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' })
+export function generateToken(userId: string, email: string, created_at: Date): string {
+  return jwt.sign({ 
+    id: userId, 
+    email,
+    created_at: created_at.toISOString()
+  }, JWT_SECRET, { expiresIn: '7d' })
 }
 
-export function verifyToken(token: string): { userId: string } | null {
+export function verifyToken(token: string): { id: string; email: string; created_at: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: string }
+    return jwt.verify(token, JWT_SECRET) as { id: string; email: string; created_at: string }
   } catch {
     return null
   }
 }
 
-export async function registerUser(userData: {
-  email: string
-  username: string
-  password: string
-  instruments: string[]
-  genres: string[]
-  experience: string
-  collaborationGoals: string[]
-}): Promise<AuthResult> {
+export async function registerUser(email: string, username: string, password: string): Promise<User> {
+  // Hash the password
+  const hashedPassword = await bcrypt.hash(password, 10)
+  
+  // Create user profile
+  const profile = {
+    role: 'user' as const,
+    bio: '',
+    avatar: ''
+  }
+
   try {
-    const db = await getDatabase()
-    const users = db.collection('users')
+    // Use PostgreSQL instead of MongoDB
+    const result = await DatabaseManager.executeQuery(
+      `INSERT INTO users (id, email, username, password_hash, profile, created_at, updated_at) 
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW()) 
+       RETURNING id, email, username, profile, created_at, updated_at`,
+      [email, username, hashedPassword, JSON.stringify(profile)]
+    )
 
-    // Check if user already exists
-    const existingUser = await users.findOne({
-      $or: [{ email: userData.email }, { username: userData.username }]
-    })
-
-    if (existingUser) {
-      return {
-        success: false,
-        message: 'User with this email or username already exists'
-      }
+    if (result.rows.length === 0) {
+      throw new Error('Failed to create user')
     }
 
-    // Hash password
-    const hashedPassword = await hashPassword(userData.password)
-
-    // Create user
-    const user: User = {
-      email: userData.email,
-      username: userData.username,
-      password: hashedPassword,
-      profile: {
-        instruments: userData.instruments,
-        genres: userData.genres,
-        experience: userData.experience,
-        collaborationGoals: userData.collaborationGoals
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-
-    const result = await users.insertOne(user)
-    const token = generateToken(result.insertedId.toString())
-
-    // Remove password from response
-    const { password, ...userWithoutPassword } = user
-    
+    const user = result.rows[0]
     return {
-      success: true,
-      message: 'User registered successfully',
-      user: { ...userWithoutPassword, _id: result.insertedId },
-      token
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      profile: typeof user.profile === 'string' ? JSON.parse(user.profile) : user.profile,
+      created_at: user.created_at,
+      updated_at: user.updated_at
     }
   } catch (error) {
     console.error('Registration error:', error)
-    return {
-      success: false,
-      message: 'Registration failed. Please try again.'
-    }
+    throw new Error('Registration failed')
   }
 }
 
-export async function loginUser(email: string, password: string): Promise<AuthResult> {
+export async function loginUser(email: string, password: string): Promise<{ user: User; token: string } | null> {
   try {
-    const db = await getDatabase()
-    const users = db.collection('users')
+    const result = await DatabaseManager.executeQuery(
+      'SELECT id, email, username, password_hash, profile, created_at, updated_at FROM users WHERE email = $1',
+      [email]
+    )
 
-    // Find user
-    const user = await users.findOne({ email }) as User | null
-
-    if (!user || !user.password) {
-      return {
-        success: false,
-        message: 'Invalid email or password'
-      }
+    if (result.rows.length === 0) {
+      return null
     }
 
-    // Verify password
-    const isValidPassword = await verifyPassword(password, user.password)
+    const user = result.rows[0]
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash)
 
-    if (!isValidPassword) {
-      return {
-        success: false,
-        message: 'Invalid email or password'
-      }
+    if (!isPasswordValid) {
+      return null
     }
 
-    // Generate token
-    const token = generateToken(user._id!.toString())
-
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user
+    const token = generateToken(user.id, user.email, user.created_at)
 
     return {
-      success: true,
-      message: 'Login successful',
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        profile: typeof user.profile === 'string' ? JSON.parse(user.profile) : user.profile,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      },
       token
     }
   } catch (error) {
     console.error('Login error:', error)
-    return {
-      success: false,
-      message: 'Login failed. Please try again.'
-    }
+    throw new Error('Login failed')
   }
 }
 
-export async function getUserById(userId: string): Promise<User | null> {
+export async function getUserById(id: string): Promise<User | null> {
   try {
-    const db = await getDatabase()
-    const users = db.collection('users')
-    
-    const user = await users.findOne({ _id: new ObjectId(userId) }) as User | null
-    if (user && user.password) {
-      const { password, ...userWithoutPassword } = user
-      return userWithoutPassword as User
+    const result = await DatabaseManager.executeQuery(
+      'SELECT id, email, username, profile, created_at, updated_at FROM users WHERE id = $1',
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return null
     }
-    
-    return user
+
+    const user = result.rows[0]
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      profile: typeof user.profile === 'string' ? JSON.parse(user.profile) : user.profile,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    }
   } catch (error) {
     console.error('Get user error:', error)
     return null

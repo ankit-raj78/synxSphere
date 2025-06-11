@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
@@ -20,7 +20,7 @@ import sessionRoutes from './routes/sessionRoutes';
 // Load environment variables
 dotenv.config();
 
-const app = express();
+const app: Express = express();
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
@@ -73,12 +73,12 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Body parsing middleware
-app.use(compression());
+app.use(compression() as unknown as express.RequestHandler);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   logger.info(`${req.method} ${req.path}`, {
     ip: req.ip,
     userAgent: req.get('User-Agent'),
@@ -88,7 +88,7 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     service: 'session-service',

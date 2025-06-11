@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { body, param, query, validationResult } from 'express-validator';
+
+const { body, param, query, validationResult } = require('express-validator');
 
 export const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);

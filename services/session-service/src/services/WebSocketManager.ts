@@ -570,14 +570,13 @@ export class WebSocketManager {
       logger.error('Failed to publish user offline event', { error });
     });
   }
-
   private startPeriodicCleanup(): void {
     // Clean up inactive clients every 5 minutes
     setInterval(() => {
       const now = new Date();
       const inactiveThreshold = 30 * 60 * 1000; // 30 minutes
 
-      for (const [socketId, client] of this.connectedClients.entries()) {
+      Array.from(this.connectedClients.entries()).forEach(([socketId, client]) => {
         if (now.getTime() - client.lastActivity.getTime() > inactiveThreshold) {
           logger.info('Cleaning up inactive client', {
             socketId,
@@ -593,7 +592,7 @@ export class WebSocketManager {
             this.connectedClients.delete(socketId);
           }
         }
-      }
+      });
     }, 5 * 60 * 1000); // Run every 5 minutes
   }
 

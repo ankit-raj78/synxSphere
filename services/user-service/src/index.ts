@@ -28,7 +28,6 @@ class UserService {
     this.setupRoutes();
     this.setupErrorHandling();
   }
-
   private loadConfig(): ServiceConfig {
     return {
       port: parseInt(process.env.USER_SERVICE_PORT || '3001'),
@@ -37,6 +36,11 @@ class UserService {
       environment: (process.env.NODE_ENV as 'development' | 'staging' | 'production') || 'development',
       corsOrigin: process.env.CORS_ORIGIN || '*',
       jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
+      requestLimit: '10mb', // Match the express.json limit
+      rateLimit: {
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100 // 100 requests per windowMs
+      },
       database: {
         postgres: {
           host: process.env.POSTGRES_HOST || 'localhost',
@@ -67,16 +71,14 @@ class UserService {
 
   private setupMiddleware(): void {
     // Security middleware
-    this.app.use(helmet());
-
-    // CORS
+    this.app.use(helmet());    // CORS
     this.app.use(cors({
       origin: this.config.corsOrigin,
       credentials: true
     }));
 
     // Compression
-    this.app.use(compression());
+    this.app.use(compression() as any);
 
     // Rate limiting
     const limiter = rateLimit({

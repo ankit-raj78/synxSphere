@@ -426,6 +426,8 @@ export interface MLModelPrediction {
 
 // Service configuration
 export interface ServiceConfig {
+  requestLimit: string;
+  rateLimit: any;
   port: number;
   name: string;
   version: string;

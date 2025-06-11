@@ -1,5 +1,5 @@
 import { Matrix } from 'ml-matrix';
-import { KMeans } from 'ml-kmeans';
+import { kmeans } from 'ml-kmeans';
 import { 
   User, 
   UserProfile, 
@@ -68,22 +68,19 @@ export class MLRecommendationEngine {
       const userFeatures = users.map(user => {
         const audioFeatures = audioFeaturesMap.get(user.id);
         return this.extractUserFeatures(user, audioFeatures);
-      });
-
-      const dataMatrix = new Matrix(userFeatures);
+      });      const dataMatrix = new Matrix(userFeatures);
       const k = Math.min(Math.max(Math.floor(users.length / 10), 3), 10); // 3-10 clusters
       
-      const kmeans = new KMeans(dataMatrix, k, {
-        initialization: 'kmeans++',
+      const result = kmeans(userFeatures, k, {
         maxIterations: 100
       });
 
       // Store cluster assignments
       users.forEach((user, index) => {
-        this.userClusters.set(user.id, kmeans.clusters[index]);
+        this.userClusters.set(user.id, result.clusters[index]);
       });
 
-      this.clusterCenters = kmeans.centroids.to2DArray();
+      this.clusterCenters = result.centroids;
       
       logger.info(`Successfully created ${k} user clusters`);
     } catch (error) {
@@ -213,15 +210,21 @@ export class MLRecommendationEngine {
       .map(item => item.room);
   }
 
-  private calculateGenreAlignment(profile1: UserProfile, profile2: UserProfile): number {
-    const genres1 = new Set(profile1.musicalPreferences?.genres || []);
-    const genres2 = new Set(profile2.musicalPreferences?.genres || []);
-    
-    const intersection = Array.from(genres1).filter(x => genres2.has(x)).length;
-    const union = new Set([...genres1, ...genres2]).size;
-    
-    return union > 0 ? intersection / union : 0;
-  }
+private calculateGenreAlignment(profile1: UserProfile, profile2: UserProfile): number {
+  const genres1 = new Set(profile1.musicalPreferences?.genres || []);
+  const genres2 = new Set(profile2.musicalPreferences?.genres || []);
+
+  // intersection stays the same
+  const intersection = Array.from(genres1).filter(x => genres2.has(x)).length;
+
+  // build the union without spread
+  const unionSet = new Set<string>();
+  genres1.forEach(g => unionSet.add(g));
+  genres2.forEach(g => unionSet.add(g));
+  const union = unionSet.size;
+
+  return union > 0 ? intersection / union : 0;
+}
 
   private calculateInstrumentCompatibility(profile1: UserProfile, profile2: UserProfile): number {
     const instruments1 = new Set(profile1.musicalPreferences?.instruments || []);

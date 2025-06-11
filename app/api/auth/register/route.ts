@@ -1,39 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { registerUser } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, username, password, instruments, genres, experience, collaborationGoals } = body
+    const { email, username, password } = body
 
     // Validate required fields
     if (!email || !username || !password) {
       return NextResponse.json(
-        { success: false, message: 'Missing required fields' },
+        { error: 'Email, username, and password are required' },
         { status: 400 }
       )
     }
 
-    // Register user
-    const result = await registerUser({
-      email,
-      username,
-      password,
-      instruments: instruments || [],
-      genres: genres || [],
-      experience: experience || '',
-      collaborationGoals: collaborationGoals || []
-    })
+    // Register user using PostgreSQL
+    const user = await registerUser(email, username, password)
 
-    if (result.success) {
-      return NextResponse.json(result, { status: 201 })
-    } else {
-      return NextResponse.json(result, { status: 400 })
-    }
+    return NextResponse.json({
+      message: 'User registered successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        profile: user.profile
+      }
+    }, { status: 201 })
+
   } catch (error) {
-    console.error('Registration API error:', error)
+    console.error('Registration error:', error)
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { error: 'Registration failed' },
       { status: 500 }
     )
   }

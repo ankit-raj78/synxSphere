@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
-import { body, param } from 'express-validator';
+const { body, param } = require('express-validator');
 import ProfileController from '../controllers/ProfileController';
 import { verifyToken } from '../middleware/authWrapper';
 

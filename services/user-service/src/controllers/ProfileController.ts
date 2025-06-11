@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { validationResult } from 'express-validator';
+const { validationResult } = require('express-validator');
 import DatabaseManager from '../../../shared/config/database';
 import { User, MusicalPreferences } from '../../../shared/types';
 import { createError } from '../middleware/errorHandler';
@@ -301,11 +301,11 @@ class ProfileController {
 
   private calculateArraySimilarity(arr1: string[], arr2: string[]): number {
     if (!arr1.length || !arr2.length) return 0;
-    
-    const intersection = arr1.filter(item => arr2.includes(item));
-    const union = [...new Set([...arr1, ...arr2])];
-    
-    return intersection.length / union.length;
+      const intersection = arr1.filter(item => arr2.includes(item));
+    const uniqueItems = new Set([...arr1, ...arr2]);
+    const unionSize = uniqueItems.size;
+
+    return intersection.length / unionSize;
   }
 
   private calculateExperienceCompatibility(exp1: string, exp2: string): number {

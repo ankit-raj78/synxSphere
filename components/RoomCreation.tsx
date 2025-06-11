@@ -61,17 +61,16 @@ export default function RoomCreation({ onRoomCreated }: RoomCreationProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Authorization': `Bearer ${token}`        },
         body: JSON.stringify(formData)
       })
 
       if (response.ok) {
         const room = await response.json()
         if (onRoomCreated) {
-          onRoomCreated(room._id)
+          onRoomCreated(room.id)
         } else {
-          router.push(`/room/${room._id}`)
+          router.push(`/room/${room.id}`)
         }
       } else {
         const error = await response.json()

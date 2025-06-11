@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import DatabaseManager from '@/lib/database'
 import { verifyToken } from '@/lib/auth'
 import { analyzeAudioFeatures } from '@/lib/audio-analysis'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { ObjectId } from 'mongodb'
+import { v4 as uuidv4 } from 'uuid'
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,17 +17,15 @@ export async function POST(request: NextRequest) {
 
     const user = await verifyToken(token)
     if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-    }
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })    }
 
     const formData = await request.formData()
     const files = formData.getAll('audio') as File[]
-
+    
     if (files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
     const uploadedFiles = []
 
     // Create uploads directory if it doesn't exist
@@ -41,66 +39,107 @@ export async function POST(request: NextRequest) {
     for (const file of files) {
       if (file.size > 50 * 1024 * 1024) { // 50MB limit
         continue // Skip files that are too large
-      }
-
-      // Generate unique filename
+      }      // Generate unique filename
       const timestamp = Date.now()
       const randomString = Math.random().toString(36).substring(7)
-      const filename = `${timestamp}_${randomString}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      const filepath = join(uploadsDir, filename)
-
-      // Save file to disk
+      const safeName = (file.name || 'unknown-file').replace(/[^a-zA-Z0-9.-]/g, '_')
+      const filename = `${timestamp}_${randomString}_${safeName}`
+      const filepath = join(uploadsDir, filename)// Save file to disk
       const bytes = await file.arrayBuffer()
-      await writeFile(filepath, Buffer.from(bytes))
-
-      // Create database record
+      await writeFile(filepath, Buffer.from(bytes))      // Create database record
+      const audioFileId = uuidv4()
       const audioFile = {
+        id: audioFileId,
         filename,
-        originalName: file.name,
-        filepath,
-        fileSize: file.size,
-        mimeType: file.type,
-        userId: user.userId,
-        uploadedAt: new Date(),
-        analysisStatus: 'pending' as const,
-        audioFeatures: null
+        original_name: file.name || 'unknown-file',
+        file_path: filepath,
+        file_size: file.size || 0,
+        mime_type: file.type || 'application/octet-stream',
+        user_id: user.id,
+        created_at: new Date(),
+        updated_at: new Date(),
+        is_processed: false
       }
 
-      const result = await db.collection('audioFiles').insertOne(audioFile)
-      
-      uploadedFiles.push({
-        _id: result.insertedId,
-        ...audioFile
-      })
+      const insertQuery = `
+        INSERT INTO audio_files (
+          id, user_id, filename, original_name, file_path, file_size, 
+          mime_type, is_processed, created_at, updated_at
+        ) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
+      `
 
-      // Start audio analysis in the background
-      // Note: In a real application, this would be handled by a background job queue
-      setTimeout(async () => {
-        try {
-          await db.collection('audioFiles').updateOne(
-            { _id: result.insertedId },
-            { $set: { analysisStatus: 'processing' } }
-          )
+      const insertValues = [
+        audioFile.id,
+        audioFile.user_id,
+        audioFile.filename,
+        audioFile.original_name,
+        audioFile.file_path,
+        audioFile.file_size,
+        audioFile.mime_type,
+        audioFile.is_processed,
+        audioFile.created_at,
+        audioFile.updated_at
+      ]
 
-          const features = await analyzeAudioFeatures(filepath)
-          
-          await db.collection('audioFiles').updateOne(
-            { _id: result.insertedId },
-            { 
-              $set: { 
-                analysisStatus: 'completed',
-                audioFeatures: features
+      try {
+        const result = await DatabaseManager.executeQuery(insertQuery, insertValues)
+        uploadedFiles.push(result.rows[0])
+
+        // Start audio analysis in the background
+        setTimeout(async () => {
+          try {
+            const features = await analyzeAudioFeatures(filepath)
+            
+            // Update analysis status
+            const updateQuery = `
+              UPDATE audio_files 
+              SET is_processed = true, updated_at = NOW()
+              WHERE id = $1
+            `
+            await DatabaseManager.executeQuery(updateQuery, [audioFileId])              // Store analysis results if available
+              if (features) {
+                const analysisQuery = `
+                  INSERT INTO audio_analysis (
+                    id, file_id, duration, tempo, key_signature, created_at, updated_at
+                  ) 
+                  VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+                  ON CONFLICT (file_id) DO UPDATE SET
+                    duration = $3, tempo = $4, key_signature = $5, updated_at = NOW()
+                `
+                
+                await DatabaseManager.executeQuery(analysisQuery, [
+                  uuidv4(),
+                  audioFileId,
+                  features.duration || 0,
+                  features.tempo || 120,
+                  features.key || 'C'
+                ])
               }
-            }
-          )
-        } catch (error) {
-          console.error('Error analyzing audio:', error)
-          await db.collection('audioFiles').updateOne(
-            { _id: result.insertedId },
-            { $set: { analysisStatus: 'failed' } }
-          )
-        }
-      }, 1000)
+          } catch (error) {
+            console.error('Error analyzing audio:', error)
+            // Mark as failed
+            const failQuery = `
+              UPDATE audio_files 
+              SET is_processed = false, updated_at = NOW()
+              WHERE id = $1
+            `
+            await DatabaseManager.executeQuery(failQuery, [audioFileId])
+          }
+        }, 1000)
+      } catch (dbError) {        console.error('Database error:', dbError)
+        // Fallback response
+        uploadedFiles.push({
+          id: audioFileId,
+          filename,
+          original_name: file.name || 'unknown-file',
+          file_path: filepath,
+          file_size: file.size || 0,
+          mime_type: file.type || 'application/octet-stream',
+          user_id: user.id
+        })
+      }
     }
 
     return NextResponse.json(uploadedFiles, { status: 201 })

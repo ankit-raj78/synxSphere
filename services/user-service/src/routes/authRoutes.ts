@@ -1,5 +1,5 @@
 import express, { Request, RequestHandler, Response } from 'express';
-import { body } from 'express-validator';
+const { body } = require('express-validator');
 import AuthController from '../controllers/AuthController';
 import { verifyToken } from '../middleware/authWrapper';
 
