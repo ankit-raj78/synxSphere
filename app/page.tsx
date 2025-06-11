@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Music, Users, Brain, Activity, Play, Upload, Headphones, Zap } from 'lucide-react'
 import Link from 'next/link'
 
 export default function HomePage() {
+  const router = useRouter()
   const [currentDemo, setCurrentDemo] = useState(0)
   
   const demoFeatures = [
@@ -32,8 +34,18 @@ export default function HomePage() {
       description: "Combine individual tracks into professional collaborative compositions",
       icon: Zap,
       color: "from-red-500 to-orange-600"
+    }  ]
+
+  // Check if user is already logged in and redirect to dashboard
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    const userData = localStorage.getItem('user')
+    
+    if (token && userData) {
+      // User is already logged in, redirect to dashboard
+      router.push('/dashboard')
     }
-  ]
+  }, [router])
 
   useEffect(() => {
     const interval = setInterval(() => {

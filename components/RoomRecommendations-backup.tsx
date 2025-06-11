@@ -37,7 +37,6 @@ interface RoomRecommendation {
     experienceLevel: number
   }
   explanation: string[]
-  membershipStatus?: string
 }
 
 interface RoomRecommendationsProps {
@@ -93,12 +92,12 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
           
           // 获取当前用户ID
           const currentUserId = JSON.parse(atob(token.split('.')[1])).id
-          
-          // Convert API rooms to recommendation format
+            // Convert API rooms to recommendation format
           const roomRecommendations: RoomRecommendation[] = rooms.map((room: any) => {
             // Get membership status from userRoomData
             const membershipStatus = userRoomData?.membership_map?.[room.id] || 'none'
             const isOwnRoom = membershipStatus === 'creator'
+            const isMember = membershipStatus === 'member'
             
             return {
               room: {
@@ -194,12 +193,10 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
     // Method to manually refresh room recommendations
     const refreshRooms = async () => {
       await loadRecommendations()
-    }
-
-    // Expose refresh method to parent components
+    }    // Expose refresh method to parent components
     useImperativeHandle(ref, () => ({
       refreshRooms
-    }))
+    }));
 
     useEffect(() => {
       loadRecommendations()
@@ -212,7 +209,7 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
         
         // Check room membership status
         const room = recommendations.find(rec => rec.room._id === roomId)
-        const membershipStatus = room?.membershipStatus || 'none'
+        const membershipStatus = (room as any)?.membershipStatus || 'none'
         
         if (membershipStatus === 'creator' || membershipStatus === 'member') {
           // User is already a member or creator, enter room directly
@@ -381,9 +378,7 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                         <span className="text-gray-400">{Math.round(score * 100)}%</span>
                       </div>
                     ))}
-                  </div>
-
-                  {/* Action Button */}
+                  </div>                  {/* Action Button */}
                   <button
                     onClick={() => joinRoom(rec.room._id!)}
                     disabled={joining === rec.room._id}
@@ -393,7 +388,7 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                       <>
                         <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
                         <span>
-                          {rec.membershipStatus === 'creator' || rec.membershipStatus === 'member' 
+                          {(rec as any).membershipStatus === 'creator' || (rec as any).membershipStatus === 'member' 
                             ? 'Entering...' 
                             : 'Joining...'}
                         </span>
@@ -401,9 +396,9 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                     ) : (
                       <>
                         <span>
-                          {rec.membershipStatus === 'creator' 
+                          {(rec as any).membershipStatus === 'creator' 
                             ? 'Enter Room' 
-                            : rec.membershipStatus === 'member'
+                            : (rec as any).membershipStatus === 'member'
                             ? 'Enter Room'
                             : 'Join Collaboration'}
                         </span>
