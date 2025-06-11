@@ -79,7 +79,6 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     loadRoomData()
@@ -172,57 +171,9 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     }
   }
 
-  const handleExportMix = async () => {
-    if (tracks.length === 0) {
-      alert('No tracks available to mix. Please upload some audio files first.')
-      return
-    }
-
-    if (tracks.length === 1) {
-      alert('Please upload at least 2 tracks to create a mix.')
-      return
-    }
-
-    try {
-      setIsExporting(true)
-      const token = localStorage.getItem('token')
-      
-      // Call the audio composition API
-      const response = await fetch('/api/audio/compose', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          trackIds: tracks.map(track => track.id),
-          roomId: roomId,
-          settings: {
-            format: 'mp3',
-            bitrate: '192k',
-            sampleRate: 44100,
-            masterVolume: 1.0,
-            fadeIn: 0,
-            fadeOut: 2
-          }
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        alert(`Mix created successfully! File: ${data.outputFile}`)
-        // Reload tracks to show the new composition
-        await loadTracks()
-      } else {
-        throw new Error(data.error || 'Mix creation failed')
-      }
-    } catch (error) {
-      console.error('Error exporting mix:', error)
-      alert(`Failed to create mix: ${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      setIsExporting(false)
-    }
+  const handleExportMix = () => {
+    // Implementation for exporting the mix
+    console.log('Exporting mix...')
   }
 
   const handleToggleRecording = () => {
@@ -380,7 +331,6 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               onExportMix={handleExportMix}
               isRecording={isRecording}
               onToggleRecording={handleToggleRecording}
-              isExporting={isExporting}
             />
           )}
 
@@ -520,12 +470,10 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       {/* File Upload Modal */}
       {showUploadModal && (
         <FileUploadModal
-          isOpen={showUploadModal}
           onUpload={handleFileUpload}
           onClose={() => setShowUploadModal(false)}
-          roomId={roomId}
-          maxFiles={10}
-          acceptedFormats={['.wav', '.mp3', '.flac', '.aac', '.m4a', '.ogg']}
+          accept="audio/*"
+          multiple={true}
         />
       )}
     </div>
