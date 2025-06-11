@@ -14,8 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    try {
-      // Try to fetch rooms from PostgreSQL
+    try {      // Try to fetch rooms from PostgreSQL
       const query = `
         SELECT 
           r.id,
@@ -24,29 +23,44 @@ export async function GET(request: NextRequest) {
           r.genre,
           r.is_live,
           r.created_at,
+          r.creator_id,
+          r.settings,
           u.username as creator_username,
           u.email as creator_email,
-          COUNT(rp.user_id) as participant_count
+          COUNT(DISTINCT rp.user_id) as participant_count
         FROM rooms r
         LEFT JOIN users u ON r.creator_id = u.id
         LEFT JOIN room_participants rp ON r.id = rp.room_id
-        GROUP BY r.id, u.username, u.email
+        WHERE r.name NOT ILIKE '%test%'
+        GROUP BY r.id, u.username, u.email, r.creator_id, r.settings
         ORDER BY r.created_at DESC
       `
 
       const result = await DatabaseManager.executeQuery(query)
       
-      const rooms = result.rows.map((row: any) => ({
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        genre: row.genre,
-        participantCount: parseInt(row.participant_count) || 0,
-        maxParticipants: 10,
-        isLive: row.is_live,
-        creator: row.creator_username || row.creator_email?.split('@')[0] || 'Unknown',
-        createdAt: row.created_at
-      }))
+      const rooms = result.rows.map((row: any) => {
+        let settings = { maxParticipants: 10 }
+        try {
+          if (row.settings) {
+            settings = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+          }
+        } catch (e) {
+          console.log('Error parsing room settings:', e)
+        }
+        
+        return {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          genre: row.genre,
+          participantCount: parseInt(row.participant_count) || 0,
+          maxParticipants: settings.maxParticipants || 10,
+          isLive: row.is_live,
+          creator: row.creator_username || row.creator_email?.split('@')[0] || 'Unknown',
+          creatorId: row.creator_id,
+          createdAt: row.created_at
+        }
+      })
 
       return NextResponse.json(rooms)
     } catch (dbError) {

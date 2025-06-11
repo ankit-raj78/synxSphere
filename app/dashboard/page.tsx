@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Music, Upload, Users, Brain, Activity, Play, Settings, 
   Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import RoomRecommendations from '../../components/RoomRecommendations'
+import RoomRecommendations, { RoomRecommendationsRef } from '../../components/RoomRecommendations'
 import FileUpload from '../../components/FileUpload'
 import AudioPlayer from '../../components/AudioPlayer'
 import RoomCreation from '../../components/RoomCreation'
@@ -42,6 +42,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const roomRecommendationsRef = useRef<RoomRecommendationsRef>(null)
 
   useEffect(() => {
     // Check authentication
@@ -116,7 +118,18 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Upload error:', error)
+    }  }
+
+  const handleRoomCreated = async (roomId: string) => {
+    console.log('Room created successfully:', roomId)
+    // Trigger refresh of room recommendations
+    setRefreshTrigger(prev => prev + 1)
+    // Also manually refresh using ref if available
+    if (roomRecommendationsRef.current) {
+      await roomRecommendationsRef.current.refreshRooms()
     }
+    // Navigate to the new room
+    router.push(`/room/${roomId}`)
   }
 
   const handleLogout = () => {
@@ -291,14 +304,16 @@ export default function DashboardPage() {
               </p>
               <FileUpload onFilesUploaded={handleFileUpload} />
             </div>
-          )}
-
-          {activeTab === 'rooms' && (
-            <RoomRecommendations userId={user?._id || ''} />
+          )}          {activeTab === 'rooms' && (
+            <RoomRecommendations 
+              ref={roomRecommendationsRef}
+              userId={user?._id || ''} 
+              refreshTrigger={refreshTrigger}
+            />
           )}
 
           {activeTab === 'create-room' && (
-            <RoomCreation />
+            <RoomCreation onRoomCreated={handleRoomCreated} />
           )}
 
           {activeTab === 'analysis' && (

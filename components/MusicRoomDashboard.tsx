@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
   Music, Users, Clock, Play, Pause, Volume2, Share2, 
   MoreHorizontal, Heart, MessageCircle, UserPlus,
-  Mic, Headphones, Radio, Settings, Crown, Upload, Layers, Trash2
+  Mic, Headphones, Radio, Settings, Crown, Upload, Layers, Trash2, ArrowLeft, Bell, X
 } from 'lucide-react'
 import FileUpload from './FileUpload'
 import { formatDateTime } from '../lib/date-utils'
@@ -49,13 +50,17 @@ interface MusicRoomDashboardProps {
 }
 
 export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboardProps) {
+  const router = useRouter()
   const [room, setRoom] = useState<MusicRoom | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showComposeModal, setShowComposeModal] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showJoinRequestsModal, setShowJoinRequestsModal] = useState(false)
+  const [joinRequests, setJoinRequests] = useState<any[]>([])
   const [uploadedTracks, setUploadedTracks] = useState<any[]>([])
-  const [compositions, setCompositions] = useState<any[]>([])
+  const [compositions, setCompositions] = useState<any[]>([]);
   const [selectedTracks, setSelectedTracks] = useState<string[]>([])
   const [isComposing, setIsComposing] = useState(false)
   const [currentPlayingTrack, setCurrentPlayingTrack] = useState<string | null>(null)
@@ -63,6 +68,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
   const [audioProgress, setAudioProgress] = useState(0)
   const [audioDuration, setAudioDuration] = useState(0)
+  const [previousRequestCount, setPreviousRequestCount] = useState(0)
 
   // Fetch room data and tracks
   useEffect(() => {
@@ -70,6 +76,87 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     fetchUploadedTracks()
     fetchCompositions()
   }, [roomId])
+
+  // Poll for join requests if user is room creator
+  useEffect(() => {
+    if (!room || !isRoomCreator()) return
+    
+    // Request notification permission
+    if (Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+    
+    // Initial fetch
+    fetchJoinRequests()
+    
+    // Set up polling
+    const interval = setInterval(() => {
+      fetchJoinRequests()
+    }, 5000) // Poll every 5 seconds
+
+    return () => clearInterval(interval)
+  }, [room, roomId]) // Depend on room being loaded
+
+  const fetchJoinRequests = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/rooms/${roomId}/join`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const requests = data.requests || []
+        console.log('Join requests fetched:', requests.length, 'requests')
+        
+        // Check for new requests and show notification
+        if (requests.length > previousRequestCount && previousRequestCount > 0) {
+          // New request(s) received
+          const newRequestCount = requests.length - previousRequestCount
+          
+          // Show browser notification
+          if (Notification.permission === 'granted') {
+            new Notification(`${newRequestCount} new join request${newRequestCount > 1 ? 's' : ''}`, {
+              body: 'Users want to join your collaboration room',
+              icon: '/favicon.ico'
+            })
+          }
+            // Play notification sound
+          try {
+            // Create a simple beep sound using Web Audio API
+            const context = new AudioContext()
+            const oscillator = context.createOscillator()
+            const gainNode = context.createGain()
+            
+            oscillator.connect(gainNode)
+            gainNode.connect(context.destination)
+            
+            // Create a pleasant notification sound (C major chord)
+            oscillator.frequency.setValueAtTime(523, context.currentTime) // C5
+            oscillator.frequency.setValueAtTime(659, context.currentTime + 0.1) // E5
+            oscillator.frequency.setValueAtTime(784, context.currentTime + 0.2) // G5
+            
+            gainNode.gain.setValueAtTime(0.1, context.currentTime)
+            gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.8)
+            
+            oscillator.start(context.currentTime)
+            oscillator.stop(context.currentTime + 0.8)
+          } catch (error) {
+            console.log('Could not play notification sound:', error)
+          }
+        }
+        
+        setPreviousRequestCount(requests.length)
+        setJoinRequests(requests)
+      } else {
+        console.log('Failed to fetch join requests:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching join requests:', error)
+    }
+  }
 
   const fetchRoomData = async () => {
     try {
@@ -140,16 +227,15 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     if (selectedTracks.length < 2) {
       alert('Please select at least 2 tracks to compose')
       return
-    }
-
-    setIsComposing(true)
+    }    setIsComposing(true)
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/audio/compose', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`        },
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           trackIds: selectedTracks,
           roomId: roomId,
@@ -168,33 +254,43 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
         await fetchCompositions()
         alert(`Composition successful! File saved as: ${result.outputFile}`)
         setSelectedTracks([])
-        setShowComposeModal(false)
-      } else {
-        const error = await response.json()
+        setShowComposeModal(false)      } else {
+        const error = await response.json();
         alert(`Composition failed: ${error.error}`)
-      }    } catch (error) {
+      }
+    } catch (error) {
       console.error('Error composing tracks:', error)
-      alert('Composition failed')
-    } finally {
+      alert('Composition failed')    } finally {
       setIsComposing(false)
     }
-  }
+  };
 
   const toggleTrackSelection = (trackId: string) => {
-    setSelectedTracks(prev => 
+    setSelectedTracks((prev: string[]) => 
       prev.includes(trackId) 
-        ? prev.filter(id => id !== trackId)
+        ? prev.filter((id: string) => id !== trackId)
         : [...prev, trackId]
     )
   }
-  const handleDeleteTrack = async (trackId: string) => {
-    if (!confirm('确定要删除此音频文件吗？此操作无法撤销。')) {
+
+  // Check if current user is the room creator
+  const isRoomCreator = () => {
+    if (!room) return false
+      // Check if current user is the creator via participants role
+    const isCreator = room.participants.some(p => p.id === userId && p.role === 'creator');
+    console.log('Checking if user is room creator:', { userId, isCreator, participants: room.participants })
+    return isCreator
+  }
+
+  // Delete room function
+  const handleDeleteRoom = async () => {
+    if (!confirm('Are you sure you want to delete this room? This action cannot be undone and all participants will be removed.')) {
       return
     }
 
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`/api/audio/delete?id=${trackId}`, {
+      const response = await fetch(`/api/rooms/${roomId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -202,16 +298,70 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       })
 
       if (response.ok) {
-        // 刷新音频文件列表
-        await fetchUploadedTracks()
-        alert('文件删除成功！')
+        alert('Room deleted successfully')
+        // Redirect to dashboard
+        router.push('/dashboard')
       } else {
         const error = await response.json()
-        alert(`删除失败: ${error.error}`)
+        alert(`Failed to delete room: ${error.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error deleting room:', error)
+      alert('Error occurred while deleting room')
+    }
+  }
+
+  // Handle join request approval/rejection
+  const handleJoinRequest = async (requestId: string, action: 'approve' | 'reject') => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/rooms/${roomId}/join/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },        body: JSON.stringify({ action })
+      })
+
+      if (response.ok) {
+        alert(`Request ${action === 'approve' ? 'approved' : 'rejected'} successfully`)
+        // Refresh join requests and room data
+        fetchJoinRequests()
+        fetchRoomData()
+      } else {
+        const error = await response.json()
+        alert(`Failed to handle request: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error handling join request:', error)
+      alert('Error occurred while handling request')    }
+  }
+
+  const handleDeleteTrack = async (trackId: string) => {
+    if (!confirm('Are you sure you want to delete this audio file? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/audio/delete?id=${trackId}`, {
+        method: 'DELETE',        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        // Refresh audio files list
+        await fetchUploadedTracks()
+        alert('File deleted successfully!')
+      } else {
+        const error = await response.json()
+        alert(`Delete failed: ${error.error}`)
       }
     } catch (error) {
       console.error('Error deleting track:', error)
-      alert('删除失败')    }
+      alert('Delete failed')
+    }
   }
   
   const handlePlayTrack = async (track: any) => {
@@ -293,7 +443,6 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     audioRef.currentTime = newTime
     setAudioProgress((newTime / audioDuration) * 100)
   }
-
   const formatAudioTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return "0:00"
     const mins = Math.floor(seconds / 60)
@@ -303,7 +452,6 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
 
   const [volume, setVolume] = useState(75)
   const [currentTime, setCurrentTime] = useState(0)
-  const [showInviteModal, setShowInviteModal] = useState(false)
 
   useEffect(() => {
     // Simulate real-time updates every 5 seconds
@@ -440,10 +588,16 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black text-white">
       {/* Header */}
-      <div className="border-b border-gray-800 bg-black/20 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+      <div className="border-b border-gray-800 bg-black/20 backdrop-blur-sm">        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4">              <button
+                onClick={() => router.push('/dashboard')}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex items-center space-x-2 text-gray-400 hover:text-white"
+                title="Go back to dashboard"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>Back</span>
+              </button>
               <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
                 <Music className="w-6 h-6 text-white" />
               </div>
@@ -468,9 +622,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                   )}
                 </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button 
+            </div>            <div className="flex items-center space-x-3">              <button 
                 onClick={() => setShowInviteModal(true)}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center space-x-2 transition-colors"
               >
@@ -483,10 +635,57 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
                 <Settings className="w-5 h-5" />
               </button>
-            </div>
+              {isRoomCreator() && (
+                <button 
+                  onClick={handleDeleteRoom}
+                  className="p-2 hover:bg-red-800 text-red-400 hover:text-red-300 rounded-lg transition-colors"
+                  title="Delete Room"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}            </div>
           </div>
         </div>
       </div>
+
+      {/* Join Requests Notification Bar */}
+      {isRoomCreator() && joinRequests.length > 0 && (
+        <div className="border-b border-orange-500/30 bg-gradient-to-r from-orange-500/10 to-amber-500/10 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center animate-pulse">
+                  <Bell className="w-3 h-3 text-white" />
+                </div>
+                <div>
+                  <p className="text-orange-200 font-medium">
+                    {joinRequests.length} new join request{joinRequests.length > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-orange-300/80 text-sm">
+                    Users want to join your collaboration room
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowJoinRequestsModal(true)}
+                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Review Requests</span>
+                </button>
+                <button
+                  onClick={() => setJoinRequests([])}
+                  className="p-2 hover:bg-orange-500/20 rounded-lg transition-colors text-orange-300 hover:text-orange-200"
+                  title="Dismiss notifications"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1053,6 +1252,69 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                   )}
                 </button>
               </div>
+            </div>
+          </motion.div>        </div>
+      )}
+
+      {/* Join Requests Modal */}
+      {showJoinRequestsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+          >            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Join Requests</h3>
+              <button
+                onClick={() => setShowJoinRequestsModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-4">              {joinRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No join requests pending</p>
+                </div>
+              ) : (
+                joinRequests.map((request) => (
+                  <div key={request.id} className="bg-gray-700/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-bold">
+                            {request.username.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium">{request.username}</p>
+                          <p className="text-sm text-gray-400">
+                            {new Date(request.createdAt).toLocaleString()}
+                          </p>
+                          {request.message && (
+                            <p className="text-sm text-gray-300 mt-1">"{request.message}"</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">                        <button
+                          onClick={() => handleJoinRequest(request.id, 'approve')}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleJoinRequest(request.id, 'reject')}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </motion.div>
         </div>

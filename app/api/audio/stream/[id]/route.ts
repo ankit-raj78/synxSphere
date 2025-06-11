@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid file ID' }, { status: 400 })
     }    const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '') || 
-                  new URL(request.url).searchParams.get('auth') // 支持URL参数中的token
+                  new URL(request.url).searchParams.get('auth') // Support token in URL parameters
     
     if (!token) {
       return NextResponse.json({ error: 'No token provided' }, { status: 401 })

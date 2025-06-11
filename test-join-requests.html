@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Table Initialization</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        button { padding: 10px 20px; margin: 10px; border: none; border-radius: 4px; cursor: pointer; }
+        .primary { background: #007bff; color: white; }
+        .success { background: #28a745; color: white; }
+        .warning { background: #ffc107; color: black; }
+        .error { background: #dc3545; color: white; }
+        #result { margin-top: 20px; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>数据库表初始化</h1>
+        <p>点击下面的按钮创建room_join_requests表：</p>
+        
+        <button id="initBtn" class="primary" onclick="initTables()">创建数据库表</button>
+        <button id="testBtn" class="primary" onclick="testJoinRequest()">测试加入申请</button>
+        
+        <div id="result"></div>
+        
+        <script>
+            async function initTables() {
+                const resultDiv = document.getElementById('result');
+                const token = localStorage.getItem('token');
+                
+                if (!token) {
+                    resultDiv.innerHTML = '<div class="error">请先登录获取token</div>';
+                    return;
+                }
+                
+                try {
+                    resultDiv.innerHTML = '<div>正在创建表...</div>';
+                    
+                    const response = await fetch('/api/admin/init-tables', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        resultDiv.innerHTML = `<div class="success">${result.message}</div>`;
+                    } else {
+                        resultDiv.innerHTML = `<div class="error">错误: ${result.error}</div>`;
+                    }
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">请求失败: ${error.message}</div>`;
+                }
+            }
+            
+            async function testJoinRequest() {
+                const resultDiv = document.getElementById('result');
+                const token = localStorage.getItem('token');
+                
+                if (!token) {
+                    resultDiv.innerHTML = '<div class="error">请先登录获取token</div>';
+                    return;
+                }
+                
+                try {
+                    // 先获取房间列表
+                    const roomsResponse = await fetch('/api/rooms', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (roomsResponse.ok) {
+                        const rooms = await roomsResponse.json();
+                        console.log('Available rooms:', rooms);
+                        
+                        if (rooms.length > 0) {
+                            const roomId = rooms[0].id;
+                            
+                            // 测试加入申请
+                            const joinResponse = await fetch(`/api/rooms/${roomId}/join`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                    message: '测试加入申请'
+                                })
+                            });
+                            
+                            const joinResult = await joinResponse.json();
+                            
+                            if (joinResponse.ok) {
+                                resultDiv.innerHTML = `<div class="success">加入申请测试成功: ${joinResult.message}</div>`;
+                            } else {
+                                resultDiv.innerHTML = `<div class="warning">加入申请结果: ${joinResult.error}</div>`;
+                            }
+                        } else {
+                            resultDiv.innerHTML = '<div class="warning">没有可用的房间进行测试</div>';
+                        }
+                    } else {
+                        resultDiv.innerHTML = '<div class="error">无法获取房间列表</div>';
+                    }
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="error">测试失败: ${error.message}</div>`;
+                }
+            }
+            
+            // 页面加载时检查token
+            window.onload = function() {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    document.getElementById('result').innerHTML = 
+                        '<div class="warning">请先登录并从控制台复制token到localStorage</div>';
+                }
+            }
+        </script>
+    </div>
+</body>
+</html>
