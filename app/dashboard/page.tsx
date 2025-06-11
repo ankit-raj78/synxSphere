@@ -18,10 +18,18 @@ interface User {
   email: string
   username: string
   profile: {
-    instruments: string[]
-    genres: string[]
-    experience: string
-    collaborationGoals: string[]
+    musicalPreferences?: {
+      instruments: string[]
+      genres: string[]
+      experience: string
+      collaborationGoals?: string[]
+      collaborationStyle?: string
+      preferredTempo?: { min: number; max: number }
+      preferredKeys?: string[]
+    }
+    bio?: string
+    avatar?: string
+    role?: string
     musicalAnalysis?: any
   }
 }
@@ -668,11 +676,10 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                
-                <div>
+                  <div>
                   <label className="block text-sm font-medium mb-2">Instruments</label>
                   <div className="flex flex-wrap gap-2">
-                    {user.profile?.instruments?.map((instrument: string) => (
+                    {user.profile?.musicalPreferences?.instruments?.map((instrument: string) => (
                       <span key={instrument} className="px-3 py-1 bg-primary-600 text-white rounded-full text-sm">
                         {instrument}
                       </span>
@@ -683,7 +690,7 @@ export default function DashboardPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Genres</label>
                   <div className="flex flex-wrap gap-2">
-                    {user.profile?.genres?.map((genre: string) => (
+                    {user.profile?.musicalPreferences?.genres?.map((genre: string) => (
                       <span key={genre} className="px-3 py-1 bg-secondary-600 text-white rounded-full text-sm">
                         {genre}
                       </span>
@@ -694,14 +701,14 @@ export default function DashboardPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Experience Level</label>
                   <div className="px-4 py-3 bg-gray-700 rounded-lg text-gray-300">
-                    {user.profile?.experience || 'Not specified'}
+                    {user.profile?.musicalPreferences?.experience || 'Not specified'}
                   </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium mb-2">Collaboration Goals</label>
                   <div className="flex flex-wrap gap-2">
-                    {user.profile?.collaborationGoals?.map((goal: string) => (
+                    {user.profile?.musicalPreferences?.collaborationGoals?.map((goal: string) => (
                       <span key={goal} className="px-3 py-1 bg-accent-600 text-white rounded-full text-sm">
                         {goal}
                       </span>

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, username, password } = body
+    const { email, username, password, instruments, genres, experience, collaborationGoals } = body
 
     // Validate required fields
     if (!email || !username || !password) {
@@ -16,10 +16,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Register user using PostgreSQL
-    const user = await registerUser(email, username, password)
+    // Prepare musical preferences
+    const musicalPreferences = {
+      instruments: instruments || [],
+      genres: genres || [],
+      experience: experience || 'beginner',
+      collaborationGoals: collaborationGoals || []
+    }    // Register user using PostgreSQL
+    const user = await registerUser(email, username, password, musicalPreferences)
 
     return NextResponse.json({
+      success: true,
       message: 'User registered successfully',
       user: {
         id: user.id,
