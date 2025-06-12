@@ -91,7 +91,7 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
           const rooms = await response.json()
           console.log('Loaded rooms from API:', rooms)
           
-          // 获取当前用户ID
+          // Get current user ID
           const currentUserId = JSON.parse(atob(token.split('.')[1])).id
           
           // Convert API rooms to recommendation format

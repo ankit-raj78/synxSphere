@@ -13,13 +13,12 @@
         #result { margin-top: 20px; padding: 10px; border-radius: 4px; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>数据库表初始化</h1>
-        <p>点击下面的按钮创建room_join_requests表：</p>
+<body>    <div class="container">
+        <h1>Database Table Initialization</h1>
+        <p>Click the button below to create the room_join_requests table:</p>
         
-        <button id="initBtn" class="primary" onclick="initTables()">创建数据库表</button>
-        <button id="testBtn" class="primary" onclick="testJoinRequest()">测试加入申请</button>
+        <button id="initBtn" class="primary" onclick="initTables()">Create Database Table</button>
+        <button id="testBtn" class="primary" onclick="testJoinRequest()">Test Join Request</button>
         
         <div id="result"></div>
         
@@ -27,14 +26,13 @@
             async function initTables() {
                 const resultDiv = document.getElementById('result');
                 const token = localStorage.getItem('token');
-                
-                if (!token) {
-                    resultDiv.innerHTML = '<div class="error">请先登录获取token</div>';
+                  if (!token) {
+                    resultDiv.innerHTML = '<div class="error">Please login first to get token</div>';
                     return;
                 }
                 
                 try {
-                    resultDiv.innerHTML = '<div>正在创建表...</div>';
+                    resultDiv.innerHTML = '<div>Creating table...</div>';
                     
                     const response = await fetch('/api/admin/init-tables', {
                         method: 'POST',
@@ -48,24 +46,23 @@
                     if (response.ok) {
                         resultDiv.innerHTML = `<div class="success">${result.message}</div>`;
                     } else {
-                        resultDiv.innerHTML = `<div class="error">错误: ${result.error}</div>`;
+                        resultDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;
                     }
                 } catch (error) {
-                    resultDiv.innerHTML = `<div class="error">请求失败: ${error.message}</div>`;
+                    resultDiv.innerHTML = `<div class="error">Request failed: ${error.message}</div>`;
                 }
             }
             
             async function testJoinRequest() {
                 const resultDiv = document.getElementById('result');
                 const token = localStorage.getItem('token');
-                
-                if (!token) {
-                    resultDiv.innerHTML = '<div class="error">请先登录获取token</div>';
+                  if (!token) {
+                    resultDiv.innerHTML = '<div class="error">Please login first to get token</div>';
                     return;
                 }
                 
                 try {
-                    // 先获取房间列表
+                    // First get room list
                     const roomsResponse = await fetch('/api/rooms', {
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -79,7 +76,7 @@
                         if (rooms.length > 0) {
                             const roomId = rooms[0].id;
                             
-                            // 测试加入申请
+                            // Test join request
                             const joinResponse = await fetch(`/api/rooms/${roomId}/join`, {
                                 method: 'POST',
                                 headers: {
@@ -87,34 +84,33 @@
                                     'Authorization': `Bearer ${token}`
                                 },
                                 body: JSON.stringify({
-                                    message: '测试加入申请'
+                                    message: 'Test join request'
                                 })
                             });
                             
                             const joinResult = await joinResponse.json();
                             
                             if (joinResponse.ok) {
-                                resultDiv.innerHTML = `<div class="success">加入申请测试成功: ${joinResult.message}</div>`;
+                                resultDiv.innerHTML = `<div class="success">Join request test successful: ${joinResult.message}</div>`;
                             } else {
-                                resultDiv.innerHTML = `<div class="warning">加入申请结果: ${joinResult.error}</div>`;
+                                resultDiv.innerHTML = `<div class="warning">Join request result: ${joinResult.error}</div>`;
                             }
                         } else {
-                            resultDiv.innerHTML = '<div class="warning">没有可用的房间进行测试</div>';
+                            resultDiv.innerHTML = '<div class="warning">No available rooms for testing</div>';
                         }
                     } else {
-                        resultDiv.innerHTML = '<div class="error">无法获取房间列表</div>';
+                        resultDiv.innerHTML = '<div class="error">Unable to get room list</div>';
                     }
                 } catch (error) {
-                    resultDiv.innerHTML = `<div class="error">测试失败: ${error.message}</div>`;
+                    resultDiv.innerHTML = `<div class="error">Test failed: ${error.message}</div>`;
                 }
             }
-            
-            // 页面加载时检查token
+              // Check token when page loads
             window.onload = function() {
                 const token = localStorage.getItem('token');
                 if (!token) {
                     document.getElementById('result').innerHTML = 
-                        '<div class="warning">请先登录并从控制台复制token到localStorage</div>';
+                        '<div class="warning">Please login first and copy token from console to localStorage</div>';
                 }
             }
         </script>

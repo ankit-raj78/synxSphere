@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // 创建房间加入申请表
+      // Create room join requests table
       const createTableSQL = `
         CREATE TABLE IF NOT EXISTS room_join_requests (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
       await DatabaseManager.executeQuery(createTableSQL)
 
-      // 验证表是否创建成功
+      // Verify table creation success
       const verifyResult = await DatabaseManager.executeQuery(
         "SELECT table_name FROM information_schema.tables WHERE table_name = 'room_join_requests'"
       )

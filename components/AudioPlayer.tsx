@@ -51,12 +51,12 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           console.log('Response content-type:', response.headers.get('content-type'))
           console.log('Response content-length:', response.headers.get('content-length'))
             if (response.ok) {
-            // 对于大文件，直接使用响应URL而不是转换为Blob
+            // For large files, use response URL directly instead of converting to Blob
             const contentLength = parseInt(response.headers.get('content-length') || '0')
-            if (contentLength > 20 * 1024 * 1024) { // 20MB以上使用直接URL
+            if (contentLength > 20 * 1024 * 1024) { // Use direct URL for files above 20MB
               console.log('Large file detected, using direct streaming')
               
-              // 直接设置API URL，让浏览器处理流式加载
+              // Set API URL directly, let browser handle streaming
               const directUrl = `/api/audio/stream/${fileId}?auth=${encodeURIComponent(token || '')}`
               audioRef.current.src = directUrl
               audioRef.current.load()
@@ -251,7 +251,7 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           <button
             onClick={restartAudio}
             className="text-gray-400 hover:text-white"
-            title="从头播放"
+            title="Replay from start"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -259,7 +259,7 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           <button
             onClick={toggleMute}
             className="text-gray-400 hover:text-white"
-            title={isMuted ? "取消静音" : "静音"}
+            title={isMuted ? "Unmute" : "Mute"}
           >
             {isMuted ? (
               <VolumeX className="w-4 h-4" />

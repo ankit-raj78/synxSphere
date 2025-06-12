@@ -2,36 +2,36 @@ const DatabaseManager = require('./lib/database.ts').default;
 
 async function checkData() {
   try {
-    // 检查所有房间
+    // Check all rooms
     const rooms = await DatabaseManager.executeQuery('SELECT * FROM rooms ORDER BY created_at DESC');
-    console.log('=== 所有房间 ===');
+    console.log('=== All Rooms ===');
     rooms.rows.forEach(room => {
       console.log(`ID: ${room.id}, Name: ${room.name}, Creator: ${room.creator_id}`);
     });
 
-    // 检查房间参与者
+    // Check room participants
     const participants = await DatabaseManager.executeQuery('SELECT * FROM room_participants');
-    console.log('\n=== 房间参与者 ===');
+    console.log('\n=== Room Participants ===');
     participants.rows.forEach(p => {
       console.log(`Room: ${p.room_id}, User: ${p.user_id}, Role: ${p.role}`);
     });
 
-    // 检查是否有test room
+    // Check if there are test rooms
     const testRooms = await DatabaseManager.executeQuery("SELECT * FROM rooms WHERE name ILIKE '%test%'");
-    console.log('\n=== Test房间 ===');
+    console.log('\n=== Test Rooms ===');
     testRooms.rows.forEach(room => {
       console.log(`Test Room: ${room.id} - ${room.name}`);
     });
 
-    // 获取用户信息
+    // Get user information
     const users = await DatabaseManager.executeQuery('SELECT id, username, email FROM users');
-    console.log('\n=== 用户信息 ===');
+    console.log('\n=== User Information ===');
     users.rows.forEach(user => {
       console.log(`User: ${user.id} - ${user.username || user.email}`);
     });
 
   } catch (error) {
-    console.error('查询出错:', error);
+    console.error('Query error:', error);
   }
 
   process.exit(0);

@@ -19,7 +19,7 @@ export async function DELETE(request: NextRequest) {
     try {
       console.log('Deleting test rooms...')
       
-      // 查找所有test房间
+      // Find all test rooms
       const testRooms = await DatabaseManager.executeQuery(
         "SELECT * FROM rooms WHERE name ILIKE '%test%'"
       )
@@ -30,15 +30,15 @@ export async function DELETE(request: NextRequest) {
       
       let deletedCount = 0
       
-      // 删除test房间的参与者和房间
+      // Delete test room participants and rooms
       for (const room of testRooms.rows) {
-        // 删除参与者
+        // Delete participants
         await DatabaseManager.executeQuery(
           'DELETE FROM room_participants WHERE room_id = $1',
           [room.id]
         )
         
-        // 删除房间
+        // Delete room
         await DatabaseManager.executeQuery(
           'DELETE FROM rooms WHERE id = $1',
           [room.id]

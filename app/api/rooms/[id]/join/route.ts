@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import DatabaseManager from '@/lib/database'
 
-// 申请加入房间
+// Apply to join room
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -24,7 +24,7 @@ export async function POST(
     const { message = '' } = body
 
     try {
-      // 检查房间是否存在
+      // Check if room exists
       const roomResult = await DatabaseManager.executeQuery(
         'SELECT * FROM rooms WHERE id = $1',
         [params.id]
@@ -36,7 +36,7 @@ export async function POST(
 
       const room = roomResult.rows[0]
 
-      // 检查用户是否已经是参与者
+      // Check if user is already a participant
       const existingParticipant = await DatabaseManager.executeQuery(
         'SELECT * FROM room_participants WHERE room_id = $1 AND user_id = $2',
         [params.id, tokenData.id]
@@ -46,7 +46,7 @@ export async function POST(
         return NextResponse.json({ error: 'Already a participant in this room' }, { status: 409 })
       }
 
-      // 检查是否已经有待处理的申请
+      // Check if there's already a pending request
       const existingRequest = await DatabaseManager.executeQuery(
         `SELECT * FROM room_join_requests 
          WHERE room_id = $1 AND user_id = $2 AND status = 'pending'`,
@@ -57,7 +57,7 @@ export async function POST(
         return NextResponse.json({ error: 'Join request already pending' }, { status: 409 })
       }
 
-      // 创建加入申请
+      // Create join request
       const requestId = require('crypto').randomUUID()
       await DatabaseManager.executeQuery(
         `INSERT INTO room_join_requests (id, room_id, user_id, message, status, created_at)
@@ -83,7 +83,7 @@ export async function POST(
   }
 }
 
-// 获取房间的加入申请
+// Get join requests for room
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -102,7 +102,7 @@ export async function GET(
     }
 
     try {
-      // 检查用户是否是房间创建者
+      // Check if user is room creator
       const roomResult = await DatabaseManager.executeQuery(
         'SELECT * FROM rooms WHERE id = $1 AND creator_id = $2',
         [params.id, tokenData.id]
@@ -112,7 +112,7 @@ export async function GET(
         return NextResponse.json({ error: 'Not authorized to view join requests' }, { status: 403 })
       }
 
-      // 获取待处理的申请
+      // Get pending requests
       const requestsResult = await DatabaseManager.executeQuery(
         `SELECT rjr.*, u.username, u.email
          FROM room_join_requests rjr

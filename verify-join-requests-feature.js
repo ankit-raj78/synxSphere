@@ -6,8 +6,8 @@ async function testDatabaseTables() {
   console.log('\n📊 Testing database table structure...');
   
   try {
-    // 模拟API调用来测试表创建
-    console.log('✅ room_join_requests 表结构:');
+    // Mock API call to test table creation
+    console.log('✅ room_join_requests table structure:');
     console.log('   - id (UUID, PRIMARY KEY)');
     console.log('   - room_id (UUID, NOT NULL)');
     console.log('   - user_id (UUID, NOT NULL)');
@@ -18,21 +18,20 @@ async function testDatabaseTables() {
     
     return true;
   } catch (error) {
-    console.error('❌ 数据库表测试失败:', error);
+    console.error('❌ Database table test failed:', error);
     return false;
   }
 }
 
-// 测试API路由
+// Test API routes
 function testAPIRoutes() {
-  console.log('\n🛣️  测试API路由...');
+  console.log('\n🛣️  Testing API routes...');
   
   const routes = [
-    'POST /api/rooms/[id]/join - 发送加入申请',
-    'GET /api/rooms/[id]/join - 获取加入申请列表', 
-    'PUT /api/rooms/[id]/join/[requestId] - 处理加入申请',
-    'DELETE /api/rooms/[id] - 删除房间',
-    'POST /api/admin/init-tables - 初始化数据库表'
+    'POST /api/rooms/[id]/join - Send join request',    'GET /api/rooms/[id]/join - Get join request list', 
+    'PUT /api/rooms/[id]/join/[requestId] - Process join request',
+    'DELETE /api/rooms/[id] - Delete room',
+    'POST /api/admin/init-tables - Initialize database tables'
   ];
   
   routes.forEach(route => {
@@ -42,18 +41,18 @@ function testAPIRoutes() {
   return true;
 }
 
-// 测试组件功能
+// Test component features
 function testComponentFeatures() {
-  console.log('\n🎨 测试组件功能...');
+  console.log('\n🎨 Testing component features...');
   
   const features = [
-    'RoomRecommendations: 正确显示参与者数量 (x/y)',
-    'RoomRecommendations: 区分自己房间 (Enter Room) 和他人房间 (Join Collaboration)', 
-    'RoomRecommendations: 发送加入申请功能',
-    'MusicRoomDashboard: 房间创建者删除按钮',
-    'MusicRoomDashboard: 加入申请通知按钮',
-    'MusicRoomDashboard: 加入申请处理模态框',
-    'API: 自动删除test房间'
+    'RoomRecommendations: Correctly display participant count (x/y)',
+    'RoomRecommendations: Distinguish own rooms (Enter Room) vs others rooms (Join Collaboration)', 
+    'RoomRecommendations: Send join request functionality',
+    'MusicRoomDashboard: Room creator delete button',
+    'MusicRoomDashboard: Join request notification button',
+    'MusicRoomDashboard: Join request processing modal',
+    'API: Auto-delete test rooms'
   ];
   
   features.forEach(feature => {
@@ -63,32 +62,32 @@ function testComponentFeatures() {
   return true;
 }
 
-// 测试用户流程
+// Test user flow
 function testUserFlow() {
-  console.log('\n👥 测试用户流程...');
+  console.log('\n👥 Testing user flow...');
   
-  console.log('1. 房间创建者流程:');
-  console.log('   ✅ 创建房间后自动成为参与者 (1/6)');
-  console.log('   ✅ 在房间内看到删除按钮');
-  console.log('   ✅ 收到加入申请通知');
-  console.log('   ✅ 可以批准/拒绝申请');
+  console.log('1. Room creator flow:');
+  console.log('   ✅ Automatically become participant after creating room (1/6)');
+  console.log('   ✅ See delete button in room');
+  console.log('   ✅ Receive join request notifications');
+  console.log('   ✅ Can approve/reject requests');
   
-  console.log('2. 申请者流程:');
-  console.log('   ✅ 点击 "Join Collaboration" 发送申请');
-  console.log('   ✅ 收到申请已发送确认');
-  console.log('   ✅ 申请被批准后可以进入房间');
+  console.log('2. Applicant flow:');
+  console.log('   ✅ Click "Join Collaboration" to send request');
+  console.log('   ✅ Receive request sent confirmation');
+  console.log('   ✅ Can enter room after request is approved');
   
-  console.log('3. 房间列表:');
-  console.log('   ✅ 显示正确参与者数量');
-  console.log('   ✅ 自己房间显示 "Enter Room"');
-  console.log('   ✅ 他人房间显示 "Join Collaboration"');
+  console.log('3. Room list:');
+  console.log('   ✅ Display correct participant count');
+  console.log('   ✅ Own rooms show "Enter Room"');
+  console.log('   ✅ Others rooms show "Join Collaboration"');
   
   return true;
 }
 
-// 运行所有测试
+// Run all tests
 async function runAllTests() {
-  console.log('🚀 开始验证房间加入申请功能...\n');
+  console.log('🚀 Starting room join request functionality verification...\n');
   
   const tests = [
     testDatabaseTables,
@@ -104,24 +103,24 @@ async function runAllTests() {
       const result = await test();
       if (!result) allPassed = false;
     } catch (error) {
-      console.error(`❌ 测试失败:`, error);
+      console.error(`❌ Test failed:`, error);
       allPassed = false;
     }
   }
   
   console.log('\n' + '='.repeat(50));
   if (allPassed) {
-    console.log('🎉 所有功能验证通过！');
-    console.log('\n📋 完成的功能:');
-    console.log('✅ 房间参与者数量正确显示');
-    console.log('✅ 房间创建者删除功能');
-    console.log('✅ 加入房间申请-批准机制');
-    console.log('✅ 区分自己/他人房间的按钮文本');
-    console.log('✅ 自动清理test房间');
+    console.log('🎉 All functionality verification passed!');
+    console.log('\n📋 Completed features:');
+    console.log('✅ Room participant count correctly displayed');
+    console.log('✅ Room creator delete functionality');
+    console.log('✅ Join room request-approval mechanism');
+    console.log('✅ Distinguish own/others rooms button text');
+    console.log('✅ Auto-cleanup test rooms');
   } else {
-    console.log('⚠️  某些功能需要进一步测试');
+    console.log('⚠️  Some features need further testing');
   }
 }
 
-// 执行验证
+// Execute verification
 runAllTests().catch(console.error);

@@ -1,17 +1,16 @@
-// 测试音频合成功能
+// Test audio composition functionality
 const testCompose = async () => {
   try {
     const token = localStorage.getItem('token') || 'test-token'
     
-    // 使用现有的音频文件ID进行测试
+    // Use existing audio file IDs for testing
     const response = await fetch('/api/audio/compose', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        trackIds: ['track1', 'track2'], // 这里需要替换为实际的track ID
+      },      body: JSON.stringify({
+        trackIds: ['track1', 'track2'], // Need to replace with actual track IDs
         roomId: 'test-room',
         settings: {
           format: 'mp3',
@@ -23,19 +22,19 @@ const testCompose = async () => {
 
     if (response.ok) {
       const result = await response.json()
-      console.log('合成成功:', result)
-      console.log('输出文件:', result.outputFile)
-      console.log('文件位置: uploads/' + result.outputFile)
+      console.log('Composition successful:', result)
+      console.log('Output file:', result.outputFile)
+      console.log('File location: uploads/' + result.outputFile)
     } else {
       const error = await response.json()
-      console.error('合成失败:', error)
+      console.error('Composition failed:', error)
     }
   } catch (error) {
-    console.error('请求失败:', error)
+    console.error('Request failed:', error)
   }
 }
 
-// 首先获取可用的音频文件
+// First get available audio files
 const listAudioFiles = async () => {
   try {
     const token = localStorage.getItem('token') || 'test-token'
@@ -47,14 +46,14 @@ const listAudioFiles = async () => {
     
     if (response.ok) {
       const files = await response.json()
-      console.log('可用音频文件:', files)
+      console.log('Available audio files:', files)
       return files
     }
   } catch (error) {
-    console.error('获取音频文件失败:', error)
+    console.error('Failed to get audio files:', error)
   }
 }
 
-console.log('测试音频合成功能')
-console.log('首先获取可用文件...')
+console.log('Testing audio composition functionality')
+console.log('First getting available files...')
 // listAudioFiles()

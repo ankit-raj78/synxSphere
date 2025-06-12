@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import DatabaseManager from '@/lib/database'
 
-// 批准或拒绝加入申请
+// Approve or reject join request
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string, requestId: string } }
@@ -28,7 +28,7 @@ export async function PUT(
     }
 
     try {
-      // 检查用户是否是房间创建者
+      // Check if user is room creator
       const roomResult = await DatabaseManager.executeQuery(
         'SELECT * FROM rooms WHERE id = $1 AND creator_id = $2',
         [params.id, tokenData.id]
@@ -38,7 +38,7 @@ export async function PUT(
         return NextResponse.json({ error: 'Not authorized to handle join requests' }, { status: 403 })
       }
 
-      // 获取申请信息
+      // Get request information
       const requestResult = await DatabaseManager.executeQuery(
         'SELECT * FROM room_join_requests WHERE id = $1 AND room_id = $2 AND status = $3',
         [params.requestId, params.id, 'pending']
@@ -51,14 +51,13 @@ export async function PUT(
       const joinRequest = requestResult.rows[0]
 
       if (action === 'approve') {
-        // 添加用户到房间参与者
+        // Add user to room participants
         await DatabaseManager.executeQuery(
           `INSERT INTO room_participants (room_id, user_id, role, is_online)
            VALUES ($1, $2, 'participant', true)`,
-          [params.id, joinRequest.user_id]
-        )
+          [params.id, joinRequest.user_id]        )
 
-        // 更新申请状态
+        // Update request status
         await DatabaseManager.executeQuery(
           `UPDATE room_join_requests 
            SET status = 'approved', processed_at = NOW()
@@ -68,10 +67,8 @@ export async function PUT(
 
         return NextResponse.json({ 
           message: 'Join request approved successfully' 
-        })
-
-      } else if (action === 'reject') {
-        // 更新申请状态为拒绝
+        })      } else if (action === 'reject') {
+        // Update request status to rejected
         await DatabaseManager.executeQuery(
           `UPDATE room_join_requests 
            SET status = 'rejected', processed_at = NOW()
