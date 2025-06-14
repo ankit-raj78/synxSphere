@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { registerUser } from '@/lib/auth'
+import { registerUser, generateToken } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +22,13 @@ export async function POST(request: NextRequest) {
       genres: genres || [],
       experience: experience || 'beginner',
       collaborationGoals: collaborationGoals || []
-    }    // Register user using PostgreSQL
+    }
+
+    // Register user using PostgreSQL
     const user = await registerUser(email, username, password, musicalPreferences)
+
+    // Generate token for automatic login after registration
+    const token = generateToken(user.id, user.email, user.created_at)
 
     return NextResponse.json({
       success: true,
@@ -33,7 +38,8 @@ export async function POST(request: NextRequest) {
         email: user.email,
         username: user.username,
         profile: user.profile
-      }
+      },
+      token // Add token to response for automatic login
     }, { status: 201 })
 
   } catch (error) {

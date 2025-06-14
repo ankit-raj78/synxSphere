@@ -4,13 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Music, Upload, Users, Brain, Activity, Play, Settings, 
-  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut
+  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut, Trash2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import RoomRecommendations, { RoomRecommendationsRef } from '../../components/RoomRecommendations'
 import FileUpload from '../../components/FileUpload'
 import AudioPlayer from '../../components/AudioPlayer'
 import RoomCreation from '../../components/RoomCreation'
+import ConfirmationModal from '../../components/ConfirmationModal'
 import { formatDate, formatDateTime } from '../../lib/date-utils'
 
 interface User {
@@ -44,14 +45,15 @@ interface AudioFile {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null)
+  const router = useRouter();  const [user, setUser] = useState<User | null>(null)
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [userRoomData, setUserRoomData] = useState<any>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const roomRecommendationsRef = useRef<RoomRecommendationsRef>(null)
 
   useEffect(() => {
@@ -157,11 +159,41 @@ export default function DashboardPage() {
     // Navigate to the new room
     router.push(`/room/${roomId}`)
   }
-
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     router.push('/')
+  }
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true)
+    try {
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        // Account deleted successfully
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        alert('Your account has been successfully deleted.')
+        router.push('/')
+      } else {
+        const error = await response.json()
+        alert(`Failed to delete account: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error)
+      alert('An error occurred while deleting your account. Please try again.')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+    }
   }
 
   if (loading) {
@@ -704,8 +736,7 @@ export default function DashboardPage() {
                     {user.profile?.musicalPreferences?.experience || 'Not specified'}
                   </div>
                 </div>
-                
-                <div>
+                  <div>
                   <label className="block text-sm font-medium mb-2">Collaboration Goals</label>
                   <div className="flex flex-wrap gap-2">
                     {user.profile?.musicalPreferences?.collaborationGoals?.map((goal: string) => (
@@ -715,11 +746,46 @@ export default function DashboardPage() {
                     )) || <span className="text-gray-400">No goals specified</span>}
                   </div>
                 </div>
+
+                {/* Account Management Section */}
+                <div className="border-t border-gray-700 pt-6 mt-8">
+                  <h3 className="text-lg font-semibold mb-4 text-red-400">Danger Zone</h3>
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium text-red-400">Delete Account</h4>
+                        <p className="text-sm text-gray-400 mt-1">
+                          Permanently delete your account and all associated data. This action cannot be undone.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete Account</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </motion.div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAccount}
+        title="Delete Account"
+        message="Are you sure you want to delete your account? This action will permanently remove all your data including uploaded music files, room memberships, and collaborations. This step cannot be undone."
+        confirmText="Yes, Delete My Account"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

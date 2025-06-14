@@ -78,7 +78,9 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
           console.log('Test rooms cleanup completed')
         } catch (error) {
           console.log('Test rooms cleanup failed (may not exist):', error)
-        }        // Fetch actual rooms from the API
+        }
+
+        // Fetch actual rooms from the API
         const response = await fetch('/api/rooms', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -87,20 +89,10 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
 
         if (response.ok) {
           const rooms = await response.json()
-          console.log('✅ Loaded rooms from API:', rooms)
-          console.log(`📊 Found ${Array.isArray(rooms) ? rooms.length : 0} rooms`)
+          console.log('Loaded rooms from API:', rooms)
           
-          // Check if we got an array
-          if (!Array.isArray(rooms)) {
-            console.error('❌ API returned non-array data:', typeof rooms, rooms)
-            setRecommendations([])
-            setLoading(false)
-            return
-          }
-          
-          // Get current user ID
+          // 获取当前用户ID
           const currentUserId = JSON.parse(atob(token.split('.')[1])).id
-          console.log('👤 Current user ID:', currentUserId)
           
           // Convert API rooms to recommendation format
           const roomRecommendations: RoomRecommendation[] = rooms.map((room: any) => {
@@ -143,23 +135,14 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                 `Created by ${room.creator}`,
                 `${room.participantCount || 0} active participants`,
                 room.isLive ? 'Currently active' : 'Ready to start'
-              ],              membershipStatus: membershipStatus
+              ],
+              membershipStatus: membershipStatus
             }
           })
-          
+
           setRecommendations(roomRecommendations)
-          console.log(`✅ Successfully processed ${roomRecommendations.length} room recommendations`)
         } else {
-          const errorText = await response.text()
-          console.error('❌ Failed to load rooms:', response.status, response.statusText, errorText)
-          
-          // Try to parse error response
-          try {
-            const errorData = JSON.parse(errorText)
-            console.error('📋 Error details:', errorData)
-          } catch (e) {
-            console.error('📋 Raw error response:', errorText)
-          }
+          console.error('Failed to load rooms:', response.statusText)
           
           // Fallback to mock data if API fails
           const mockRecommendations: RoomRecommendation[] = [
