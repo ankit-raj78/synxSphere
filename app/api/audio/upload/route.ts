@@ -17,13 +17,27 @@ export async function POST(request: NextRequest) {
 
     const user = await verifyToken(token)
     if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })    }
-
-    const formData = await request.formData()
-    const files = formData.getAll('audio') as File[]
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })    }    const formData = await request.formData()
+    const files = formData.getAll('files') as File[] // Changed from 'audio' to 'files'
+    const roomId = formData.get('roomId') as string | null
     
     if (files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 })
+    }
+
+    // If roomId is provided, verify user is a member of that room
+    if (roomId) {
+      const membershipQuery = `
+        SELECT r.id 
+        FROM rooms r 
+        JOIN room_participants rp ON r.id = rp.room_id 
+        WHERE r.id = $1 AND rp.user_id = $2
+      `
+      const membershipResult = await DatabaseManager.executeQuery(membershipQuery, [roomId, user.id])
+      
+      if (membershipResult.rows.length === 0) {
+        return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
+      }
     }
 
     const uploadedFiles = []
@@ -52,8 +66,7 @@ export async function POST(request: NextRequest) {
         id: audioFileId,
         filename,
         original_name: file.name || 'unknown-file',
-        file_path: filepath,
-        file_size: file.size || 0,
+        file_path: filepath,        file_size: file.size || 0,
         mime_type: file.type || 'application/octet-stream',
         user_id: user.id,
         created_at: new Date(),
@@ -64,9 +77,9 @@ export async function POST(request: NextRequest) {
       const insertQuery = `
         INSERT INTO audio_files (
           id, user_id, filename, original_name, file_path, file_size, 
-          mime_type, is_processed, created_at, updated_at
+          mime_type, is_processed, room_id, created_at, updated_at
         ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
       `
 
@@ -79,6 +92,7 @@ export async function POST(request: NextRequest) {
         audioFile.file_size,
         audioFile.mime_type,
         audioFile.is_processed,
+        roomId, // Add room_id
         audioFile.created_at,
         audioFile.updated_at
       ]

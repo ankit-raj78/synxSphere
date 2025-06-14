@@ -25,19 +25,23 @@ export async function GET(
     const user = await verifyToken(token)
     if (!user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-    }
+    }    console.log('User authenticated:', user.id, 'requesting file:', params.id)
 
-    console.log('User authenticated:', user.id, 'requesting file:', params.id)
-
-    // Query for audio file
-    const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2'
+    // Query for audio file - allow access if user owns it OR if it's in a room where user is a member
+    const fileQuery = `
+      SELECT af.*, r.id as room_id
+      FROM audio_files af
+      LEFT JOIN rooms r ON af.room_id = r.id
+      LEFT JOIN room_participants rp ON r.id = rp.room_id AND rp.user_id = $2
+      WHERE af.id = $1 AND (af.user_id = $2 OR rp.user_id IS NOT NULL)
+    `
     const result = await DatabaseManager.executeQuery(fileQuery, [params.id, user.id])
     
     console.log('Database query result:', result.rows.length, 'rows found')
     
     if (result.rows.length === 0) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 })
-    }    const audioFile = result.rows[0]
+      return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 })
+    }const audioFile = result.rows[0]
     console.log('Audio file path:', audioFile.file_path)
 
     try {

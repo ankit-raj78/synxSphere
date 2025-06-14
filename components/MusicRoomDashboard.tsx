@@ -6,9 +6,10 @@ import { motion } from 'framer-motion'
 import { 
   Music, Users, Clock, Play, Pause, Volume2, Share2, 
   MoreHorizontal, Heart, MessageCircle, UserPlus,
-  Mic, Headphones, Radio, Settings, Crown, Upload, Layers, Trash2, ArrowLeft, Bell, X
+  Mic, Headphones, Radio, Settings, Crown, Upload, Layers, Trash2, ArrowLeft, Bell, X, User
 } from 'lucide-react'
 import FileUpload from './FileUpload'
+import RoomFileUpload from './RoomFileUpload'
 import { formatDateTime } from '../lib/date-utils'
 
 interface Participant {
@@ -177,37 +178,65 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       setLoading(false)
     }
   }
-
   const fetchUploadedTracks = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/audio/files', {
+      
+      // Fetch room-specific files (shared with all participants)
+      const roomFilesResponse = await fetch(`/api/rooms/${roomId}/files`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
       
-      if (response.ok) {
-        const tracks = await response.json()
-        setUploadedTracks(tracks)
+      if (roomFilesResponse.ok) {
+        const roomFiles = await roomFilesResponse.json()
+        setUploadedTracks(roomFiles)
+      } else {
+        console.error('Error fetching room files:', roomFilesResponse.status)
+        // Fallback to user's personal files if room files fail
+        const personalFilesResponse = await fetch('/api/audio/files', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
+        if (personalFilesResponse.ok) {
+          const personalFiles = await personalFilesResponse.json()
+          setUploadedTracks(personalFiles)
+        }
       }
     } catch (error) {
       console.error('Error fetching tracks:', error)
     }
   }
-
   const fetchCompositions = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/audio/compositions', {
+      
+      // Fetch room-specific compositions (shared with all participants)
+      const roomCompositionsResponse = await fetch(`/api/rooms/${roomId}/compositions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
       
-      if (response.ok) {
-        const compositionData = await response.json()
-        setCompositions(compositionData)
+      if (roomCompositionsResponse.ok) {
+        const roomCompositions = await roomCompositionsResponse.json()
+        setCompositions(roomCompositions)
+      } else {
+        console.error('Error fetching room compositions:', roomCompositionsResponse.status)
+        // Fallback to user's personal compositions if room compositions fail
+        const personalCompositionsResponse = await fetch('/api/audio/compositions', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
+        if (personalCompositionsResponse.ok) {
+          const personalCompositions = await personalCompositionsResponse.json()
+          setCompositions(personalCompositions)
+        }
       }
     } catch (error) {
       console.error('Error fetching compositions:', error)
@@ -806,8 +835,17 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                             index + 1
                           )}
                         </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">{track.original_name}</h4>                          <div className="text-sm text-gray-400 flex items-center space-x-2">
+                        <div className="flex-1">                          <h4 className="font-medium">{track.original_name}</h4>
+                          <div className="text-sm text-gray-400 flex items-center space-x-2">
+                            {track.uploader_name && (
+                              <>
+                                <span className="flex items-center">
+                                  <User className="w-3 h-3 mr-1" />
+                                  {track.uploader_name}
+                                </span>
+                                <span>•</span>
+                              </>
+                            )}
                             <span>{Math.round(track.file_size / 1024)} KB</span>
                             <span>•</span>
                             <span>{track.mime_type}</span>
@@ -830,14 +868,15 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                             ) : (
                               <Play className="w-4 h-4" />
                             )}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTrack(track.id)}
-                            className="p-2 hover:bg-gray-600 rounded-lg transition-colors text-red-400 hover:text-red-300"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          </button>                          {track.user_id === userId && (
+                            <button
+                              onClick={() => handleDeleteTrack(track.id)}
+                              className="p-2 hover:bg-gray-600 rounded-lg transition-colors text-red-400 hover:text-red-300"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       
@@ -914,8 +953,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                             <span className="text-xs bg-pink-600/20 text-pink-400 px-2 py-1 rounded-full">
                               Composition
                             </span>
-                          </h4>
-                          <div className="text-sm text-gray-400 flex items-center space-x-2">
+                          </h4>                          <div className="text-sm text-gray-400 flex items-center space-x-2">
                             <span>{Math.round(composition.file_size / 1024)} KB</span>
                             <span>•</span>
                             <span>{composition.mime_type}</span>
@@ -923,7 +961,12 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                             <span className="text-pink-400">
                               {composition.source_track_count} tracks mixed
                             </span>
-                            <span>•</span>                            <span className="text-pink-400">
+                            <span>•</span>
+                            <span className="text-blue-400">
+                              by {composition.composer_name || 'Unknown'}
+                            </span>
+                            <span>•</span>
+                            <span className="text-pink-400">
                               {formatDateTime(composition.created_at)}
                             </span>
                           </div>
@@ -942,15 +985,16 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                               <Pause className="w-4 h-4" />
                             ) : (
                               <Play className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteComposition(composition.id)}
-                            className="p-2 hover:bg-gray-600 rounded-lg transition-colors text-red-400 hover:text-red-300"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            )}                          </button>
+                          {composition.user_id === userId && (
+                            <button
+                              onClick={() => handleDeleteComposition(composition.id)}
+                              className="p-2 hover:bg-gray-600 rounded-lg transition-colors text-red-400 hover:text-red-300"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       
@@ -1132,28 +1176,13 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               </div>
             </div>
           </motion.div>        </div>
-      )}
-
-      {/* Upload Modal */}
+      )}      {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Upload Audio Tracks</h3>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                ×
-              </button>
-            </div>
-            <FileUpload onFilesUploaded={handleFilesUploaded} />
-          </motion.div>
-        </div>
+        <RoomFileUpload
+          roomId={roomId}
+          onFilesUploaded={handleFilesUploaded}
+          onClose={() => setShowUploadModal(false)}
+        />
       )}
 
       {/* Compose Modal */}
