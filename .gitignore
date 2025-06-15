@@ -179,3 +179,11 @@ audio-files/
 *.db
 *.sqlite
 *.sqlite3
+
+# Generated files
+**/*.js
+**/*.js.map
+**/*.d.ts
+**/*.d.ts.map
+# Except specific JS files you need to keep
+!jest.config.js

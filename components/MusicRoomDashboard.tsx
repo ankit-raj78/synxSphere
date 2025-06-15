@@ -12,8 +12,9 @@ import FileUpload from './FileUpload'
 import RoomFileUpload from './RoomFileUpload'
 import { formatDateTime } from '../lib/date-utils'
 
+
 interface Participant {
-  id: string
+  _id: string
   username: string
   avatar?: string
   isOnline: boolean
@@ -21,26 +22,45 @@ interface Participant {
   role: 'creator' | 'participant' | 'listener'
 }
 
-interface Track {
+interface AudioTrack {
   id: string
   name: string
-  artist: string
-  duration: string
-  uploadedBy: string
+  originalName: string
+  uploadedBy: {
+    id: string
+    username: string
+    avatar?: string
+  }
+  duration: number
   waveform: number[]
-  isCurrentlyPlaying?: boolean
+  file?: File
+  audioBuffer?: AudioBuffer
+  gainNode?: GainNode
+  isPlaying: boolean
+  isMuted: boolean
+  isSolo: boolean
+  isLocked: boolean
+  volume: number
+  pan: number
+  effects: {
+    reverb: number
+    delay: number
+    lowpass: number
+    highpass: number
+    distortion: number
+  }
+  color: string
+  uploadedAt: string
 }
 
 interface MusicRoom {
-  id: string
+  _id: string
   name: string
   description: string
   genre: string
   isLive: boolean
   participants: Participant[]
-  tracks: Track[]
-  currentTrack?: Track
-  playbackPosition: number
+  audioTracks: AudioTrack[]
   creator: string
   createdAt: string
 }
@@ -53,8 +73,13 @@ interface MusicRoomDashboardProps {
 export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboardProps) {
   const router = useRouter()
   const [room, setRoom] = useState<MusicRoom | null>(null)
+  const [tracks, setTracks] = useState<AudioTrack[]>([])
+  const [activeTab, setActiveTab] = useState<'mixer' | 'chat' | 'participants'>('mixer')
   const [isPlaying, setIsPlaying] = useState(false)
+  const [volume, setVolume] = useState(75)
+  const [currentTime, setCurrentTime] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showComposeModal, setShowComposeModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -71,11 +96,16 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const [audioDuration, setAudioDuration] = useState(0)
   const [previousRequestCount, setPreviousRequestCount] = useState(0)
 
-  // Fetch room data and tracks
+
   useEffect(() => {
-    fetchRoomData()
-    fetchUploadedTracks()
-    fetchCompositions()
+    loadRoomData()
+    loadTracks()
+    // Simulate real-time updates every 5 seconds
+    const interval = setInterval(() => {
+      setCurrentTime(prev => prev + 1)
+    }, 1000)
+    
+    return () => clearInterval(interval)
   }, [roomId])
 
   // Poll for join requests if user is room creator
@@ -160,6 +190,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   }
 
   const fetchRoomData = async () => {
+
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(`/api/rooms/${roomId}`, {
@@ -167,13 +198,13 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       if (response.ok) {
-        const data = await response.json()
-        setRoom(data)
+        const roomData = await response.json()
+        setRoom(roomData)
       }
     } catch (error) {
-      console.error('Error fetching room:', error)
+      console.error('Error loading room data:', error)
     } finally {
       setLoading(false)
     }
@@ -184,6 +215,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       
       // Fetch room-specific files (shared with all participants)
       const roomFilesResponse = await fetch(`/api/rooms/${roomId}/files`, {
+
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -205,9 +237,10 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           const personalFiles = await personalFilesResponse.json()
           setUploadedTracks(personalFiles)
         }
+
       }
     } catch (error) {
-      console.error('Error fetching tracks:', error)
+      console.error('Error loading tracks:', error)
     }
   }
   const fetchCompositions = async () => {
@@ -216,9 +249,12 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       
       // Fetch room-specific compositions (shared with all participants)
       const roomCompositionsResponse = await fetch(`/api/rooms/${roomId}/compositions`, {
+
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ trackId, updates })
       })
       
       if (roomCompositionsResponse.ok) {
@@ -238,8 +274,9 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           setCompositions(personalCompositions)
         }
       }
+
     } catch (error) {
-      console.error('Error fetching compositions:', error)
+      console.error('Error updating track:', error)
     }
   }
 
@@ -247,18 +284,36 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     setShowUploadModal(true)
   }
 
-  const handleFilesUploaded = (files: any[]) => {
-    setShowUploadModal(false)
-    fetchUploadedTracks() // Refresh tracks list
+  const handleRemoveTrack = async (trackId: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      await fetch(`/api/rooms/${roomId}/tracks?trackId=${trackId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      // Update local state
+      setTracks(prev => prev.filter(track => track.id !== trackId))
+    } catch (error) {
+      console.error('Error removing track:', error)
+    }
   }
 
-  const handleCompose = async () => {
-    if (selectedTracks.length < 2) {
-      alert('Please select at least 2 tracks to compose')
+  const handleExportMix = async () => {
+    if (tracks.length === 0) {
+      alert('No tracks available to mix. Please upload some audio files first.')
+      return
+    }
+
+    if (tracks.length === 1) {
+      alert('Please upload at least 2 tracks to create a mix.')
       return
     }    setIsComposing(true)
     try {
       const token = localStorage.getItem('token');
+
       const response = await fetch('/api/audio/compose', {
         method: 'POST',
         headers: {
@@ -266,12 +321,15 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          trackIds: selectedTracks,
+          trackIds: tracks.map(track => track.id),
           roomId: roomId,
           settings: {
             format: 'mp3',
             bitrate: '192k',
-            sampleRate: 44100
+            sampleRate: 44100,
+            masterVolume: 1.0,
+            fadeIn: 0,
+            fadeOut: 2
           }
         })
       });
@@ -422,55 +480,24 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
         }
       })
 
-      if (response.ok) {
-        const blob = await response.blob()
-        const audioUrl = URL.createObjectURL(blob)
-        
-        newAudio.src = audioUrl
-        newAudio.onplay = () => {
-          setCurrentPlayingTrack(track.id)
-          setCurrentPlayingType('track')
-          setIsPlaying(true)
-        }
-        newAudio.onpause = () => {
-          setIsPlaying(false)
-        }
-        newAudio.onended = () => {
-          setCurrentPlayingTrack(null)
-          setCurrentPlayingType(null)
-          setIsPlaying(false)
-          setAudioProgress(0)
-          URL.revokeObjectURL(audioUrl)
-        }
-        newAudio.onloadedmetadata = () => {
-          setAudioDuration(newAudio.duration)
-        }
-        newAudio.ontimeupdate = () => {
-          if (newAudio.duration) {
-            setAudioProgress((newAudio.currentTime / newAudio.duration) * 100)
-          }
-        }
 
-        await newAudio.play()
+      if (response.ok) {
+        alert(`Mix created successfully! File: ${data.outputFile}`)
+        // Reload tracks to show the new composition
+        await loadTracks()
       } else {
-        alert('Unable to load audio file')
+        throw new Error(data.error || 'Mix creation failed')
       }
     } catch (error) {
-      console.error('Error playing track:', error)
-      alert('Playback failed')
+      console.error('Error exporting mix:', error)
+      alert(`Failed to create mix: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsExporting(false)
     }
   }
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef || !audioDuration) return
-    
-    const rect = e.currentTarget.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const width = rect.width
-    const newTime = (clickX / width) * audioDuration
-    
-    audioRef.currentTime = newTime
-    setAudioProgress((newTime / audioDuration) * 100)
+  const handleToggleRecording = () => {
+    setIsRecording(!isRecording)
   }
   const formatAudioTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return "0:00"
@@ -491,125 +518,31 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     return () => clearInterval(interval)
   }, [roomId])
 
+
   const togglePlayback = () => {
     setIsPlaying(!isPlaying)
     // Emit WebSocket event to sync playback with other participants
   }
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const handleDeleteComposition = async (compositionId: string) => {
-    if (!confirm('Are you sure you want to delete this composition? This action cannot be undone.')) {
-      return
-    }
-
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/audio/compositions/delete?id=${compositionId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        // Refresh compositions list
-        await fetchCompositions()
-        alert('Composition deleted successfully!')
-      } else {
-        const error = await response.json()
-        alert(`Delete failed: ${error.error}`)
-      }
-    } catch (error) {
-      console.error('Error deleting composition:', error)
-      alert('Delete failed')
-    }
-  }
-
-  const handlePlayComposition = async (composition: any) => {
-    try {
-      // If currently playing the same composition, pause it
-      if (currentPlayingTrack === composition.id && currentPlayingType === 'composition' && audioRef && !audioRef.paused) {
-        audioRef.pause()
-        setCurrentPlayingTrack(null)
-        setCurrentPlayingType(null)
-        setIsPlaying(false)
-        return
-      }
-
-      // Stop current playback
-      if (audioRef) {
-        audioRef.pause()
-        audioRef.currentTime = 0
-      }
-
-      // Create new audio element
-      const newAudio = new Audio()
-      setAudioRef(newAudio)
-
-      // Get composition file URL
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/audio/compositions/stream/${composition.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const audioUrl = URL.createObjectURL(blob)
-        
-        newAudio.src = audioUrl
-        newAudio.onplay = () => {
-          setCurrentPlayingTrack(composition.id)
-          setCurrentPlayingType('composition')
-          setIsPlaying(true)
-        }
-        newAudio.onpause = () => {
-          setIsPlaying(false)
-        }
-        newAudio.onended = () => {
-          setCurrentPlayingTrack(null)
-          setCurrentPlayingType(null)
-          setIsPlaying(false)
-          setAudioProgress(0)
-          URL.revokeObjectURL(audioUrl)
-        }
-        newAudio.onloadedmetadata = () => {
-          setAudioDuration(newAudio.duration)
-        }
-        newAudio.ontimeupdate = () => {
-          if (newAudio.duration) {
-            setAudioProgress((newAudio.currentTime / newAudio.duration) * 100)
-          }
-        }
-
-        await newAudio.play()
-      } else {
-        alert('Unable to load composition file')
-      }
-    } catch (error) {
-      console.error('Error playing composition:', error)
-      alert('Playback failed')
-    }
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400"></div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading room...</p>
+        </div>
       </div>
     )
   }
 
   if (!room) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black flex items-center justify-center">
-        <div className="text-white text-xl">Room not found</div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <Music className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-2">Room Not Found</h2>
+          <p className="text-gray-400">The music room you're looking for doesn't exist.</p>
+        </div>
       </div>
     )
   }
@@ -629,40 +562,40 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               </button>
               <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
                 <Music className="w-6 h-6 text-white" />
+
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  {room.name}
-                </h1>
-                <div className="flex items-center space-x-4 text-sm text-gray-400">
-                  <span className="flex items-center">
-                    <Users className="w-4 h-4 mr-1" />
-                    {room.participants.length} participants
-                  </span>
-                  <span className="flex items-center">
-                    <Music className="w-4 h-4 mr-1" />
+                <h1 className="text-2xl font-bold text-white">{room.name}</h1>
+                <p className="text-gray-400">{room.description}</p>
+                <div className="flex items-center space-x-4 mt-2">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                     {room.genre}
                   </span>
+                  <span className="flex items-center text-sm text-gray-400">
+                    <Users className="w-4 h-4 mr-1" />
+                    {room.participants?.length || 0} participants
+                  </span>
                   {room.isLive && (
-                    <span className="flex items-center text-red-400">
-                      <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse mr-2" />
-                      LIVE
+                    <span className="flex items-center text-sm text-green-400">
+                      <Activity className="w-4 h-4 mr-1" />
+                      Live
                     </span>
                   )}
                 </div>
               </div>
             </div>            <div className="flex items-center space-x-3">              <button 
+
                 onClick={() => setShowInviteModal(true)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center space-x-2 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Invite</span>
               </button>
-              <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
-                <Share2 className="w-5 h-5" />
+              <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                <Settings className="w-5 h-5 text-gray-400" />
               </button>
-              <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
-                <Settings className="w-5 h-5" />
+              <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                <MoreHorizontal className="w-5 h-5 text-gray-400" />
               </button>
               {isRoomCreator() && (
                 <button 
@@ -721,95 +654,24 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Current Track */}
+
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Now Playing</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white">Room Chat</h2>
                 <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  <span className="text-sm text-gray-400">Synced</span>
+                  <span className="text-sm text-gray-400">0 messages</span>
                 </div>
               </div>
-
-              {room.currentTrack ? (
-                <div>
-                  <div className="flex items-center space-x-4 mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-                      <Music className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold">{room.currentTrack.name}</h3>
-                      <p className="text-gray-400">{room.currentTrack.artist}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
-                        <Heart className="w-5 h-5" />
-                      </button>
-                      <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Waveform Visualization */}
-                  <div className="mb-4">
-                    <div className="h-16 bg-gray-900 rounded-lg flex items-end justify-center space-x-1 p-2">
-                      {room.currentTrack.waveform?.map((height, index) => (
-                        <div
-                          key={index}
-                          className={`w-1 bg-gradient-to-t from-purple-500 to-pink-500 rounded-sm transition-all ${
-                            index < (currentTime / 180) * room.currentTrack!.waveform.length ? 'opacity-100' : 'opacity-30'
-                          }`}
-                          style={{ height: `${height * 100}%` }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Controls */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <button
-                        onClick={togglePlayback}
-                        className="w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center transition-colors"
-                      >
-                        {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-1" />}
-                      </button>
-                      <div className="flex items-center space-x-2">
-                        <Volume2 className="w-5 h-5 text-gray-400" />
-                        <div className="w-24 h-2 bg-gray-700 rounded-full">
-                          <div 
-                            className="h-full bg-purple-500 rounded-full transition-all"
-                            style={{ width: `${volume}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      {formatTime(currentTime)} / {room.currentTrack.duration}
-                    </div>
-                  </div>
+              
+              <div className="h-96 bg-gray-900/50 rounded-lg p-4 mb-4 overflow-y-auto">
+                <div className="text-center text-gray-400 py-8">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No messages yet. Start the conversation!</p>
                 </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No track currently playing</p>
-                </div>
-              )}
-            </motion.div>            {/* Uploaded Tracks */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
-            >              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Uploaded Audio</h2>
-                <span className="text-sm text-gray-400">
-                  {uploadedTracks.length} files
-                </span>
               </div>
 
               <div className="space-y-3">
@@ -907,44 +769,48 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                     <p className="text-sm mt-1">Click "Add Track" to get started</p>
                   </div>
                 )}
+
               </div>
-            </motion.div>            {/* Compositions */}
+            </motion.div>
+          )}
+
+          {activeTab === 'participants' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
               className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Compositions</h2>
-                <span className="text-sm text-gray-400">
-                  {compositions.length} files
-                </span>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white">Participants</h2>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-400">{room.participants?.length || 0} online</span>
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="flex items-center space-x-1 px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors"
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    <span>Invite</span>
+                  </button>
+                </div>
               </div>
-
+              
               <div className="space-y-3">
-                {compositions.length > 0 ? (
-                  compositions.map((composition, index) => (
-                    <div 
-                      key={composition.id}
-                      className={`p-3 rounded-lg transition-colors ${
-                        currentPlayingTrack === composition.id && currentPlayingType === 'composition'
-                          ? 'bg-pink-600/20 border border-pink-500/30' 
-                          : 'bg-gray-700/50 hover:bg-gray-700'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-8 h-8 flex items-center justify-center text-sm text-gray-400">
-                          {currentPlayingTrack === composition.id && currentPlayingType === 'composition' ? (
-                            <div className="flex space-x-1">
-                              <div className="w-1 h-4 bg-pink-400 rounded-full animate-pulse" />
-                              <div className="w-1 h-4 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                              <div className="w-1 h-4 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
-                            </div>
-                          ) : (
-                            <div className="w-6 h-6 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full flex items-center justify-center">
-                              <Layers className="w-3 h-3 text-white" />
-                            </div>
+                {room.participants?.map((participant) => (
+                  <div
+                    key={participant._id}
+                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-white">
+                          {participant.username.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <p className="font-medium text-white">{participant.username}</p>
+                          {participant.role === 'creator' && (
+                            <Crown className="w-4 h-4 text-yellow-400" />
                           )}
                         </div>
                         <div className="flex-1">
@@ -994,152 +860,20 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
+
                           )}
                         </div>
                       </div>
-                      
-                      {/* Progress Bar */}
-                      {currentPlayingTrack === composition.id && currentPlayingType === 'composition' && (
-                        <div className="mt-3 space-y-2">
-                          <div 
-                            className="w-full h-2 bg-gray-700 rounded-full cursor-pointer"
-                            onClick={handleProgressClick}
-                          >
-                            <div 
-                              className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-100"
-                              style={{ width: `${audioProgress}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-gray-400">
-                            <span>{formatAudioTime(audioRef?.currentTime || 0)}</span>
-                            <span>{formatAudioTime(audioDuration)}</span>
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Layers className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No compositions created yet</p>
-                    <p className="text-sm mt-1">Select multiple audio files to compose</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Participants */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
-            >
-              <h2 className="text-xl font-bold mb-4">Participants</h2>
-              <div className="space-y-3">
-                {room.participants.map((participant) => (
-                  <div key={participant.id} className="flex items-center space-x-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold">
-                          {participant.username.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      {participant.isOnline && (
-                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-gray-800" />
-                      )}
-                      {participant.role === 'creator' && (
-                        <Crown className="absolute -top-1 -right-1 w-4 h-4 text-yellow-400" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{participant.username}</p>
-                      <p className="text-xs text-gray-400">
-                        {participant.instruments.join(', ')}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      {participant.role === 'creator' && <Mic className="w-4 h-4 text-purple-400" />}
+                    <div className="flex items-center space-x-2">
                       <Headphones className="w-4 h-4 text-gray-400" />
                     </div>
                   </div>
                 ))}
               </div>
-            </motion.div>            {/* Room Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
-            >
-              <h2 className="text-xl font-bold mb-4">Room Stats</h2>              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Uploaded Audio</span>
-                  <span className="font-bold text-purple-400">
-                    {uploadedTracks.length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Compositions</span>
-                  <span className="font-bold text-pink-400">
-                    {compositions.length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Files</span>
-                  <span className="font-bold">{uploadedTracks.length + compositions.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Session Time</span>
-                  <span className="font-bold">2h 34m</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Created</span>
-                  <span className="font-bold">
-                    {new Date(room.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
             </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6"
-            >              <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-              <div className="space-y-3">
-                <button 
-                  onClick={handleAddTrack}
-                  className="w-full flex items-center space-x-3 p-3 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
-                >
-                  <Upload className="w-5 h-5" />
-                  <span>Add Track</span>
-                </button>
-                <button 
-                  onClick={() => setShowComposeModal(true)}
-                  disabled={uploadedTracks.length < 2}
-                  className="w-full flex items-center space-x-3 p-3 bg-pink-600 hover:bg-pink-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors"
-                >
-                  <Layers className="w-5 h-5" />
-                  <span>Compose Tracks</span>
-                </button>
-                <button className="w-full flex items-center space-x-3 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                  <Radio className="w-5 h-5" />
-                  <span>Start Broadcast</span>
-                </button>
-                <button className="w-full flex items-center space-x-3 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                  <MessageCircle className="w-5 h-5" />
-                  <span>Open Chat</span>
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        </div>
+          )}
+        </motion.div>
       </div>
 
       {/* Invite Modal */}
@@ -1157,7 +891,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                 <div className="flex space-x-2">
                   <input
                     type="text"
-                    value={`${window.location.origin}/room/${roomId}`}
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/room/${roomId}`}
                     readOnly
                     className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm"
                   />
@@ -1347,6 +1081,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
             </div>
           </motion.div>
         </div>
+
       )}
     </div>
   )
