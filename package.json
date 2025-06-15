@@ -9,6 +9,8 @@
     "lint": "next lint",
     "init-db": "node scripts/init-database.js",
     "db:setup": "npm run init-db",
+    "db:import-sample": "node import-sample-data.js",
+    "db:setup-with-data": "npm run db:setup && npm run db:import-sample",
     "test:audio": "node test-audio-api-postgresql.js",
     "test:collaboration": "node test-room-collaboration.js"
   },
@@ -65,7 +67,7 @@
     "@types/express-validator": "^2.20.33",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.15.30",
+    "@types/node": "^22.15.31",
     "@types/pg": "^8.15.4",
     "@types/winston": "^2.4.4",
     "eslint": "^8",

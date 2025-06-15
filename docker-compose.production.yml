@@ -1,0 +1,75 @@
+# Docker Compose for production deployment testing
+# This file can be used to test the production build locally
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=syncsphere
+      - DB_USER=syncsphere
+      - DB_PASSWORD=syncsphere_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - uploads:/app/uploads
+      - compositions:/app/compositions
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: syncsphere
+      POSTGRES_USER: syncsphere
+      POSTGRES_PASSWORD: syncsphere_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgresql-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./audio-tables.sql:/docker-entrypoint-initdb.d/02-audio.sql
+      - ./database/add-compositions-table.sql:/docker-entrypoint-initdb.d/03-compositions.sql
+      - ./database/add-join-requests-table.sql:/docker-entrypoint-initdb.d/04-join-requests.sql
+      - ./database/syncsphere.sql:/docker-entrypoint-initdb.d/05-sample-data.sql
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - uploads:/var/www/uploads
+      - compositions:/var/www/compositions
+    depends_on:
+      - app
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+  compositions:

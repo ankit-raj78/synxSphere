@@ -1,0 +1,255 @@
+{
+  "version": "32.0.0",
+  "artifacts": {
+    "SyncSphereSimpleStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "SyncSphereSimpleStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "SyncSphereSimpleStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://752233440549/us-east-1",
+      "properties": {
+        "templateFile": "SyncSphereSimpleStack.template.json",
+        "tags": {
+          "CostOptimized": "true",
+          "Environment": "production",
+          "Owner": "SyncSphere Team",
+          "Project": "SyncSphere"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::752233440549:role/cdk-hnb659fds-deploy-role-752233440549-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::752233440549:role/cdk-hnb659fds-cfn-exec-role-752233440549-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-752233440549-us-east-1/53b409507829af44b59543e392246dc33f2d1fb5973d440157b19793f151ffaa.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "SyncSphereSimpleStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::752233440549:role/cdk-hnb659fds-lookup-role-752233440549-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "SyncSphereSimpleStack.assets"
+      ],
+      "metadata": {
+        "/SyncSphereSimpleStack": [
+          {
+            "type": "aws:cdk:error",
+            "data": "You are not authorized to perform this operation. User: arn:aws:iam::752233440549:user/ankit is not authorized to perform: ec2:DescribeVpcs because no identity-based policy allows the ec2:DescribeVpcs action",
+            "trace": [
+              "Annotations.addMessage (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\aws-cdk-lib\\core\\lib\\annotations.js:1:1071)",
+              "Annotations.addError (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\aws-cdk-lib\\core\\lib\\annotations.js:1:669)",
+              "ContextProvider.getValue (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\aws-cdk-lib\\core\\lib\\context-provider.js:2:1160)",
+              "Vpc.fromLookup (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\aws-cdk-lib\\aws-ec2\\lib\\vpc.js:1:8016)",
+              "new SyncSphereSimpleStack (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\lib\\syncsphere-simple-stack.ts:16:25)",
+              "Object.<anonymous> (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\bin\\syncsphere-simple.ts:8:1)",
+              "Module._compile (node:internal/modules/cjs/loader:1734:14)",
+              "Module.m._compile (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\ts-node\\src\\index.ts:1618:23)",
+              "loadTS (node:internal/modules/cjs/loader:1826:10)",
+              "Object.require.extensions.<computed> [as .ts] (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\ts-node\\src\\index.ts:1621:12)",
+              "Module.load (node:internal/modules/cjs/loader:1469:32)",
+              "Module._load (node:internal/modules/cjs/loader:1286:12)",
+              "TracingChannel.traceSync (node:diagnostics_channel:322:14)",
+              "wrapModuleLoad (node:internal/modules/cjs/loader:235:24)",
+              "Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:152:5)",
+              "phase4 (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\ts-node\\src\\bin.ts:649:14)",
+              "bootstrap (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\ts-node\\src\\bin.ts:95:10)",
+              "main (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\ts-node\\src\\bin.ts:55:10)",
+              "Object.<anonymous> (C:\\Users\\ankit\\synxSphere\\aws-cdk-simple\\node_modules\\ts-node\\src\\bin.ts:800:3)",
+              "Module._compile (node:internal/modules/cjs/loader:1734:14)",
+              "Object..js (node:internal/modules/cjs/loader:1899:10)",
+              "Module.load (node:internal/modules/cjs/loader:1469:32)",
+              "Module._load (node:internal/modules/cjs/loader:1286:12)",
+              "TracingChannel.traceSync (node:diagnostics_channel:322:14)",
+              "wrapModuleLoad (node:internal/modules/cjs/loader:235:24)",
+              "Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:152:5)",
+              "node:internal/main/run_main_module:33:47"
+            ]
+          },
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "CostOptimized",
+                "Value": "true"
+              },
+              {
+                "Key": "Environment",
+                "Value": "production"
+              },
+              {
+                "Key": "Owner",
+                "Value": "SyncSphere Team"
+              },
+              {
+                "Key": "Project",
+                "Value": "SyncSphere"
+              }
+            ]
+          }
+        ],
+        "/SyncSphereSimpleStack/EC2SecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EC2SecurityGroup05DEE054"
+          }
+        ],
+        "/SyncSphereSimpleStack/RDSSecurityGroup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "RDSSecurityGroup6BF2CF10"
+          }
+        ],
+        "/SyncSphereSimpleStack/RDSSecurityGroup/from SyncSphereSimpleStackEC2SecurityGroup28CCDA33:5432": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "RDSSecurityGroupfromSyncSphereSimpleStackEC2SecurityGroup28CCDA335432245A1BF1"
+          }
+        ],
+        "/SyncSphereSimpleStack/AudioFilesBucket/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AudioFilesBucket378F72A7"
+          }
+        ],
+        "/SyncSphereSimpleStack/EC2Role/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EC2RoleF978FC1C"
+          }
+        ],
+        "/SyncSphereSimpleStack/EC2Role/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EC2RoleDefaultPolicy64E44857"
+          }
+        ],
+        "/SyncSphereSimpleStack/EC2InstanceProfile": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EC2InstanceProfile"
+          }
+        ],
+        "/SyncSphereSimpleStack/DBSubnetGroup/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DBSubnetGroup"
+          }
+        ],
+        "/SyncSphereSimpleStack/SyncSphereDatabase/Secret/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SyncSphereSimpleStackSyncSphereDatabaseSecret5B9723B73fdaad7efa858a3daf9490cf0a702aeb"
+          }
+        ],
+        "/SyncSphereSimpleStack/SyncSphereDatabase/Secret/Attachment/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SyncSphereDatabaseSecretAttachment1FC1C10C"
+          }
+        ],
+        "/SyncSphereSimpleStack/SyncSphereDatabase/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SyncSphereDatabaseC88A4024"
+          }
+        ],
+        "/SyncSphereSimpleStack/SyncSphereInstance/InstanceProfile": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SyncSphereInstanceInstanceProfile47ACC68B"
+          }
+        ],
+        "/SyncSphereSimpleStack/SyncSphereInstance/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SyncSphereInstance68748F7E"
+          }
+        ],
+        "/SyncSphereSimpleStack/SsmParameterValue:--aws--service--ami-amazon-linux-latest--amzn2-ami-kernel-5.10-hvm-x86_64-gp2:C96584B6-F00A-464E-AD19-53AFF4B05118.Parameter": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter"
+          }
+        ],
+        "/SyncSphereSimpleStack/InstancePublicIP": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "InstancePublicIP"
+          }
+        ],
+        "/SyncSphereSimpleStack/ApplicationURL": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApplicationURL"
+          }
+        ],
+        "/SyncSphereSimpleStack/SSHCommand": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SSHCommand"
+          }
+        ],
+        "/SyncSphereSimpleStack/DatabaseEndpoint": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DatabaseEndpoint"
+          }
+        ],
+        "/SyncSphereSimpleStack/S3BucketName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "S3BucketName"
+          }
+        ],
+        "/SyncSphereSimpleStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/SyncSphereSimpleStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/SyncSphereSimpleStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "SyncSphereSimpleStack"
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  },
+  "missing": [
+    {
+      "key": "vpc-provider:account=752233440549:filter.isDefault=true:region=us-east-1:returnAsymmetricSubnets=true",
+      "provider": "vpc-provider",
+      "props": {
+        "account": "752233440549",
+        "region": "us-east-1",
+        "filter": {
+          "isDefault": "true"
+        },
+        "returnAsymmetricSubnets": true,
+        "lookupRoleArn": "arn:${AWS::Partition}:iam::752233440549:role/cdk-hnb659fds-lookup-role-752233440549-us-east-1"
+      }
+    }
+  ]
+}

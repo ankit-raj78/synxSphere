@@ -1,0 +1,35 @@
+# Use Node.js 18 for better compatibility
+FROM node:18
+
+# Set working directory
+WORKDIR /app
+
+# Install FFmpeg for audio processing
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Skip Python dependencies - we'll use Node.js alternatives
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Expose port (Railway will set PORT environment variable)
+EXPOSE ${PORT:-3000}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node healthcheck.js || exit 1
+
+# Start the application
+CMD ["npm", "start"]

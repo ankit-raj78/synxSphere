@@ -1,0 +1,511 @@
+{
+ "Description": "SyncSphere Simple EC2 Deployment - Minimal Cost",
+ "Resources": {
+  "EC2SecurityGroup05DEE054": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for SyncSphere EC2 instance",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "HTTP access",
+      "FromPort": 80,
+      "IpProtocol": "tcp",
+      "ToPort": 80
+     },
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "HTTPS access",
+      "FromPort": 443,
+      "IpProtocol": "tcp",
+      "ToPort": 443
+     },
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "App access",
+      "FromPort": 3000,
+      "IpProtocol": "tcp",
+      "ToPort": 3000
+     },
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "SSH access",
+      "FromPort": 22,
+      "IpProtocol": "tcp",
+      "ToPort": 22
+     }
+    ],
+    "VpcId": "vpc-12345"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/EC2SecurityGroup/Resource"
+   }
+  },
+  "RDSSecurityGroup6BF2CF10": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for RDS PostgreSQL",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "255.255.255.255/32",
+      "Description": "Disallow all traffic",
+      "FromPort": 252,
+      "IpProtocol": "icmp",
+      "ToPort": 86
+     }
+    ],
+    "VpcId": "vpc-12345"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/RDSSecurityGroup/Resource"
+   }
+  },
+  "RDSSecurityGroupfromSyncSphereSimpleStackEC2SecurityGroup28CCDA335432245A1BF1": {
+   "Type": "AWS::EC2::SecurityGroupIngress",
+   "Properties": {
+    "IpProtocol": "tcp",
+    "Description": "Allow EC2 to RDS",
+    "FromPort": 5432,
+    "GroupId": {
+     "Fn::GetAtt": [
+      "RDSSecurityGroup6BF2CF10",
+      "GroupId"
+     ]
+    },
+    "SourceSecurityGroupId": {
+     "Fn::GetAtt": [
+      "EC2SecurityGroup05DEE054",
+      "GroupId"
+     ]
+    },
+    "ToPort": 5432
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/RDSSecurityGroup/from SyncSphereSimpleStackEC2SecurityGroup28CCDA33:5432"
+   }
+  },
+  "AudioFilesBucket378F72A7": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketName": "syncsphere-audio-752233440549-us-east-1",
+    "CorsConfiguration": {
+     "CorsRules": [
+      {
+       "AllowedHeaders": [
+        "*"
+       ],
+       "AllowedMethods": [
+        "GET",
+        "PUT",
+        "POST"
+       ],
+       "AllowedOrigins": [
+        "*"
+       ],
+       "MaxAge": 300
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/AudioFilesBucket/Resource"
+   }
+  },
+  "EC2RoleF978FC1C": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ec2.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Description": "IAM role for SyncSphere EC2 instance"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/EC2Role/Resource"
+   }
+  },
+  "EC2RoleDefaultPolicy64E44857": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "AudioFilesBucket378F72A7",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "AudioFilesBucket378F72A7",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "EC2RoleDefaultPolicy64E44857",
+    "Roles": [
+     {
+      "Ref": "EC2RoleF978FC1C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/EC2Role/DefaultPolicy/Resource"
+   }
+  },
+  "EC2InstanceProfile": {
+   "Type": "AWS::IAM::InstanceProfile",
+   "Properties": {
+    "Roles": [
+     {
+      "Ref": "EC2RoleF978FC1C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/EC2InstanceProfile"
+   }
+  },
+  "DBSubnetGroup": {
+   "Type": "AWS::RDS::DBSubnetGroup",
+   "Properties": {
+    "DBSubnetGroupDescription": "Subnet group for RDS database",
+    "SubnetIds": [
+     "s-12345",
+     "s-67890"
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/DBSubnetGroup/Default"
+   }
+  },
+  "SyncSphereSimpleStackSyncSphereDatabaseSecret5B9723B73fdaad7efa858a3daf9490cf0a702aeb": {
+   "Type": "AWS::SecretsManager::Secret",
+   "Properties": {
+    "Description": {
+     "Fn::Join": [
+      "",
+      [
+       "Generated by the CDK for stack: ",
+       {
+        "Ref": "AWS::StackName"
+       }
+      ]
+     ]
+    },
+    "GenerateSecretString": {
+     "ExcludeCharacters": " %+~`#$&*()|[]{}:;<>?!'/@\"\\",
+     "GenerateStringKey": "password",
+     "PasswordLength": 30,
+     "SecretStringTemplate": "{\"username\":\"postgres\"}"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/SyncSphereDatabase/Secret/Resource"
+   }
+  },
+  "SyncSphereDatabaseSecretAttachment1FC1C10C": {
+   "Type": "AWS::SecretsManager::SecretTargetAttachment",
+   "Properties": {
+    "SecretId": {
+     "Ref": "SyncSphereSimpleStackSyncSphereDatabaseSecret5B9723B73fdaad7efa858a3daf9490cf0a702aeb"
+    },
+    "TargetId": {
+     "Ref": "SyncSphereDatabaseC88A4024"
+    },
+    "TargetType": "AWS::RDS::DBInstance"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/SyncSphereDatabase/Secret/Attachment/Resource"
+   }
+  },
+  "SyncSphereDatabaseC88A4024": {
+   "Type": "AWS::RDS::DBInstance",
+   "Properties": {
+    "AllocatedStorage": "20",
+    "BackupRetentionPeriod": 1,
+    "CopyTagsToSnapshot": true,
+    "DBInstanceClass": "db.t3.micro",
+    "DBName": "syncsphere",
+    "DBSubnetGroupName": {
+     "Ref": "DBSubnetGroup"
+    },
+    "DeleteAutomatedBackups": true,
+    "DeletionProtection": false,
+    "Engine": "postgres",
+    "EngineVersion": "15.3",
+    "MasterUsername": "postgres",
+    "MasterUserPassword": {
+     "Fn::Join": [
+      "",
+      [
+       "{{resolve:secretsmanager:",
+       {
+        "Ref": "SyncSphereSimpleStackSyncSphereDatabaseSecret5B9723B73fdaad7efa858a3daf9490cf0a702aeb"
+       },
+       ":SecretString:password::}}"
+      ]
+     ]
+    },
+    "MultiAZ": false,
+    "PubliclyAccessible": false,
+    "StorageEncrypted": false,
+    "StorageType": "gp2",
+    "VPCSecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "RDSSecurityGroup6BF2CF10",
+       "GroupId"
+      ]
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/SyncSphereDatabase/Resource"
+   }
+  },
+  "SyncSphereInstanceInstanceProfile47ACC68B": {
+   "Type": "AWS::IAM::InstanceProfile",
+   "Properties": {
+    "Roles": [
+     {
+      "Ref": "EC2RoleF978FC1C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/SyncSphereInstance/InstanceProfile"
+   }
+  },
+  "SyncSphereInstance68748F7E": {
+   "Type": "AWS::EC2::Instance",
+   "Properties": {
+    "AvailabilityZone": "dummy1a",
+    "IamInstanceProfile": {
+     "Ref": "SyncSphereInstanceInstanceProfile47ACC68B"
+    },
+    "ImageId": {
+     "Ref": "SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter"
+    },
+    "InstanceType": "t3.micro",
+    "KeyName": "syncsphere-keypair",
+    "SecurityGroupIds": [
+     {
+      "Fn::GetAtt": [
+       "EC2SecurityGroup05DEE054",
+       "GroupId"
+      ]
+     }
+    ],
+    "SubnetId": "s-12345",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "SyncSphereSimpleStack/SyncSphereInstance"
+     }
+    ],
+    "UserData": {
+     "Fn::Base64": {
+      "Fn::Join": [
+       "",
+       [
+        "#!/bin/bash\nyum update -y\nyum install -y docker git postgresql15\ncurl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose\nchmod +x /usr/local/bin/docker-compose\nsystemctl start docker\nsystemctl enable docker\nusermod -a -G docker ec2-user\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash\nexport NVM_DIR=\"$HOME/.nvm\"\n[ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"\nnvm install 18\nnvm use 18\necho 'export DB_HOST=",
+        {
+         "Fn::GetAtt": [
+          "SyncSphereDatabaseC88A4024",
+          "Endpoint.Address"
+         ]
+        },
+        "' >> /home/ec2-user/.bashrc\necho 'export DB_PORT=5432' >> /home/ec2-user/.bashrc\necho 'export DB_NAME=syncsphere' >> /home/ec2-user/.bashrc\necho 'export DB_USER=postgres' >> /home/ec2-user/.bashrc\necho 'export AWS_REGION=us-east-1' >> /home/ec2-user/.bashrc\necho 'export S3_AUDIO_BUCKET=",
+        {
+         "Ref": "AudioFilesBucket378F72A7"
+        },
+        "' >> /home/ec2-user/.bashrc\ncd /home/ec2-user\ngit clone https://github.com/yourusername/syncsphere.git\ncd syncsphere\nnpm install\ncat > /etc/systemd/system/syncsphere.service << EOF\n[Unit]\nDescription=SyncSphere Application\nAfter=network.target\n\n[Service]\nType=simple\nUser=ec2-user\nWorkingDirectory=/home/ec2-user/syncsphere\nEnvironment=NODE_ENV=production\nEnvironment=PORT=3000\nEnvironment=DB_HOST=",
+        {
+         "Fn::GetAtt": [
+          "SyncSphereDatabaseC88A4024",
+          "Endpoint.Address"
+         ]
+        },
+        "\nEnvironment=DB_PORT=5432\nEnvironment=DB_NAME=syncsphere\nEnvironment=DB_USER=postgres\nEnvironment=AWS_REGION=us-east-1\nEnvironment=S3_AUDIO_BUCKET=",
+        {
+         "Ref": "AudioFilesBucket378F72A7"
+        },
+        "\nExecStart=/home/ec2-user/.nvm/versions/node/v18.*/bin/npm start\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\nEOF\nsystemctl daemon-reload\nsystemctl enable syncsphere\nchown -R ec2-user:ec2-user /home/ec2-user"
+       ]
+      ]
+     }
+    }
+   },
+   "DependsOn": [
+    "EC2RoleDefaultPolicy64E44857",
+    "EC2RoleF978FC1C"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/SyncSphereInstance/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/32QwU7DMBBEv6V3ZykBCa6USKgnqoQ72jjb4Caxq/WaqrL87yiJEioOnGb2ebwaO4fnJ9hu8OIz3XRZb2qIlaDuVEneBdak8OI/I+kcYkU6sJHrG7twVq9H+z/Y25bJe7W3XtBqGgOLT8o/QNwF3ZGMfHZJGRwglq6fwpMeXG/0dRx/3bLlwO5oekqKGw+xCrUlWbsUu1tQoGCNntYyC6hI89yh2N20m6gf0GJLDHF+2xic5QO5JXkRQf01kBW1Bv6epDR1R8aBhHgc3oOcw3Rl+eSkrGsITv7uO3+ELdxvTt6YjIMVMxCUs/4A18opqq0BAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "SyncSphereSimpleStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Parameters": {
+  "SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter": {
+   "Type": "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>",
+   "Default": "/aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-x86_64-gp2"
+  },
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Outputs": {
+  "InstancePublicIP": {
+   "Description": "Public IP address of the EC2 instance",
+   "Value": {
+    "Fn::GetAtt": [
+     "SyncSphereInstance68748F7E",
+     "PublicIp"
+    ]
+   }
+  },
+  "ApplicationURL": {
+   "Description": "SyncSphere application URL",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "http://",
+      {
+       "Fn::GetAtt": [
+        "SyncSphereInstance68748F7E",
+        "PublicIp"
+       ]
+      },
+      ":3000"
+     ]
+    ]
+   }
+  },
+  "SSHCommand": {
+   "Description": "SSH command to connect to the instance",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "ssh -i syncsphere-keypair.pem ec2-user@",
+      {
+       "Fn::GetAtt": [
+        "SyncSphereInstance68748F7E",
+        "PublicIp"
+       ]
+      }
+     ]
+    ]
+   }
+  },
+  "DatabaseEndpoint": {
+   "Description": "RDS PostgreSQL endpoint",
+   "Value": {
+    "Fn::GetAtt": [
+     "SyncSphereDatabaseC88A4024",
+     "Endpoint.Address"
+    ]
+   }
+  },
+  "S3BucketName": {
+   "Description": "S3 bucket for audio files",
+   "Value": {
+    "Ref": "AudioFilesBucket378F72A7"
+   }
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

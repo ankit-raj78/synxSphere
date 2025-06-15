@@ -1,0 +1,169 @@
+name: Deploy SyncSphere to AWS
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: syncsphere
+  ECS_SERVICE: SyncSphereService
+  ECS_CLUSTER: syncsphere-cluster
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: syncsphere_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run tests
+      run: npm test
+      env:
+        NODE_ENV: test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: syncsphere_test
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+
+    - name: Run linting
+      run: npm run lint
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build
+      env:
+        NODE_ENV: production
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Get ECR repository URI
+      id: ecr-repo
+      run: |
+        ECR_URI=$(aws ssm get-parameter --name "/syncsphere/ecr-repository-uri" --query "Parameter.Value" --output text --region ${{ env.AWS_REGION }})
+        echo "ECR_URI=$ECR_URI" >> $GITHUB_OUTPUT
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build Docker image
+        docker build -f Dockerfile.production -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        # Push image to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Deploy infrastructure (if changed)
+      run: |
+        cd aws-cdk
+        npm install
+        npx cdk diff --require-approval never
+        
+        # Deploy if there are changes
+        if npx cdk diff --require-approval never | grep -q "Stack SyncSphereStack"; then
+          echo "Infrastructure changes detected, deploying..."
+          npx cdk deploy --require-approval never
+        else
+          echo "No infrastructure changes detected"
+        fi
+
+    - name: Update ECS service
+      run: |
+        aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --force-new-deployment --region ${{ env.AWS_REGION }}
+        
+        # Wait for deployment to complete
+        aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }} --region ${{ env.AWS_REGION }}
+
+    - name: Get deployment info
+      id: deployment-info
+      run: |
+        ALB_ENDPOINT=$(aws ssm get-parameter --name "/syncsphere/alb-endpoint" --query "Parameter.Value" --output text --region ${{ env.AWS_REGION }})
+        CLOUDFRONT_DOMAIN=$(aws ssm get-parameter --name "/syncsphere/cloudfront-domain" --query "Parameter.Value" --output text --region ${{ env.AWS_REGION }})
+        
+        echo "ALB_ENDPOINT=$ALB_ENDPOINT" >> $GITHUB_OUTPUT
+        echo "CLOUDFRONT_DOMAIN=$CLOUDFRONT_DOMAIN" >> $GITHUB_OUTPUT
+
+    - name: Run post-deployment tests
+      run: |
+        # Wait a bit for the service to be fully ready
+        sleep 30
+        
+        # Test health endpoint
+        curl -f http://${{ steps.deployment-info.outputs.ALB_ENDPOINT }}/api/health || exit 1
+        
+        echo "✅ Deployment successful!"
+        echo "🌐 Application URL: http://${{ steps.deployment-info.outputs.ALB_ENDPOINT }}"
+        echo "☁️ CloudFront URL: https://${{ steps.deployment-info.outputs.CLOUDFRONT_DOMAIN }}"
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🎉 SyncSphere deployment to AWS completed successfully!"
+        echo "📊 Image: ${{ steps.build-image.outputs.IMAGE_URI }}"
+        echo "🌐 URL: http://${{ steps.deployment-info.outputs.ALB_ENDPOINT }}"
+
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        echo "❌ SyncSphere deployment failed!"
+        echo "Check the logs above for details."

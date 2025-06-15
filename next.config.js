@@ -1,5 +1,53 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Production optimizations
+  output: 'standalone',
+  compress: true,
+  poweredByHeader: false,
+  
+  // Image optimization for CloudFront
+  images: {
+    domains: ['localhost'],
+    unoptimized: process.env.NODE_ENV === 'production', // Disable optimization for S3/CloudFront
+  },
+  
+  // Environment-specific configuration
+  env: {
+    CUSTOM_KEY: process.env.NODE_ENV,
+  },
+  
+  // Headers for security and performance
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+        ],
+      },
+    ];
+  },
+  
   webpack: (config, { isServer }) => {
     // Enhanced fallbacks for problematic modules
     config.resolve.fallback = {

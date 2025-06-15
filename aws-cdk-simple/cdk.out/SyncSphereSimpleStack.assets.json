@@ -1,0 +1,20 @@
+{
+  "version": "32.0.0",
+  "files": {
+    "53b409507829af44b59543e392246dc33f2d1fb5973d440157b19793f151ffaa": {
+      "source": {
+        "path": "SyncSphereSimpleStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "752233440549-us-east-1": {
+          "bucketName": "cdk-hnb659fds-assets-752233440549-us-east-1",
+          "objectKey": "53b409507829af44b59543e392246dc33f2d1fb5973d440157b19793f151ffaa.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::752233440549:role/cdk-hnb659fds-file-publishing-role-752233440549-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}
