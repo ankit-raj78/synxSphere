@@ -59,15 +59,29 @@ export function verifyToken(token: string): { id: string; email: string; created
   }
 }
 
-export async function registerUser(email: string, username: string, password: string): Promise<User> {
+export async function registerUser(
+  email: string, 
+  username: string, 
+  password: string, 
+  musicalPreferences?: any
+): Promise<User> {
   // Hash the password
   const hashedPassword = await bcrypt.hash(password, 10)
   
-  // Create user profile
+  // Create user profile with musical preferences
   const profile = {
     role: 'user' as const,
     bio: '',
-    avatar: ''
+    avatar: '',
+    musicalPreferences: {
+      instruments: musicalPreferences?.instruments || [],
+      genres: musicalPreferences?.genres || [],
+      experience: musicalPreferences?.experience || 'beginner',
+      collaborationStyle: 'flexible',
+      preferredTempo: { min: 60, max: 140 },
+      preferredKeys: [],
+      collaborationGoals: musicalPreferences?.collaborationGoals || []
+    }
   }
 
   try {

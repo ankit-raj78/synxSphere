@@ -1,35 +1,35 @@
-# 安装FFmpeg说明
+# FFmpeg Installation Guide
 
-## Windows下安装FFmpeg
+## Installing FFmpeg on Windows
 
-### 方法1：使用Chocolatey（推荐）
+### Method 1: Using Chocolatey (Recommended)
 ```powershell
-# 如果没有安装Chocolatey，先安装
+# If Chocolatey is not installed, install it first
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 
-# 安装FFmpeg
+# Install FFmpeg
 choco install ffmpeg
 ```
 
-### 方法2：手动安装
-1. 访问 https://ffmpeg.org/download.html
-2. 下载Windows版本
-3. 解压到文件夹（如 C:\ffmpeg）
-4. 将 C:\ffmpeg\bin 添加到系统PATH环境变量
+### Method 2: Manual Installation
+1. Visit https://ffmpeg.org/download.html
+2. Download Windows version
+3. Extract to a folder (e.g., C:\ffmpeg)
+4. Add C:\ffmpeg\bin to system PATH environment variable
 
-### 方法3：使用winget
+### Method 3: Using winget
 ```powershell
 winget install "FFmpeg (Essentials Build)"
 ```
 
-## 安装后验证
+## Verify Installation
 ```powershell
 ffmpeg -version
 ```
 
-## 使用Compose功能
-1. 确保已上传至少2个音频文件
-2. 在音乐房间中点击"Compose Tracks"按钮
-3. 选择要合成的音频文件
-4. 点击"Compose Tracks"按钮
-5. 合成完成后，文件会保存在 uploads/ 文件夹中
+## Using Compose Feature
+1. Ensure at least 2 audio files have been uploaded
+2. Click "Compose Tracks" button in the music room
+3. Select audio files to compose
+4. Click "Compose Tracks" button
+5. After composition is complete, files will be saved in uploads/ folder

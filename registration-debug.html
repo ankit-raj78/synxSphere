@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Debug - SyncSphere</title>
+    <style>        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #1a1a1a; 
+            color: white; 
+        }
+        .section { 
+            background: #2a2a2a; 
+            padding: 20px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            border: 1px solid #444; 
+        }
+        button { 
+            background: #4f46e5; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        button:hover { background: #4338ca; }
+        input, select { 
+            width: 100%; 
+            padding: 8px; 
+            margin: 5px 0; 
+            background: #333; 
+            border: 1px solid #555; 
+            color: white; 
+            border-radius: 4px; 
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        .warning { color: #f59e0b; }
+        pre { 
+            background: #1a1a1a; 
+            padding: 10px; 
+            border-radius: 4px; 
+            overflow-x: auto; 
+            border: 1px solid #333; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Registration & Room Display Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Step 1: Test Registration with Auto-Login</h2>
+        <form id="registrationForm">
+            <input type="email" id="email" placeholder="Email" value="testuser@example.com" required>
+            <input type="text" id="username" placeholder="Username" value="testuser" required>
+            <input type="password" id="password" placeholder="Password" value="testpass123" required>
+            <button type="submit">Register & Auto-Login</button>
+        </form>
+        <div id="registrationResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Check Token Storage</h2>
+        <button onclick="checkToken()">Check Stored Token</button>
+        <div id="tokenResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 3: Test Room API</h2>
+        <button onclick="testRoomsAPI()">Fetch Rooms</button>
+        <div id="roomsResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 4: Database Diagnostics</h2>
+        <button onclick="testDatabase()">Check Database</button>
+        <div id="databaseResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 5: Initialize Sample Data</h2>
+        <button onclick="initSampleData()">Create Sample Rooms</button>
+        <div id="sampleDataResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Manual Token Entry</h2>
+        <input type="text" id="manualToken" placeholder="Paste token here for testing">
+        <button onclick="setManualToken()">Set Token</button>
+        <button onclick="clearStorage()">Clear Storage</button>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const colors = {
+                success: '#10b981',
+                error: '#ef4444',
+                info: '#3b82f6',
+                warning: '#f59e0b'
+            };
+            console.log(`%c${message}`, `color: ${colors[type]}`);
+        }
+
+        // Step 1: Test Registration
+        document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            const resultDiv = document.getElementById('registrationResult');
+            resultDiv.innerHTML = '<div class="info">Registering user...</div>';
+            
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email,
+                        username,
+                        password,
+                        instruments: ['Guitar'],
+                        genres: ['Rock'],
+                        experience: 'Intermediate',
+                        collaborationGoals: ['Create original music']
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Registration successful!</div>
+                        <div class="info">User ID: ${data.user.id}</div>
+                        <div class="info">Token stored: ${data.token.substring(0, 20)}...</div>
+                        <div class="success">Auto-login completed</div>
+                    `;
+                    log('Registration successful with auto-login', 'success');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ Registration failed</div>
+                        <div class="error">Error: ${data.error || data.message || 'Unknown error'}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log('Registration failed', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Network error during registration</div>
+                    <div class="error">${error.message}</div>
+                `;
+                log('Registration network error: ' + error.message, 'error');
+            }
+        });
+
+        // Step 2: Check Token
+        function checkToken() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            const resultDiv = document.getElementById('tokenResult');
+            
+            if (token && user) {
+                try {
+                    const userData = JSON.parse(user);
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Token and user data found</div>
+                        <div class="info">User: ${userData.username} (${userData.email})</div>
+                        <div class="info">Token length: ${token.length}</div>
+                        <div class="info">Token preview: ${token.substring(0, 30)}...</div>
+                    `;
+                    log('Token check successful', 'success');
+                } catch (e) {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ Invalid user data format</div>
+                        <div class="error">${e.message}</div>
+                    `;
+                    log('Token check failed: ' + e.message, 'error');
+                }
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ No token or user data found</div>
+                    <div class="warning">Token exists: ${!!token}</div>
+                    <div class="warning">User data exists: ${!!user}</div>
+                `;
+                log('No token found', 'error');
+            }
+        }
+
+        // Step 3: Test Rooms API
+        async function testRoomsAPI() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('roomsResult');
+            
+            if (!token) {
+                resultDiv.innerHTML = '<div class="error">❌ No token found. Please register first.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">Fetching rooms...</div>';
+            
+            try {
+                const response = await fetch('/api/rooms', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Rooms API successful</div>
+                        <div class="info">Found ${Array.isArray(data) ? data.length : 0} rooms</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log(`Rooms API successful, found ${Array.isArray(data) ? data.length : 0} rooms`, 'success');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ Rooms API failed</div>
+                        <div class="error">Status: ${response.status}</div>
+                        <div class="error">Error: ${data.error || 'Unknown error'}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log('Rooms API failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Network error fetching rooms</div>
+                    <div class="error">${error.message}</div>
+                `;
+                log('Rooms API network error: ' + error.message, 'error');
+            }
+        }
+
+        // Step 4: Database Diagnostics
+        async function testDatabase() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('databaseResult');
+            
+            if (!token) {
+                resultDiv.innerHTML = '<div class="error">❌ No token found. Please register first.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">Running database diagnostics...</div>';
+            
+            try {
+                const response = await fetch('/api/debug/database', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Database diagnostics successful</div>
+                        <div class="info">Database status: ${data.database}</div>
+                        <div class="info">Users count: ${data.users_count}</div>
+                        <div class="info">Rooms count: ${data.rooms_count}</div>
+                        <div class="info">Participants count: ${data.participants_count}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log('Database diagnostics successful', 'success');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ Database diagnostics failed</div>
+                        <div class="error">Error: ${data.error || 'Unknown error'}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log('Database diagnostics failed', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Network error during diagnostics</div>
+                    <div class="error">${error.message}</div>
+                `;
+                log('Database diagnostics network error: ' + error.message, 'error');
+            }
+        }
+
+        // Step 5: Initialize Sample Data
+        async function initSampleData() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('sampleDataResult');
+            
+            if (!token) {
+                resultDiv.innerHTML = '<div class="error">❌ No token found. Please register first.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">Creating sample rooms...</div>';
+            
+            try {
+                const response = await fetch('/api/debug/init-sample-data', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Sample data creation successful</div>
+                        <div class="info">${data.message}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log('Sample data creation successful', 'success');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ Sample data creation failed</div>
+                        <div class="error">Error: ${data.error || 'Unknown error'}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    log('Sample data creation failed', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Network error during sample data creation</div>
+                    <div class="error">${error.message}</div>
+                `;
+                log('Sample data creation network error: ' + error.message, 'error');
+            }
+        }
+
+        // Manual token management
+        function setManualToken() {
+            const token = document.getElementById('manualToken').value;
+            if (token) {
+                localStorage.setItem('token', token);
+                log('Manual token set', 'info');
+                checkToken();
+            }
+        }
+
+        function clearStorage() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            log('Storage cleared', 'info');
+            document.getElementById('tokenResult').innerHTML = '<div class="info">Storage cleared</div>';
+        }
+
+        // Auto-check token on page load
+        window.onload = function() {
+            checkToken();
+        };
+    </script>
+</body>
+</html>

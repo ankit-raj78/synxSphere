@@ -1,90 +1,90 @@
-// 测试FFmpeg音频合成功能
-console.log('🎵 测试FFmpeg音频合成功能')
-console.log('================================')
+// Test FFmpeg audio composition functionality
+console.log('🎵 Testing FFmpeg Audio Composition Functionality')
+console.log('================================================')
 
 const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
 
-// 1. 检查FFmpeg是否可用
-console.log('1️⃣ 检查FFmpeg安装...')
+// 1. Check if FFmpeg is available
+console.log('1️⃣ Checking FFmpeg installation...')
 try {
   const ffmpegVersion = execSync('ffmpeg -version', { encoding: 'utf8' })
-  console.log('✅ FFmpeg已安装')
+  console.log('✅ FFmpeg is installed')
   const firstLine = ffmpegVersion.split('\n')[0]
-  console.log(`   版本: ${firstLine}`)
+  console.log(`   Version: ${firstLine}`)
 } catch (error) {
-  console.log('❌ FFmpeg未安装或无法访问')
-  console.log('   错误:', error.message)
+  console.log('❌ FFmpeg is not installed or inaccessible')
+  console.log('   Error:', error.message)
   process.exit(1)
 }
 
-// 2. 创建测试音频文件
-console.log('\n2️⃣ 创建测试音频文件...')
+// 2. Create test audio files
+console.log('\n2️⃣ Creating test audio files...')
 const uploadsDir = path.join(__dirname, 'uploads')
 
-// 确保uploads目录存在
+// Ensure uploads directory exists
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true })
-  console.log('✅ 创建uploads目录')
+  console.log('✅ Created uploads directory')
 }
 
-// 创建两个简单的测试音频文件（使用ffmpeg生成）
+// Create two simple test audio files (generated using ffmpeg)
 const testAudio1 = path.join(uploadsDir, 'test_tone_440hz.wav')
 const testAudio2 = path.join(uploadsDir, 'test_tone_880hz.wav')
 
 try {
-  // 生成440Hz音调 - 2秒
+  // Generate 440Hz tone - 2 seconds
   execSync(`ffmpeg -f lavfi -i "sine=frequency=440:duration=2" -y "${testAudio1}"`, { stdio: 'pipe' })
-  console.log('✅ 创建测试音频1 (440Hz)')
+  console.log('✅ Created test audio 1 (440Hz)')
   
-  // 生成880Hz音调 - 2秒
+  // Generate 880Hz tone - 2 seconds
   execSync(`ffmpeg -f lavfi -i "sine=frequency=880:duration=2" -y "${testAudio2}"`, { stdio: 'pipe' })
-  console.log('✅ 创建测试音频2 (880Hz)')
+  console.log('✅ Created test audio 2 (880Hz)')
 } catch (error) {
-  console.log('❌ 创建测试音频失败:', error.message)
+  console.log('❌ Failed to create test audio:', error.message)
   process.exit(1)
 }
 
-// 3. 测试音频合成
-console.log('\n3️⃣ 测试音频合成...')
+// 3. Test audio composition
+console.log('\n3️⃣ Testing audio composition...')
 const outputFile = path.join(uploadsDir, 'test_composition.mp3')
 
 try {
   const ffmpegCommand = `ffmpeg -i "${testAudio1}" -i "${testAudio2}" -filter_complex "[0:0][1:0]amix=inputs=2:duration=longest:dropout_transition=2" -ac 2 -ar 44100 -b:a 192k -y "${outputFile}"`
   
-  console.log('   执行命令:', ffmpegCommand)
+  console.log('   Executing command:', ffmpegCommand)
   execSync(ffmpegCommand, { stdio: 'pipe' })
-  console.log('✅ 音频合成成功')
+  console.log('✅ Audio composition successful')
   
-  // 检查输出文件
+  // Check output file
   const stats = fs.statSync(outputFile)
-  console.log(`   输出文件: ${path.basename(outputFile)}`)
-  console.log(`   文件大小: ${Math.round(stats.size / 1024)} KB`)
-  console.log(`   完整路径: ${outputFile}`)
+  console.log(`   Output file: ${path.basename(outputFile)}`)
+  console.log(`   File size: ${Math.round(stats.size / 1024)} KB`)
+  console.log(`   Full path: ${outputFile}`)
   
 } catch (error) {
-  console.log('❌ 音频合成失败:', error.message)
+  console.log('❌ Audio composition failed:', error.message)
   process.exit(1)
 }
 
-// 4. 验证结果
-console.log('\n4️⃣ 验证结果...')
+// 4. Verify results
+console.log('\n4️⃣ Verifying results...')
 const files = fs.readdirSync(uploadsDir)
 const compositionFiles = files.filter(file => file.includes('composition') || file.includes('test_'))
 
-console.log(`📁 uploads文件夹总文件数: ${files.length}`)
-console.log(`🎼 测试文件数量: ${compositionFiles.length}`)
+console.log(`📁 Total files in uploads folder: ${files.length}`)
+console.log(`🎼 Number of test files: ${compositionFiles.length}`)
 
 if (compositionFiles.length > 0) {
-  console.log('\n📋 测试文件列表:')
+  console.log('\n📋 Test files list:')
   compositionFiles.forEach((file, index) => {
     const filePath = path.join(uploadsDir, file)
     const stats = fs.statSync(filePath)
     console.log(`${index + 1}. ${file}`)
-    console.log(`   大小: ${Math.round(stats.size / 1024)} KB`)
+    console.log(`   Size: ${Math.round(stats.size / 1024)} KB`)
   })
 }
 
-console.log('\n🎉 FFmpeg音频合成测试完成！')
-console.log('💡 现在可以在SyncSphere应用中使用Compose功能了')
+console.log('\n🎉 FFmpeg audio composition test completed!')
+console.log('💡 Now you can use the Compose feature in SyncSphere application')

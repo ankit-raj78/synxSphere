@@ -23,15 +23,48 @@ export async function POST(request: NextRequest) {
 
     if (!trackIds || !Array.isArray(trackIds) || trackIds.length < 2) {
       return NextResponse.json({ error: 'At least 2 tracks are required' }, { status: 400 })
+    }    // Get track information from database
+    // If roomId is provided, check that user is a member and allow composing all room tracks
+    // Otherwise, only allow user's own tracks
+    let trackQuery: string
+    let queryParams: any[]
+    
+    if (roomId) {
+      // Verify user is a member of the room
+      const membershipQuery = `
+        SELECT r.id 
+        FROM rooms r 
+        JOIN room_participants rp ON r.id = rp.room_id 
+        WHERE r.id = $1 AND rp.user_id = $2
+      `
+      const membershipResult = await DatabaseManager.executeQuery(membershipQuery, [roomId, user.id])
+      
+      if (membershipResult.rows.length === 0) {
+        return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
+      }
+        // Allow composing tracks from all room members or files associated with the room
+      trackQuery = `
+        SELECT DISTINCT af.* FROM audio_files af
+        WHERE af.id = ANY($1) AND (
+          af.room_id = $2 OR 
+          af.user_id IN (
+            SELECT rp.user_id FROM room_participants rp WHERE rp.room_id = $2
+          )
+        )
+        ORDER BY af.created_at ASC
+      `
+      queryParams = [trackIds, roomId]
+    } else {
+      // Only allow user's own tracks if no room specified
+      trackQuery = `
+        SELECT * FROM audio_files 
+        WHERE id = ANY($1) AND user_id = $2
+        ORDER BY created_at ASC
+      `
+      queryParams = [trackIds, user.id]
     }
-
-    // Get track information from database
-    const trackQuery = `
-      SELECT * FROM audio_files 
-      WHERE id = ANY($1) AND user_id = $2
-      ORDER BY created_at ASC
-    `
-    const trackResult = await DatabaseManager.executeQuery(trackQuery, [trackIds, user.id])
+    
+    const trackResult = await DatabaseManager.executeQuery(trackQuery, queryParams)
     
     if (trackResult.rows.length !== trackIds.length) {
       return NextResponse.json({ error: 'Some tracks not found or access denied' }, { status: 404 })

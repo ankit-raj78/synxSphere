@@ -1,46 +1,60 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Music, Upload, Users, Brain, Activity, Play, Settings, 
-  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut
+  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut, Trash2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import RoomRecommendations from '../../components/RoomRecommendations'
+import RoomRecommendations, { RoomRecommendationsRef } from '../../components/RoomRecommendations'
 import FileUpload from '../../components/FileUpload'
 import AudioPlayer from '../../components/AudioPlayer'
 import RoomCreation from '../../components/RoomCreation'
+import ConfirmationModal from '../../components/ConfirmationModal'
+import { formatDate, formatDateTime } from '../../lib/date-utils'
 
 interface User {
   _id: string
   email: string
   username: string
   profile: {
-    instruments: string[]
-    genres: string[]
-    experience: string
-    collaborationGoals: string[]
+    musicalPreferences?: {
+      instruments: string[]
+      genres: string[]
+      experience: string
+      collaborationGoals?: string[]
+      collaborationStyle?: string
+      preferredTempo?: { min: number; max: number }
+      preferredKeys?: string[]
+    }
+    bio?: string
+    avatar?: string
+    role?: string
     musicalAnalysis?: any
   }
 }
 
 interface AudioFile {
-  _id: string
+  id: string
   filename: string
-  originalName: string
-  uploadedAt: string
+  original_name: string
+  created_at: string
   audioFeatures?: any
   analysisStatus: 'pending' | 'processing' | 'completed' | 'failed'
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([])
+  const router = useRouter();  const [user, setUser] = useState<User | null>(null)
+  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [userRoomData, setUserRoomData] = useState<any>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const roomRecommendationsRef = useRef<RoomRecommendationsRef>(null)
 
   useEffect(() => {
     // Check authentication
@@ -50,11 +64,10 @@ export default function DashboardPage() {
     if (!token || !userData) {
       router.push('/auth/login')
       return
-    }
-
-    try {
+    }    try {
       setUser(JSON.parse(userData))
       loadUserFiles()
+      loadUserRoomData()
       
       // Check for tab parameter in URL
       const urlParams = new URLSearchParams(window.location.search)
@@ -67,7 +80,6 @@ export default function DashboardPage() {
       router.push('/auth/login')
     }
   }, [router])
-
   const loadUserFiles = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -79,12 +91,38 @@ export default function DashboardPage() {
 
       if (response.ok) {
         const files = await response.json()
+        console.log('Loaded audio files:', files) // Debug log
+        files.forEach((file: AudioFile, index: number) => {
+          console.log(`File ${index}:`, {
+            id: file.id,
+            original_name: file.original_name,
+            created_at: file.created_at
+          })
+        })
         setAudioFiles(files)
       }
     } catch (error) {
-      console.error('Error loading files:', error)
-    } finally {
+      console.error('Error loading files:', error)    } finally {
       setLoading(false)
+    }
+  }
+
+  const loadUserRoomData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/user/rooms', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const roomData = await response.json()
+        console.log('Loaded user room data:', roomData)
+        setUserRoomData(roomData)
+      }
+    } catch (error) {
+      console.error('Error loading user room data:', error)
     }
   }
 
@@ -108,13 +146,54 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Upload error:', error)
+    }  }
+  const handleRoomCreated = async (roomId: string) => {
+    console.log('Room created successfully:', roomId)
+    // Refresh user room data and room recommendations
+    await loadUserRoomData()
+    setRefreshTrigger(prev => prev + 1)
+    // Also manually refresh using ref if available
+    if (roomRecommendationsRef.current) {
+      await roomRecommendationsRef.current.refreshRooms()
     }
+    // Navigate to the new room
+    router.push(`/room/${roomId}`)
   }
-
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     router.push('/')
+  }
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true)
+    try {
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        // Account deleted successfully
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        alert('Your account has been successfully deleted.')
+        router.push('/')
+      } else {
+        const error = await response.json()
+        alert(`Failed to delete account: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error)
+      alert('An error occurred while deleting your account. Please try again.')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+    }
   }
 
   if (loading) {
@@ -158,12 +237,12 @@ export default function DashboardPage() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tab Navigation */}
-        <div className="flex space-x-1 mb-8 bg-gray-800 p-1 rounded-lg">
+        {/* Tab Navigation */}        <div className="flex space-x-1 mb-8 bg-gray-800 p-1 rounded-lg">
           {[
             { id: 'overview', label: 'Overview', icon: Music },
             { id: 'upload', label: 'Upload Music', icon: Upload },
             { id: 'rooms', label: 'Find Rooms', icon: Users },
+            { id: 'my-rooms', label: 'My Rooms', icon: Star },
             { id: 'create-room', label: 'Create Room', icon: Plus },
             { id: 'analysis', label: 'AI Analysis', icon: Brain },
             { id: 'profile', label: 'Profile', icon: Settings }
@@ -215,17 +294,126 @@ export default function DashboardPage() {
                     <Brain className="w-8 h-8 text-secondary-400" />
                   </div>
                 </div>
-                
-                <div className="card">
+                  <div className="card">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-gray-400">Collaborations</p>
-                      <p className="text-3xl font-bold">0</p>
+                      <p className="text-3xl font-bold">
+                        {userRoomData?.statistics?.joined_rooms || 0}
+                      </p>
                     </div>
                     <Users className="w-8 h-8 text-accent-400" />
                   </div>
+                </div>              </div>
+
+              {/* My Rooms Section */}
+              {userRoomData && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Created Rooms */}
+                  <div className="card">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-bold">My Created Rooms</h3>
+                      <span className="text-sm text-gray-400">
+                        {userRoomData.statistics.created_rooms} rooms
+                      </span>
+                    </div>
+                    {userRoomData.created_rooms.length === 0 ? (
+                      <div className="text-center py-6">
+                        <Plus className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-400 text-sm">No rooms created yet</p>
+                        <button
+                          onClick={() => setActiveTab('create-room')}
+                          className="btn-primary mt-3 text-sm"
+                        >
+                          Create Your First Room
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {userRoomData.created_rooms.slice(0, 3).map((room: any) => (
+                          <div key={room.id} className="bg-gray-700/50 rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-white">{room.name}</h4>
+                                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                                  <span>{room.genre}</span>
+                                  <span>•</span>
+                                  <span>{room.participant_count} participants</span>
+                                  {room.is_live && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-green-400">Live</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => window.location.href = `/room/${room.id}`}
+                                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition-colors"
+                              >
+                                Enter
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Joined Rooms */}
+                  <div className="card">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-bold">Collaborating In</h3>
+                      <span className="text-sm text-gray-400">
+                        {userRoomData.statistics.joined_rooms} rooms
+                      </span>
+                    </div>
+                    {userRoomData.joined_rooms.length === 0 ? (
+                      <div className="text-center py-6">
+                        <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-400 text-sm">Not collaborating yet</p>
+                        <button
+                          onClick={() => setActiveTab('rooms')}
+                          className="btn-primary mt-3 text-sm"
+                        >
+                          Find Rooms to Join
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {userRoomData.joined_rooms.slice(0, 3).map((room: any) => (
+                          <div key={room.id} className="bg-gray-700/50 rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-white">{room.name}</h4>
+                                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                                  <span>by {room.creator_name}</span>
+                                  <span>•</span>
+                                  <span>{room.genre}</span>
+                                  <span>•</span>
+                                  <span>{room.participant_count} participants</span>
+                                  {room.is_live && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-green-400">Live</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => window.location.href = `/room/${room.id}`}
+                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
+                              >
+                                Enter
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Recent Files */}
               <div className="card">
@@ -243,16 +431,14 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {audioFiles.slice(0, 5).map((file) => (
-                      <div key={file._id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                    {audioFiles.slice(0, 5).map((file: AudioFile) => (
+                      <div key={file.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
                             <Music className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{file.originalName}</p>
-                            <p className="text-sm text-gray-400">
-                              {new Date(file.uploadedAt).toLocaleDateString()}
+                          </div>                          <div>
+                            <p className="font-medium">{file.original_name}</p>                            <p className="text-sm text-gray-400">
+                              {formatDateTime(file.created_at)}
                             </p>
                           </div>
                         </div>
@@ -267,7 +453,7 @@ export default function DashboardPage() {
                               Processing
                             </span>
                           )}
-                          <AudioPlayer fileId={file._id} />
+                          <AudioPlayer fileId={file.id} />
                         </div>
                       </div>
                     ))}
@@ -285,14 +471,173 @@ export default function DashboardPage() {
               </p>
               <FileUpload onFilesUploaded={handleFileUpload} />
             </div>
+          )}          {activeTab === 'rooms' && (
+            <RoomRecommendations 
+              ref={roomRecommendationsRef}
+              userId={user?._id || ''} 
+              refreshTrigger={refreshTrigger}
+              userRoomData={userRoomData}
+            />
           )}
 
-          {activeTab === 'rooms' && (
-            <RoomRecommendations userId={user?._id || ''} />
+          {activeTab === 'my-rooms' && userRoomData && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div className="card">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400">Created Rooms</p>
+                      <p className="text-3xl font-bold">{userRoomData.statistics.created_rooms}</p>
+                    </div>
+                    <Plus className="w-8 h-8 text-purple-400" />
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400">Joined Rooms</p>
+                      <p className="text-3xl font-bold">{userRoomData.statistics.joined_rooms}</p>
+                    </div>
+                    <Users className="w-8 h-8 text-blue-400" />
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400">Total Rooms</p>
+                      <p className="text-3xl font-bold">{userRoomData.statistics.total_rooms}</p>
+                    </div>
+                    <Star className="w-8 h-8 text-yellow-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Created Rooms */}
+                <div className="card">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold">My Created Rooms</h2>
+                    <button
+                      onClick={() => setActiveTab('create-room')}
+                      className="btn-primary flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Create New</span>
+                    </button>
+                  </div>
+                  {userRoomData.created_rooms.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Plus className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-2">No rooms created yet</p>
+                      <p className="text-sm text-gray-500">Create your first collaboration room to get started</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {userRoomData.created_rooms.map((room: any) => (
+                        <div key={room.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600 hover:border-purple-500 transition-colors">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-bold text-lg text-white">{room.name}</h3>
+                              <p className="text-gray-300 text-sm">{room.description || 'No description'}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {room.is_live && (
+                                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                                  Live
+                                </span>
+                              )}
+                              <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">
+                                Creator
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4 text-sm text-gray-400">
+                              <span className="flex items-center">
+                                <Users className="w-4 h-4 mr-1" />
+                                {room.participant_count} participants
+                              </span>
+                              <span>{room.genre}</span>
+                              <span>{new Date(room.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <button
+                              onClick={() => window.location.href = `/room/${room.id}`}
+                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
+                            >
+                              Enter Room
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Joined Rooms */}
+                <div className="card">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold">Collaborating In</h2>
+                    <button
+                      onClick={() => setActiveTab('rooms')}
+                      className="btn-secondary flex items-center space-x-2"
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>Find More</span>
+                    </button>
+                  </div>
+                  {userRoomData.joined_rooms.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-2">Not collaborating in any rooms yet</p>
+                      <p className="text-sm text-gray-500">Join rooms to start collaborating with other musicians</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {userRoomData.joined_rooms.map((room: any) => (
+                        <div key={room.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600 hover:border-blue-500 transition-colors">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-bold text-lg text-white">{room.name}</h3>
+                              <p className="text-gray-300 text-sm">Created by {room.creator_name}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {room.is_live && (
+                                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                                  Live
+                                </span>
+                              )}
+                              <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                                Member
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4 text-sm text-gray-400">
+                              <span className="flex items-center">
+                                <Users className="w-4 h-4 mr-1" />
+                                {room.participant_count} participants
+                              </span>
+                              <span>{room.genre}</span>
+                              <span>{new Date(room.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <button
+                              onClick={() => window.location.href = `/room/${room.id}`}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                            >
+                              Enter Room
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === 'create-room' && (
-            <RoomCreation />
+            <RoomCreation onRoomCreated={handleRoomCreated} />
           )}
 
           {activeTab === 'analysis' && (
@@ -314,10 +659,9 @@ export default function DashboardPage() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {audioFiles
-                      .filter(f => f.analysisStatus === 'completed')
-                      .map((file) => (
-                        <div key={file._id} className="bg-gray-700 rounded-lg p-4">
-                          <h4 className="font-semibold mb-3">{file.originalName}</h4>
+                      .filter(f => f.analysisStatus === 'completed')                      .map((file) => (
+                        <div key={file.id} className="bg-gray-700 rounded-lg p-4">
+                          <h4 className="font-semibold mb-3">{file.original_name}</h4>
                           {file.audioFeatures && (
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
@@ -364,11 +708,10 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                
-                <div>
+                  <div>
                   <label className="block text-sm font-medium mb-2">Instruments</label>
                   <div className="flex flex-wrap gap-2">
-                    {user.profile?.instruments?.map((instrument: string) => (
+                    {user.profile?.musicalPreferences?.instruments?.map((instrument: string) => (
                       <span key={instrument} className="px-3 py-1 bg-primary-600 text-white rounded-full text-sm">
                         {instrument}
                       </span>
@@ -379,7 +722,7 @@ export default function DashboardPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Genres</label>
                   <div className="flex flex-wrap gap-2">
-                    {user.profile?.genres?.map((genre: string) => (
+                    {user.profile?.musicalPreferences?.genres?.map((genre: string) => (
                       <span key={genre} className="px-3 py-1 bg-secondary-600 text-white rounded-full text-sm">
                         {genre}
                       </span>
@@ -390,18 +733,39 @@ export default function DashboardPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Experience Level</label>
                   <div className="px-4 py-3 bg-gray-700 rounded-lg text-gray-300">
-                    {user.profile?.experience || 'Not specified'}
+                    {user.profile?.musicalPreferences?.experience || 'Not specified'}
                   </div>
                 </div>
-                
-                <div>
+                  <div>
                   <label className="block text-sm font-medium mb-2">Collaboration Goals</label>
                   <div className="flex flex-wrap gap-2">
-                    {user.profile?.collaborationGoals?.map((goal: string) => (
+                    {user.profile?.musicalPreferences?.collaborationGoals?.map((goal: string) => (
                       <span key={goal} className="px-3 py-1 bg-accent-600 text-white rounded-full text-sm">
                         {goal}
                       </span>
                     )) || <span className="text-gray-400">No goals specified</span>}
+                  </div>
+                </div>
+
+                {/* Account Management Section */}
+                <div className="border-t border-gray-700 pt-6 mt-8">
+                  <h3 className="text-lg font-semibold mb-4 text-red-400">Danger Zone</h3>
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium text-red-400">Delete Account</h4>
+                        <p className="text-sm text-gray-400 mt-1">
+                          Permanently delete your account and all associated data. This action cannot be undone.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete Account</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -409,6 +773,19 @@ export default function DashboardPage() {
           )}
         </motion.div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAccount}
+        title="Delete Account"
+        message="Are you sure you want to delete your account? This action will permanently remove all your data including uploaded music files, room memberships, and collaborations. This step cannot be undone."
+        confirmText="Yes, Delete My Account"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Player Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .log-area {
+            background-color: #000;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            min-height: 200px;
+            overflow-y: auto;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 SyncSphere Audio Player Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Authentication Test</h2>
+        <button onclick="testAuth()">Check Authentication</button>
+        <div id="auth-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Audio Files API Test</h2>
+        <button onclick="testAudioFiles()">Fetch Audio Files</button>
+        <div id="files-list"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Audio Stream Test</h2>
+        <input type="text" id="file-id" placeholder="Enter file ID to test">
+        <button onclick="testAudioStream()">Test Audio Stream</button>
+        <div id="stream-result"></div>
+        <audio id="test-audio" controls style="width: 100%; margin-top: 10px;"></audio>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Debug Console</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <div class="log-area" id="debug-log"></div>
+    </div>
+
+    <script>
+        const debugLog = document.getElementById('debug-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.textContent += `[${timestamp}] ${message}\n`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            debugLog.textContent = '';
+        }
+
+        async function testAuth() {
+            const statusDiv = document.getElementById('auth-status');
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                statusDiv.innerHTML = '<p style="color: red;">❌ No token found in localStorage</p>';
+                log('❌ No authentication token found');
+                return;
+            }
+            
+            statusDiv.innerHTML = '<p style="color: green;">✅ Token found in localStorage</p>';
+            log('✅ Authentication token found: ' + token.substring(0, 20) + '...');
+        }
+
+        async function testAudioFiles() {
+            const listDiv = document.getElementById('files-list');
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                listDiv.innerHTML = '<p style="color: red;">❌ Please check authentication first</p>';
+                return;
+            }
+
+            try {
+                log('📡 Fetching audio files from /api/audio/files...');
+                const response = await fetch('/api/audio/files', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                log(`📡 Response status: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const files = await response.json();
+                    log(`✅ Found ${files.length} audio files`);
+                    
+                    let html = `<h3>Found ${files.length} files:</h3><ul>`;
+                    files.forEach((file, index) => {
+                        html += `<li>
+                            <strong>${file.original_name || file.filename}</strong><br>
+                            ID: ${file.id}<br>
+                            Created: ${file.created_at}<br>
+                            <button onclick="setFileId('${file.id}')">Test This File</button>
+                        </li>`;
+                        
+                        log(`File ${index}: ID=${file.id}, Name=${file.original_name || file.filename}`);
+                    });
+                    html += '</ul>';
+                    listDiv.innerHTML = html;
+                } else {
+                    const errorText = await response.text();
+                    listDiv.innerHTML = `<p style="color: red;">❌ Error: ${response.status} - ${errorText}</p>`;
+                    log(`❌ API Error: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                listDiv.innerHTML = `<p style="color: red;">❌ Network Error: ${error.message}</p>`;
+                log(`❌ Network Error: ${error.message}`);
+            }
+        }
+
+        function setFileId(id) {
+            document.getElementById('file-id').value = id;
+            log(`🎯 Set file ID for testing: ${id}`);
+        }
+
+        async function testAudioStream() {
+            const resultDiv = document.getElementById('stream-result');
+            const audioElement = document.getElementById('test-audio');
+            const fileId = document.getElementById('file-id').value;
+            const token = localStorage.getItem('token');
+            
+            if (!fileId) {
+                resultDiv.innerHTML = '<p style="color: red;">❌ Please enter a file ID</p>';
+                return;
+            }
+            
+            if (!token) {
+                resultDiv.innerHTML = '<p style="color: red;">❌ Please check authentication first</p>';
+                return;
+            }
+
+            try {
+                log(`🎵 Testing audio stream for file ID: ${fileId}`);
+                const response = await fetch(`/api/audio/stream/${fileId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                log(`🎵 Stream response status: ${response.status} ${response.statusText}`);
+                log(`🎵 Content-Type: ${response.headers.get('content-type')}`);
+                log(`🎵 Content-Length: ${response.headers.get('content-length')}`);
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    log(`✅ Audio blob created, size: ${blob.size} bytes`);
+                    
+                    const audioUrl = URL.createObjectURL(blob);
+                    audioElement.src = audioUrl;
+                    
+                    resultDiv.innerHTML = '<p style="color: green;">✅ Audio stream loaded successfully! Use controls below to play.</p>';
+                    log(`✅ Audio URL created: ${audioUrl.substring(0, 50)}...`);
+                } else {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML = `<p style="color: red;">❌ Stream Error: ${response.status} - ${errorText}</p>`;
+                    log(`❌ Stream Error: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Network Error: ${error.message}</p>`;
+                log(`❌ Stream Network Error: ${error.message}`);
+            }
+        }
+
+        // Initialize
+        window.onload = function() {
+            log('🚀 Audio Player Debug Test initialized');
+            log('🔧 Ready to test audio functionality');
+        };
+    </script>
+</body>
+</html>

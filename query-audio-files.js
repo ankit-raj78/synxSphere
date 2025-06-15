@@ -1,4 +1,4 @@
-// 查询数据库中的音频文件
+// Query audio files in database
 const { Pool } = require('pg')
 
 const pool = new Pool({
@@ -20,29 +20,28 @@ const queryAudioFiles = async () => {
     
     const result = await pool.query(query)
     
-    console.log('数据库中的音频文件:')
-    console.log('总数:', result.rows.length)
+    console.log('Audio files in database:')
+    console.log('Total count:', result.rows.length)
     
     if (result.rows.length === 0) {
-      console.log('没有找到音频文件记录')
+      console.log('No audio file records found')
       return []
     }
     
     result.rows.forEach((file, index) => {
       console.log(`${index + 1}. ID: ${file.id}`)
-      console.log(`   文件名: ${file.filename}`)
-      console.log(`   原始名: ${file.original_name}`) 
-      console.log(`   路径: ${file.file_path}`)
-      console.log(`   大小: ${Math.round(file.file_size / 1024)} KB`)
-      console.log(`   类型: ${file.mime_type}`)
-      console.log(`   创建时间: ${file.created_at}`)
+      console.log(`   Filename: ${file.filename}`)
+      console.log(`   Original name: ${file.original_name}`) 
+      console.log(`   Path: ${file.file_path}`)
+      console.log(`   Size: ${Math.round(file.file_size / 1024)} KB`)
+      console.log(`   Type: ${file.mime_type}`)
+      console.log(`   Created at: ${file.created_at}`)
       console.log('---')
     })
-    
-    return result.rows
+      return result.rows
     
   } catch (error) {
-    console.error('查询失败:', error)
+    console.error('Query failed:', error)
     return []
   } finally {
     await pool.end()
