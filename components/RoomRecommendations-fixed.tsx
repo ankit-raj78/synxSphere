@@ -421,7 +421,7 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
         <div className="card bg-gradient-to-r from-primary-500/10 to-secondary-500/10 border border-primary-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold mb-2">Can't find the perfect room?</h3>
+              <h3 className="text-lg font-semibold mb-2">Can&apos;t find the perfect room?</h3>
               <p className="text-gray-400">
                 Create your own collaboration room and let others find you
               </p>

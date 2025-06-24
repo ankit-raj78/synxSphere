@@ -5,6 +5,16 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
+  // TypeScript build configuration
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  
+  // Exclude CDK and other non-Next.js directories
+  experimental: {
+    externalDir: true,
+  },
+  
   // Image optimization for CloudFront
   images: {
     domains: ['localhost'],
@@ -14,6 +24,23 @@ const nextConfig = {
   // Environment-specific configuration
   env: {
     CUSTOM_KEY: process.env.NODE_ENV,
+  },
+
+  // Runtime configuration for environment variables
+  serverRuntimeConfig: {
+    // Will only be available on the server side
+    DATABASE_URL: process.env.DATABASE_URL,
+    POSTGRES_HOST: process.env.POSTGRES_HOST,
+    POSTGRES_PORT: process.env.POSTGRES_PORT,
+    POSTGRES_DB: process.env.POSTGRES_DB,
+    POSTGRES_USER: process.env.POSTGRES_USER,
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+  },
+  
+  publicRuntimeConfig: {
+    // Will be available on both server and client
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   },
   
   // Headers for security and performance

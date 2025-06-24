@@ -210,7 +210,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
         <div className="text-center">
           <Music className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-white mb-2">Room Not Found</h2>
-          <p className="text-gray-400">The music room you're looking for doesn't exist.</p>
+          <p className="text-gray-400">The music room you&apos;re looking for doesn&apos;t exist.</p>
         </div>
       </div>
     )
@@ -470,10 +470,12 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       {/* File Upload Modal */}
       {showUploadModal && (
         <FileUploadModal
+          isOpen={showUploadModal}
+          roomId={roomId}
           onUpload={handleFileUpload}
           onClose={() => setShowUploadModal(false)}
-          accept="audio/*"
-          multiple={true}
+          maxFiles={5}
+          acceptedFormats={['.wav', '.mp3', '.flac', '.aac', '.m4a', '.ogg']}
         />
       )}
     </div>

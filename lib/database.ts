@@ -18,16 +18,30 @@ class NextJSDatabaseManager {
 
   async getPool(): Promise<Pool> {
     if (!this.pool) {
-      this.pool = new Pool({
-        host: process.env.POSTGRES_HOST || 'localhost',
-        port: parseInt(process.env.POSTGRES_PORT || '5432'),
-        database: process.env.POSTGRES_DB || 'syncsphere',
-        user: process.env.POSTGRES_USER || 'postgres',
-        password: process.env.POSTGRES_PASSWORD || 'root',
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      })
+      // Use DATABASE_URL if available, otherwise fall back to individual env vars
+      if (process.env.DATABASE_URL) {
+        console.log('🔗 Using DATABASE_URL for database connection:', process.env.DATABASE_URL.substring(0, 30) + '...');
+        this.pool = new Pool({
+          connectionString: process.env.DATABASE_URL,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 2000,
+        })
+      } else {
+        const host = process.env.POSTGRES_HOST || 'localhost';
+        const port = parseInt(process.env.POSTGRES_PORT || '5432');
+        console.log(`🔗 Using individual env vars for database connection: ${host}:${port}`);
+        this.pool = new Pool({
+          host: host,
+          port: port,
+          database: process.env.POSTGRES_DB || 'syncsphere',
+          user: process.env.POSTGRES_USER || 'postgres',
+          password: process.env.POSTGRES_PASSWORD || 'root',
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 2000,
+        })
+      }
     }
     return this.pool
   }

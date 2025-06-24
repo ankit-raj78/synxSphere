@@ -1,0 +1,107 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production build
+.next
+out
+dist
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Audio files (samples, not needed in production)
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.ogg
+*.flac
+
+# Test files
+test-*
+*-test.*
+*.test.*
+
+# Development files
+dev-*
+debug-*
+
+# Documentation files (not needed in production)
+*.md
+!README.md
+
+# Git
+.git
+.gitignore
+
+# CDK files
+cdk
+cdk.out
+
+# Large files that aren't needed
+mixing-test-results.html
+audio-debug-test.html
+audio-network-test.html
+registration-debug.html
+simple-audio-test.html
+quick-audio-test.html
+
+# Shell scripts (not needed in container)
+*.sh
+# Allow specific database-related scripts
+!import-schema.sh
+!import-db-schema.sh
+!start-server.sh
+
+# Database files
+*.sql
+# Allow specific database schema files
+!audio-tables.sql
+!database/
+!database/*.sql
+
+# AWS/Docker files
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+railway.json

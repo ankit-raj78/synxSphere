@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
 import jwt from 'jsonwebtoken';
-
-const pool = new Pool({
-  user: process.env.POSTGRES_USER || 'postgres',
-  host: process.env.POSTGRES_HOST || 'localhost', 
-  database: process.env.POSTGRES_DB || 'syncsphere',
-  password: process.env.POSTGRES_PASSWORD || 'root',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-});
+import DatabaseManager from '@/lib/database';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -30,6 +22,7 @@ export async function DELETE(request: NextRequest) {
     const userId = decoded.id;
     console.log('Starting account deletion process for user:', userId);
 
+    const pool = await DatabaseManager.getPool();
     const client = await pool.connect();
     
     try {

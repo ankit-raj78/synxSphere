@@ -1,6 +1,6 @@
 # AWS Deployment Guide for SyncSphere
 
-This guide walks you through deploying SyncSphere to AWS using Infrastructure as Code (CDK) and containerization.
+This guide walks you through deploying SyncSphere to AWS using containerization and managed services.
 
 ## 🏗️ Architecture Overview
 
@@ -23,55 +23,58 @@ SyncSphere on AWS uses the following services:
 4. **Node.js** (v18 or later)
 5. **PostgreSQL client** (psql) for database setup
 
-### Install AWS CLI
-```powershell
-# Windows (using winget)
-winget install Amazon.AWSCLI
+### Install AWS CLI (macOS)
+```bash
+# Using Homebrew
+brew install awscli
+
+# Or using pip
+pip3 install awscli
 
 # Or download from: https://aws.amazon.com/cli/
 ```
 
 ### Configure AWS CLI
-```powershell
+```bash
 aws configure
 # Enter your AWS Access Key ID, Secret Access Key, Region, and Output format
 ```
 
 ### Install AWS CDK
-```powershell
+```bash
 npm install -g aws-cdk
 ```
 
 ## 🚀 Deployment Steps
 
 ### Step 1: Clone and Prepare
-```powershell
-cd c:\Users\ankit\synxSphere
+```bash
+cd /Users/ankitraj2/Documents/GitHub/synxSphere
 ```
 
 ### Step 2: Deploy Infrastructure and Application
-```powershell
+```bash
 # Full deployment (infrastructure + application)
-.\deploy-aws.ps1
+./deploy-aws.sh
 
 # Or deploy with specific options
-.\deploy-aws.ps1 -Environment production -Region us-east-1
+./deploy-aws.sh --environment production --region us-east-1
 ```
 
 This script will:
 1. ✅ Check prerequisites
-2. 🏗️ Deploy AWS infrastructure using CDK
+2. 🏗️ Deploy AWS infrastructure
 3. 📦 Build and push Docker image to ECR
 4. 🔄 Update ECS service with new image
 5. 📋 Display deployment information
 
 ### Step 3: Set Up Database
-```powershell
+```bash
 # Setup database with sample data
-.\setup-aws-database.ps1
+./setup-aws-database.sh
 
 # Or setup without sample data
-.\setup-aws-database.ps1 -SkipSampleData
+./setup-aws-database.sh --skip-sample-data
 ```
 
 ### Step 4: Access Your Application

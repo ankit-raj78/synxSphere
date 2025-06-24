@@ -42,6 +42,18 @@ export default function RoomPage() {
   if (!user) {
     return null
   }
+
+  if (!params?.id) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black flex items-center justify-center">
+        <div className="text-white text-center">
+          <h1 className="text-2xl font-bold mb-4">Room not found</h1>
+          <p>Invalid room ID</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <MusicRoomDashboard 
       roomId={params.id as string} 
