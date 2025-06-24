@@ -211,3 +211,5 @@ services/**/mock-*.ts
 services/**/*.mock.ts
 services/**/*.test.ts
 services/**/*.spec.ts
+
+/generated/prisma
