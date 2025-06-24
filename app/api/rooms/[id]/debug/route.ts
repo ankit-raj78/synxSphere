@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 export async function GET(
@@ -21,43 +21,71 @@ export async function GET(
 
     const roomId = params.id
 
-    // Get room info
-    const roomQuery = 'SELECT * FROM rooms WHERE id = $1'
-    const roomResult = await DatabaseManager.executeQuery(roomQuery, [roomId])
+    // Get room info with Prisma
+    const room = await prisma.room.findUnique({
+      where: { id: roomId }
+    });
     
-    // Get room participants
-    const participantsQuery = `
-      SELECT rp.*, u.username, u.email 
-      FROM room_participants rp 
-      JOIN users u ON rp.user_id = u.id 
-      WHERE rp.room_id = $1
-    `
-    const participantsResult = await DatabaseManager.executeQuery(participantsQuery, [roomId])
+    // Get room participants with user details
+    const participants = await prisma.roomParticipant.findMany({
+      where: { roomId: roomId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        }
+      }
+    });
     
-    // Get room files
-    const filesQuery = `
-      SELECT af.*, u.username as uploader_name
-      FROM audio_files af
-      JOIN users u ON af.user_id = u.id
-      WHERE af.room_id = $1 OR af.user_id IN (
-        SELECT rp.user_id FROM room_participants rp WHERE rp.room_id = $1
-      )
-      ORDER BY af.created_at DESC
-    `
-    const filesResult = await DatabaseManager.executeQuery(filesQuery, [roomId])
+    // Get room files - files uploaded by room participants or associated with the room
+    const files = await prisma.audioFile.findMany({
+      where: {
+        OR: [
+          { roomId: roomId },
+          {
+            userId: {
+              in: participants.map(p => p.userId)
+            }
+          }
+        ]
+      },
+      include: {
+        user: {
+          select: {
+            username: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
     
     // Check current user membership
-    const membershipQuery = `
-      SELECT * FROM room_participants 
-      WHERE room_id = $1 AND user_id = $2
-    `
-    const membershipResult = await DatabaseManager.executeQuery(membershipQuery, [roomId, user.id])
+    const currentUserMembership = await prisma.roomParticipant.findUnique({
+      where: {
+        roomId_userId: {
+          roomId: roomId,
+          userId: user.id
+        }
+      }
+    });
     
     return NextResponse.json({
-      room: roomResult.rows[0] || null,
-      participants: participantsResult.rows,
-      files: filesResult.rows,
-      currentUserMembership: membershipResult.rows[0] || null,
+      room: room,
+      participants: participants.map(p => ({
+        ...p,
+        username: p.user.username,
+        email: p.user.email
+      })),
+      files: files.map(f => ({
+        ...f,
+        uploader_name: f.user.username
+      })),
+      currentUserMembership: currentUserMembership,
       currentUserId: user.id
     })
   } catch (error) {

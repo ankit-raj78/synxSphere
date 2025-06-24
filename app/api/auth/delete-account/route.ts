@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import DatabaseManager from '@/lib/database';
+import { prisma } from '@/lib/prisma';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -22,68 +22,71 @@ export async function DELETE(request: NextRequest) {
     const userId = decoded.id;
     console.log('Starting account deletion process for user:', userId);
 
-    const pool = await DatabaseManager.getPool();
-    const client = await pool.connect();
-    
     try {
-      // Start a transaction to ensure all deletions happen atomically
-      await client.query('BEGIN');
+      // Use Prisma transaction to ensure all deletions happen atomically
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Delete user's audio files records and get filenames for cleanup
+        const audioFiles = await tx.audioFile.findMany({
+          where: { userId: userId },
+          select: { filename: true }
+        });
+        
+        const audioFilesCount = await tx.audioFile.deleteMany({
+          where: { userId: userId }
+        });
+        console.log(`Deleted ${audioFilesCount.count} audio files for user ${userId}`);
 
-      // 1. Delete user's audio files records (the actual files would need to be deleted from file system separately)
-      const audioFilesResult = await client.query(
-        'DELETE FROM audio_files WHERE user_id = $1 RETURNING filename',
-        [userId]
-      );
-      console.log(`Deleted ${audioFilesResult.rowCount} audio files for user ${userId}`);
+        // 2. Delete user's room memberships and join requests
+        await tx.joinRequest.deleteMany({ where: { userId: userId } });
+        await tx.roomParticipant.deleteMany({ where: { userId: userId } });
+        console.log('Deleted room memberships and join requests');
 
-      // 2. Delete user's room memberships and join requests
-      await client.query('DELETE FROM room_join_requests WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM room_participants WHERE user_id = $1', [userId]);
-      console.log('Deleted room memberships and join requests');
+        // 3. Delete rooms created by the user and get room info
+        const rooms = await tx.room.findMany({
+          where: { creatorId: userId },
+          select: { id: true, name: true }
+        });
+        
+        const roomsCount = await tx.room.deleteMany({
+          where: { creatorId: userId }
+        });
+        console.log(`Deleted ${roomsCount.count} rooms created by user ${userId}`);
 
-      // 3. Delete rooms created by the user (this will cascade to related data)
-      const roomsResult = await client.query(
-        'DELETE FROM rooms WHERE creator_id = $1 RETURNING id, name',
-        [userId]
-      );
-      console.log(`Deleted ${roomsResult.rowCount} rooms created by user ${userId}`);
+        // 4. Delete user's compositions
+        await tx.composition.deleteMany({ where: { userId: userId } });
+        console.log('Deleted user compositions');
 
-      // 4. Delete user's compositions
-      await client.query('DELETE FROM compositions WHERE user_id = $1', [userId]);
-      console.log('Deleted user compositions');
+        // 5. Finally, delete the user account
+        const deletedUser = await tx.user.delete({
+          where: { id: userId },
+          select: { username: true, email: true }
+        });
 
-      // 5. Finally, delete the user account
-      const userResult = await client.query(
-        'DELETE FROM users WHERE id = $1 RETURNING username, email',
-        [userId]
-      );
+        return {
+          deletedUser,
+          audioFilesDeleted: audioFilesCount.count,
+          roomsDeleted: roomsCount.count,
+          audioFilenames: audioFiles.map(f => f.filename)
+        };
+      });
 
-      if (userResult.rowCount === 0) {
-        await client.query('ROLLBACK');
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
-      }
-
-      // Commit the transaction
-      await client.query('COMMIT');
-      
-      const deletedUser = userResult.rows[0];
-      console.log(`Successfully deleted user account: ${deletedUser.username} (${deletedUser.email})`);
+      console.log(`Successfully deleted user account: ${result.deletedUser.username} (${result.deletedUser.email})`);
 
       return NextResponse.json({ 
         message: 'Account successfully deleted',
         details: {
-          username: deletedUser.username,
-          audioFilesDeleted: audioFilesResult.rowCount,
-          roomsDeleted: roomsResult.rowCount
+          username: result.deletedUser.username,
+          audioFilesDeleted: result.audioFilesDeleted,
+          roomsDeleted: result.roomsDeleted
         }
       });
 
-    } catch (error) {
-      // Rollback transaction on error
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    } catch (transactionError: any) {
+      // Prisma automatically rolls back transaction on error
+      if (transactionError.code === 'P2025') {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      throw transactionError;
     }
 
   } catch (error) {
