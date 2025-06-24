@@ -9,7 +9,6 @@ import dotenv from 'dotenv';
 
 import DatabaseManager from '../../shared/config/database';
 import { WebSocketManager } from './services/WebSocketManager';
-import { KafkaService } from './services/KafkaService';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 
@@ -36,7 +35,6 @@ const PORT = process.env.PORT || 3003;
 // Initialize services
 const dbManager = DatabaseManager;
 const webSocketManager = new WebSocketManager(server);
-const kafkaService = new KafkaService();
 
 // Security middleware
 app.use(helmet({
@@ -127,10 +125,6 @@ const gracefulShutdown = async (signal: string) => {
     // Close WebSocket connections
     logger.info('WebSocket connections closed');
 
-    // Close Kafka connections
-    await kafkaService.close();
-    logger.info('Kafka connections closed');
-
     // Close database connections
     await dbManager.close();
     logger.info('Database connections closed');
@@ -165,10 +159,6 @@ async function startServer() {
     // Initialize database
     await dbManager.initialize();
     logger.info('Database initialized successfully');
-
-    // Initialize Kafka
-    await kafkaService.initialize();
-    logger.info('Kafka connected successfully');
 
     // WebSocket manager is initialized in constructor
     logger.info('WebSocket manager initialized successfully');

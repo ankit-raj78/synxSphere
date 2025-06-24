@@ -1,9 +1,9 @@
-import kafkaService from './KafkaService';
 import { createLogger } from '../utils/logger';
+import { EventEmitter } from 'events';
 
 const logger = createLogger('EventPublisher');
 
-export interface KafkaEvent {
+export interface SessionEvent {
   type: string;
   payload: any;
   timestamp: Date;
@@ -13,10 +13,10 @@ export interface KafkaEvent {
 }
 
 export class EventPublisher {
-  private kafka = kafkaService;
+  private eventEmitter = new EventEmitter();
 
   async initialize(): Promise<void> {
-    await this.kafka.initialize();
+    logger.info('Event publisher initialized (in-memory mode)');
   }
 
   async publishRoomEvent(
@@ -25,7 +25,7 @@ export class EventPublisher {
     payload: any,
     userId?: string
   ): Promise<void> {
-    const event: KafkaEvent = {
+    const event: SessionEvent = {
       type: `room.${eventType}`,
       payload: {
         roomId,
@@ -37,7 +37,7 @@ export class EventPublisher {
       userId
     };
 
-    await this.kafka.publishEvent('room-events', event);
+    this.eventEmitter.emit('room-events', event);
     logger.info('Room event published', { roomId, eventType, userId });
   }
 
@@ -46,7 +46,7 @@ export class EventPublisher {
     eventType: string,
     payload: any
   ): Promise<void> {
-    const event: KafkaEvent = {
+    const event: SessionEvent = {
       type: `user.${eventType}`,
       payload: {
         userId,
@@ -56,7 +56,7 @@ export class EventPublisher {
       userId
     };
 
-    await this.kafka.publishEvent('user-events', event);
+    this.eventEmitter.emit('user-events', event);
     logger.info('User event published', { userId, eventType });
   }
 
@@ -67,7 +67,7 @@ export class EventPublisher {
     userId?: string,
     roomId?: string
   ): Promise<void> {
-    const event: KafkaEvent = {
+    const event: SessionEvent = {
       type: `session.${eventType}`,
       payload: {
         sessionId,
@@ -81,7 +81,7 @@ export class EventPublisher {
       roomId
     };
 
-    await this.kafka.publishEvent('session-events', event);
+    this.eventEmitter.emit('session-events', event);
     logger.info('Session event published', { sessionId, eventType, userId, roomId });
   }
 
@@ -91,7 +91,7 @@ export class EventPublisher {
     userId?: string,
     roomId?: string
   ): Promise<void> {
-    const event: KafkaEvent = {
+    const event: SessionEvent = {
       type: `audio.${eventType}`,
       payload: {
         userId,
@@ -103,12 +103,23 @@ export class EventPublisher {
       roomId
     };
 
-    await this.kafka.publishEvent('audio-events', event);
+    this.eventEmitter.emit('audio-events', event);
     logger.info('Audio event published', { eventType, userId, roomId });
   }
 
+  // Subscribe to events
+  on(eventType: string, listener: (event: SessionEvent) => void): void {
+    this.eventEmitter.on(eventType, listener);
+  }
+
+  // Remove event listeners
+  off(eventType: string, listener: (event: SessionEvent) => void): void {
+    this.eventEmitter.off(eventType, listener);
+  }
+
   async close(): Promise<void> {
-    await this.kafka.close();
+    this.eventEmitter.removeAllListeners();
+    logger.info('Event publisher closed');
   }
 }
 
