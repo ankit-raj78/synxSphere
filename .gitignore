@@ -190,7 +190,8 @@ audio-files/
 
 # Microservices specific
 services/*/dist/
-services/*/logs/
+services/*/logs/*
+!services/*/logs/README.md
 services/*/node_modules/
 services/*/package-lock.json
 services/*/uploads/audio/*
