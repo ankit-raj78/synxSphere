@@ -187,3 +187,26 @@ audio-files/
 **/*.d.ts.map
 # Except specific JS files you need to keep
 !jest.config.js
+
+# Microservices specific
+services/*/dist/
+services/*/logs/
+services/*/node_modules/
+services/*/package-lock.json
+services/*/uploads/audio/*
+services/*/processed/*
+services/*/*.log
+
+# Compiled outputs - keep only TypeScript sources
+services/**/*.js
+services/**/*.js.map
+services/**/*.d.ts
+# Exceptions for config files
+!services/*/jest.config.js
+!services/*/webpack.config.js
+
+# Mock and test files in services
+services/**/mock-*.ts
+services/**/*.mock.ts
+services/**/*.test.ts
+services/**/*.spec.ts
