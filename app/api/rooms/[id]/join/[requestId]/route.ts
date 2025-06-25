@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 
 // Approve or reject join request
 export async function PUT(
@@ -28,53 +28,60 @@ export async function PUT(
     }
 
     try {
-      // Check if user is room creator
-      const roomResult = await DatabaseManager.executeQuery(
-        'SELECT * FROM rooms WHERE id = $1 AND creator_id = $2',
-        [params.id, tokenData.id]
-      )
+      // Check if user is room creator using Prisma
+      const room = await prisma.room.findFirst({
+        where: {
+          id: params.id,
+          creatorId: tokenData.id
+        }
+      })
 
-      if (roomResult.rows.length === 0) {
+      if (!room) {
         return NextResponse.json({ error: 'Not authorized to handle join requests' }, { status: 403 })
       }
 
-      // Get request information
-      const requestResult = await DatabaseManager.executeQuery(
-        'SELECT * FROM room_join_requests WHERE id = $1 AND room_id = $2 AND status = $3',
-        [params.requestId, params.id, 'pending']
-      )
+      // Get request information using Prisma
+      const joinRequest = await prisma.joinRequest.findFirst({
+        where: {
+          id: params.requestId,
+          roomId: params.id,
+          status: 'PENDING'
+        }
+      })
 
-      if (requestResult.rows.length === 0) {
+      if (!joinRequest) {
         return NextResponse.json({ error: 'Join request not found or already processed' }, { status: 404 })
       }
 
-      const joinRequest = requestResult.rows[0]
-
       if (action === 'approve') {
-        // Add user to room participants
-        await DatabaseManager.executeQuery(
-          `INSERT INTO room_participants (room_id, user_id, role, is_online)
-           VALUES ($1, $2, 'participant', true)`,
-          [params.id, joinRequest.user_id]        )
+        // Add user to room participants using Prisma
+        await prisma.roomParticipant.create({
+          data: {
+            roomId: params.id,
+            userId: joinRequest.userId,
+            role: 'participant',
+            isOnline: true
+          }
+        })
 
-        // Update request status
-        await DatabaseManager.executeQuery(
-          `UPDATE room_join_requests 
-           SET status = 'approved', processed_at = NOW()
-           WHERE id = $1`,
-          [params.requestId]
-        )
+        // Update request status using Prisma
+        await prisma.joinRequest.update({
+          where: { id: params.requestId },
+          data: {
+            status: 'APPROVED'
+          }
+        })
 
         return NextResponse.json({ 
           message: 'Join request approved successfully' 
         })      } else if (action === 'reject') {
-        // Update request status to rejected
-        await DatabaseManager.executeQuery(
-          `UPDATE room_join_requests 
-           SET status = 'rejected', processed_at = NOW()
-           WHERE id = $1`,
-          [params.requestId]
-        )
+        // Update request status to rejected using Prisma
+        await prisma.joinRequest.update({
+          where: { id: params.requestId },
+          data: {
+            status: 'REJECTED'
+          }
+        })
 
         return NextResponse.json({ 
           message: 'Join request rejected successfully' 

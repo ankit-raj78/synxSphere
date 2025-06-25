@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 import { readFile } from 'fs/promises'
 
@@ -30,26 +30,29 @@ export async function GET(
 
     console.log('User authenticated:', user.id, 'requesting file:', params.id)
 
-    // Query for audio file
-    const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2'
-    const result = await DatabaseManager.executeQuery(fileQuery, [params.id, user.id])
+    // Query for audio file using Prisma
+    const audioFile = await prisma.audioFile.findFirst({
+      where: {
+        id: params.id,
+        userId: user.id
+      }
+    })
     
-    console.log('Database query result:', result.rows.length, 'rows found')
+    console.log('Database query result:', audioFile ? 'File found' : 'File not found')
     
-    if (result.rows.length === 0) {
+    if (!audioFile) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const audioFile = result.rows[0]
-    console.log('Audio file path:', audioFile.file_path)
+    console.log('Audio file path:', audioFile.filePath)
 
     try {
-      const fileBuffer = await readFile(audioFile.file_path)
+      const fileBuffer = await readFile(audioFile.filePath)
       console.log('File stream starting, size:', fileBuffer.length, 'bytes')
       
       return new NextResponse(fileBuffer, {
         headers: {
-          'Content-Type': audioFile.mime_type || 'audio/wav',
+          'Content-Type': audioFile.mimeType || 'audio/wav',
           'Content-Length': fileBuffer.length.toString(),
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'public, max-age=3600',

@@ -21,13 +21,15 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  createdRooms     Room[]             @relation("RoomCreator")
-  roomParticipants RoomParticipant[]
-  audioFiles       AudioFile[]
-  audioTracks      AudioTrack[]
-  joinRequests     JoinRequest[]
-  compositions     Composition[]
-  sessions         UserSession[]
+  createdRooms         Room[]             @relation("RoomCreator")
+  roomParticipants     RoomParticipant[]
+  audioFiles           AudioFile[]
+  audioTracks          AudioTrack[]
+  joinRequests         JoinRequest[]
+  compositions         Composition[]
+  sessions             UserSession[]
+  createdSessions      Session[]          @relation("SessionCreator")
+  sessionParticipants  SessionParticipant[]
 
   @@map("users")
 }
@@ -46,39 +48,40 @@ model UserSession {
   @@map("user_sessions")
 }
 
-// Room model for collaboration spaces
+// Room model for collaborative music spaces
 model Room {
-  id               String   @id @default(uuid())
-  name             String
-  description      String?
-  genre            String?
-  isLive           Boolean  @default(false) @map("is_live")
-  creatorId        String   @map("creator_id")
-  playbackPosition Int      @default(0) @map("playback_position")
-  settings         Json     @default("{}")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  genre           String?
+  isLive          Boolean  @default(false) @map("is_live")
+  creatorId       String   @map("creator_id")
+  playbackPosition Int     @default(0) @map("playback_position")
+  settings        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations
-  creator          User               @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  participants     RoomParticipant[]
-  audioFiles       AudioFile[]
-  audioTracks      AudioTrack[]
-  joinRequests     JoinRequest[]
-  compositions     Composition[]
+  creator      User              @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants RoomParticipant[]
+  audioFiles   AudioFile[]
+  audioTracks  AudioTrack[]
+  joinRequests JoinRequest[]
+  compositions Composition[]
+  sessions     Session[]
 
   @@map("rooms")
 }
 
-// Room participants with role-based access
+// Room participation with roles and permissions
 model RoomParticipant {
-  id          String   @id @default(uuid())
-  roomId      String   @map("room_id")
-  userId      String   @map("user_id")
-  role        String   @default("participant")
-  instruments Json     @default("[]")
-  isOnline    Boolean  @default(false) @map("is_online")
-  joinedAt    DateTime @default(now()) @map("joined_at")
+  id         String   @id @default(uuid())
+  roomId     String   @map("room_id")
+  userId     String   @map("user_id")
+  role       String   @default("participant")
+  instruments Json    @default("[]")
+  isOnline   Boolean  @default(false) @map("is_online")
+  joinedAt   DateTime @default(now()) @map("joined_at")
 
   // Relations
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -163,7 +166,7 @@ model AudioTrack {
   @@map("audio_tracks")
 }
 
-// Join requests for room access
+// Join requests for private rooms
 model JoinRequest {
   id        String            @id @default(uuid())
   roomId    String            @map("room_id")
@@ -182,7 +185,7 @@ model JoinRequest {
   @@map("join_requests")
 }
 
-// Musical compositions
+// Compositions - mixed audio outputs
 model Composition {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")
@@ -202,6 +205,44 @@ model Composition {
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@map("compositions")
+}
+
+// Session models for real-time collaboration
+model Session {
+  id               String              @id @default(uuid())
+  name             String
+  roomId           String              @map("room_id")
+  creatorId        String              @map("creator_id")
+  settings         Json                @default("{}")
+  state            Json                @default("{}")
+  isActive         Boolean             @default(true) @map("is_active")
+  lastActivity     DateTime            @default(now()) @map("last_activity")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  room             Room                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  creator          User                @relation("SessionCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants     SessionParticipant[]
+
+  @@map("sessions")
+}
+
+model SessionParticipant {
+  id          String   @id @default(uuid())
+  sessionId   String   @map("session_id")
+  userId      String   @map("user_id")
+  role        String   @default("participant")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+  isActive    Boolean  @default(true) @map("is_active")
+  permissions Json     @default("{}")
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("session_participants")
 }
 
 // Enum for join request status

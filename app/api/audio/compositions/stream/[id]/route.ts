@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 import fs from 'fs'
 import { join } from 'path'
@@ -26,16 +26,19 @@ export async function GET(
 
     const compositionId = params.id
 
-    // Get composition from database
-    const query = 'SELECT * FROM compositions WHERE id = $1 AND user_id = $2'
-    const result = await DatabaseManager.executeQuery(query, [compositionId, user.id])
+    // Get composition from database using Prisma
+    const composition = await prisma.composition.findFirst({
+      where: {
+        id: compositionId,
+        userId: user.id
+      }
+    })
 
-    if (result.rows.length === 0) {
+    if (!composition) {
       return NextResponse.json({ error: 'Composition not found' }, { status: 404 })
     }
 
-    const composition = result.rows[0]
-    const filePath = composition.file_path
+    const filePath = composition.filePath
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -49,10 +52,10 @@ export async function GET(
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        'Content-Type': composition.mime_type,
-        'Content-Length': composition.file_size.toString(),
+        'Content-Type': 'audio/mpeg', // Default since no mimeType in schema
+        'Content-Length': composition.fileSize.toString(),
         'Cache-Control': 'public, max-age=3600',
-        'Content-Disposition': `inline; filename="${composition.filename}"`
+        'Content-Disposition': `inline; filename="composition_${compositionId}.mp3"`
       }
     })
   } catch (error) {

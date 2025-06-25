@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import DatabaseManager from '../../../shared/config/database';
+import { prisma } from '../../../../lib/prisma';
 import { AudioFile } from '../../../shared/types';
 import { createLogger } from '../utils/logger';
 import AudioProcessor from '../services/AudioProcessor';
@@ -134,86 +134,46 @@ export class UploadController {
           // Analyze the uploaded file
           const analysis = await AudioProcessor.analyzeAudio(file.path);
 
-          // Create audio file record
-          const audioFileData: Partial<AudioFile> = {
-            id: uuidv4(),
-            user_id: userId,
-            filename: file.filename,
-            original_name: file.originalname,
-            file_path: file.path,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            duration: analysis.duration,
-            sample_rate: analysis.sample_rate,
-            channels: analysis.channels,
-            bit_rate: analysis.bit_rate,
-            format: analysis.format,
-            is_processed: false,
-            created_at: new Date(),
-            updated_at: new Date()
-          };
+          // Create audio file record using Prisma
+          const audioFile = await prisma.audioFile.create({
+            data: {
+              id: uuidv4(),
+              userId: userId,
+              filename: file.filename,
+              originalName: file.originalname,
+              filePath: file.path,
+              fileSize: file.size,
+              mimeType: file.mimetype,
+              duration: analysis.duration,
+              sampleRate: analysis.sample_rate,
+              channels: analysis.channels,
+              bitRate: analysis.bit_rate,
+              format: analysis.format,
+              isProcessed: false
+            }
+          });
 
-          const query = `
-            INSERT INTO audio_files (
-              id, user_id, filename, original_name, file_path, file_size, 
-              mime_type, duration, sample_rate, channels, bit_rate, format, 
-              is_processed, created_at, updated_at
-            ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-            RETURNING *
-          `;
+          uploadedFiles.push(audioFile as any);
 
-          const values = [
-            audioFileData.id,
-            audioFileData.user_id,
-            audioFileData.filename,
-            audioFileData.original_name,
-            audioFileData.file_path,
-            audioFileData.file_size,
-            audioFileData.mime_type,
-            audioFileData.duration,
-            audioFileData.sample_rate,
-            audioFileData.channels,
-            audioFileData.bit_rate,
-            audioFileData.format,
-            audioFileData.is_processed,
-            audioFileData.created_at,
-            audioFileData.updated_at
-          ];
+          // Store analysis using Prisma
+          const analysisRecord = await prisma.audioAnalysis.create({
+            data: {
+              id: uuidv4(),
+              fileId: audioFile.id,
+              duration: analysis.duration,
+              sampleRate: analysis.sample_rate,
+              channels: analysis.channels,
+              bitRate: analysis.bit_rate,
+              codec: analysis.codec,
+              format: analysis.format,
+              size: analysis.size,
+              analyzedAt: analysis.analyzed_at,
+              createdAt: analysis.created_at,
+              updatedAt: analysis.updated_at
+            }
+          });
 
-          const result = await DatabaseManager.executeQuery<AudioFile>(query, values);
-          const audioFile = result.rows[0];
-          uploadedFiles.push(audioFile);
-
-          // Store analysis
-          analysis.id = uuidv4();
-          analysis.file_id = audioFile.id;
-
-          const analysisQuery = `
-            INSERT INTO audio_analysis (
-              id, file_id, duration, sample_rate, channels, bit_rate, 
-              codec, format, size, analyzed_at, created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          `;
-
-          const analysisValues = [
-            analysis.id,
-            analysis.file_id,
-            analysis.duration,
-            analysis.sample_rate,
-            analysis.channels,
-            analysis.bit_rate,
-            analysis.codec,
-            analysis.format,
-            analysis.size,
-            analysis.analyzed_at,
-            analysis.created_at,
-            analysis.updated_at
-          ];
-
-          await DatabaseManager.executeQuery(analysisQuery, analysisValues);
-          analyses.push(analysis);
+          analyses.push(analysisRecord);
 
         } catch (fileError) {
           logger.error('Failed to process individual file', { 
@@ -284,19 +244,21 @@ export class UploadController {
         return;
       }
 
-      // Get file info
-      const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2';
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(fileQuery, [fileId, userId]);
+      // Get file info using Prisma
+      const audioFile = await prisma.audioFile.findFirst({
+        where: {
+          id: fileId,
+          userId: userId
+        }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!audioFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
 
-      const audioFile = fileResult.rows[0];
-
       // Delete physical file
-      const filePath = audioFile.file_path || audioFile.filepath;
+      const filePath = audioFile.filePath;
       if (filePath) {
         try {
           await fs.unlink(filePath);
@@ -308,16 +270,10 @@ export class UploadController {
         }
       }
 
-      // Delete from database
-      await DatabaseManager.executeQuery(
-        'DELETE FROM audio_analysis WHERE file_id = $1', 
-        [fileId]
-      );
-      
-      await DatabaseManager.executeQuery(
-        'DELETE FROM audio_files WHERE id = $1', 
-        [fileId]
-      );
+      // Delete from database using Prisma (analysis will be deleted due to cascade)
+      await prisma.audioFile.delete({
+        where: { id: fileId }
+      });
 
       logger.info('File deleted successfully', { fileId, userId });
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 // Mark route as dynamic since it requires request headers
@@ -20,11 +20,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Query for user's audio files
-    const filesQuery = 'SELECT * FROM audio_files WHERE user_id = $1 ORDER BY created_at DESC'
-    const result = await DatabaseManager.executeQuery(filesQuery, [user.id])
+    // Query for user's audio files using Prisma
+    const files = await prisma.audioFile.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' }
+    })
     
-    return NextResponse.json(result.rows)
+    return NextResponse.json(files)
   } catch (error) {
     console.error('Error fetching audio files:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
