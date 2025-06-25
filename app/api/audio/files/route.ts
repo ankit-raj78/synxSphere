@@ -26,7 +26,17 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
     
-    return NextResponse.json(files)
+    // Convert BigInt fields to numbers for JSON serialization
+    const serializedFiles = files.map(file => ({
+      ...file,
+      fileSize: Number(file.fileSize)
+    }))
+    
+    return NextResponse.json({
+      success: true,
+      files: serializedFiles,
+      totalFiles: serializedFiles.length
+    })
   } catch (error) {
     console.error('Error fetching audio files:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

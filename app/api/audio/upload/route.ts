@@ -48,85 +48,120 @@ export async function POST(request: NextRequest) {
     }
 
     for (const file of files) {
+      console.log(`Processing file: ${file.name}, size: ${file.size} bytes`)
+      
       if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        console.log(`Skipping file ${file.name} - too large (${file.size} bytes)`)
         continue // Skip files that are too large
       }
 
-      // Generate unique filename
-      const timestamp = Date.now()
-      const randomString = Math.random().toString(36).substring(7)
-      const safeName = (file.name || 'unknown-file').replace(/[^a-zA-Z0-9.-]/g, '_')
-      const filename = `${timestamp}_${randomString}_${safeName}`
-      const filepath = join(uploadsDir, filename)
-
-      // Save file to disk
-      const bytes = await file.arrayBuffer()
-      await writeFile(filepath, Buffer.from(bytes))
-
       try {
-        // ✅ SECURE - Create database record using Prisma ORM
-        const audioFile = await DatabaseService.createAudioFile({
-          userId: user.id,
-          filename,
-          originalName: file.name || 'unknown-file',
-          filePath: filepath,
-          fileSize: BigInt(file.size || 0),
-          mimeType: file.type || 'application/octet-stream',
-          roomId: roomId || undefined,
-          metadata: {
-            uploadedAt: new Date().toISOString(),
-            originalSize: file.size,
-            uploadSource: 'web'
-          }
-        })
+        // Generate unique filename
+        const timestamp = Date.now()
+        const randomString = Math.random().toString(36).substring(7)
+        const safeName = (file.name || 'unknown-file').replace(/[^a-zA-Z0-9.-]/g, '_')
+        const filename = `${timestamp}_${randomString}_${safeName}`
+        const filepath = join(uploadsDir, filename)
 
-        uploadedFiles.push(audioFile)
+        console.log(`Saving file to: ${filepath}`)
 
-        // ✅ SECURE - Start audio analysis in the background using Prisma
-        setTimeout(async () => {
-          try {
-            const features = await analyzeAudioFeatures(filepath)
-            
-            // Update file as processed (Prisma automatically handles the update)
-            // No need for manual SQL - this could be done via Prisma update
-            
-            // Store analysis results if available
-            if (features) {
-              // This would use a separate AudioAnalysis service method
-              // For now, we'll keep it simple and just mark as processed
-              console.log('Audio analysis completed:', features)
+        // Save file to disk
+        const bytes = await file.arrayBuffer()
+        await writeFile(filepath, Buffer.from(bytes))
+        
+        console.log(`File saved successfully: ${filename}`)
+
+        try {
+          // ✅ SECURE - Create database record using Prisma ORM
+          console.log('Creating database record...')
+          const audioFile = await DatabaseService.createAudioFile({
+            userId: user.id,
+            filename,
+            originalName: file.name || 'unknown-file',
+            filePath: filepath,
+            fileSize: BigInt(file.size || 0),
+            mimeType: file.type || 'application/octet-stream',
+            roomId: roomId || undefined,
+            metadata: {
+              uploadedAt: new Date().toISOString(),
+              originalSize: file.size,
+              uploadSource: 'web'
             }
-          } catch (error) {
-            console.error('Error analyzing audio:', error)
-            // Could update the file status via Prisma if needed
-          }
-        }, 1000)
+          })
 
-      } catch (dbError) {
-        console.error('Database error:', dbError)
-        // If database insert fails, we still have the file on disk
-        // Return basic file info
-        uploadedFiles.push({
-          id: 'temp-id', // Temp ID since DB insert failed
-          filename,
-          originalName: file.name || 'unknown-file',
-          filePath: filepath,
-          fileSize: BigInt(file.size || 0),
-          mimeType: file.type || 'application/octet-stream',
-          userId: user.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isProcessed: false,
-          isPublic: false,
-          roomId: roomId || null,
-          metadata: {}
-        })
+          console.log(`Database record created with ID: ${audioFile.id}`)
+          
+          // Convert BigInt to number for JSON serialization
+          const serializedFile = {
+            ...audioFile,
+            fileSize: Number(audioFile.fileSize)
+          }
+          
+          uploadedFiles.push(serializedFile)
+
+          // ✅ SECURE - Start audio analysis in the background using Prisma
+          setTimeout(async () => {
+            try {
+              console.log(`Starting audio analysis for: ${filename}`)
+              const features = await analyzeAudioFeatures(filepath)
+              
+              // Store analysis results if available
+              if (features) {
+                console.log('Audio analysis completed:', features)
+              }
+            } catch (error) {
+              console.error('Error analyzing audio:', error)
+              // Analysis failure doesn't affect upload success
+            }
+          }, 1000)
+
+        } catch (dbError) {
+          console.error('Database error during file record creation:', dbError)
+          // If database insert fails, we still have the file on disk
+          // Return basic file info without database ID
+          uploadedFiles.push({
+            id: `temp-${timestamp}`, // Temp ID since DB insert failed
+            filename,
+            originalName: file.name || 'unknown-file',
+            filePath: filepath,
+            fileSize: file.size || 0, // Regular number instead of BigInt
+            mimeType: file.type || 'application/octet-stream',
+            userId: user.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            isProcessed: false,
+            isPublic: false,
+            roomId: roomId || null,
+            metadata: {
+              uploadedAt: new Date().toISOString(),
+              originalSize: file.size,
+              uploadSource: 'web',
+              dbError: 'Database record creation failed'
+            }
+          })
+        }
+      } catch (fileError) {
+        console.error(`Error processing file ${file.name}:`, fileError)
+        // Continue with other files even if one fails
+        continue
       }
     }
 
-    return NextResponse.json(uploadedFiles, { status: 201 })
+    console.log(`Upload completed. Processed ${uploadedFiles.length} file(s)`)
+    
+    return NextResponse.json({
+      success: true,
+      message: `Successfully uploaded ${uploadedFiles.length} file(s)`,
+      files: uploadedFiles,
+      totalFiles: uploadedFiles.length
+    }, { status: 201 })
+    
   } catch (error) {
-    console.error('Error uploading files:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in upload handler:', error)
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      success: false
+    }, { status: 500 })
   }
 }
