@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { EventPublisher } from '../services/EventPublisher';
 import { logger } from '../utils/logger';
 import { 
@@ -10,6 +9,47 @@ import {
   CreateSessionRequest,
   UpdateSessionRequest 
 } from '../../../shared/types';
+import { prisma } from '../../../../lib/prisma';
+
+// Define SessionSettings interface
+interface SessionSettings {
+  maxParticipants: number;
+  allowGuestControl: boolean;
+  requireApproval: boolean;
+  autoPlay: boolean;
+  crossfade: boolean;
+  volume: number;
+}
+
+// Default settings
+const DEFAULT_SESSION_SETTINGS: SessionSettings = {
+  maxParticipants: 50,
+  allowGuestControl: false,
+  requireApproval: false,
+  autoPlay: true,
+  crossfade: false,
+  volume: 0.8
+};
+
+// Type guard to ensure settings is properly typed
+function isValidSessionSettings(settings: any): settings is SessionSettings {
+  return settings && 
+    typeof settings === 'object' &&
+    typeof settings.maxParticipants === 'number' &&
+    typeof settings.allowGuestControl === 'boolean' &&
+    typeof settings.requireApproval === 'boolean' &&
+    typeof settings.autoPlay === 'boolean' &&
+    typeof settings.crossfade === 'boolean' &&
+    typeof settings.volume === 'number';
+}
+
+// Helper function to safely get settings
+function getSessionSettings(rawSettings: any): SessionSettings {
+  if (isValidSessionSettings(rawSettings)) {
+    return rawSettings;
+  }
+  return DEFAULT_SESSION_SETTINGS;
+}
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -35,9 +75,6 @@ export interface AuthenticatedRequest extends Request {
     created_at: Date;
   };
 }
-
-// Initialize Prisma client
-const prisma = new PrismaClient();
 
 class SessionController {
   private readonly eventPublisher;
@@ -187,7 +224,7 @@ class SessionController {
           permissions: p.permissions
         })),
         state: sessionData.state,
-        settings: sessionData.settings,
+        settings: getSessionSettings(sessionData.settings),
         currentTrack: undefined,
         playbackPosition: 0,
         isPlaying: false,
@@ -364,7 +401,7 @@ class SessionController {
         return;
       }
 
-      const settings = session.settings;
+      const settings = getSessionSettings(session.settings);
 
       // Check if user is already a participant using Prisma
       const existingParticipant = await prisma.sessionParticipant.findFirst({
