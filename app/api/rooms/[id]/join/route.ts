@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 
 // Apply to join room
 export async function POST(
@@ -24,50 +24,53 @@ export async function POST(
     const { message = '' } = body
 
     try {
-      // Check if room exists
-      const roomResult = await DatabaseManager.executeQuery(
-        'SELECT * FROM rooms WHERE id = $1',
-        [params.id]
-      )
+      // Check if room exists using Prisma
+      const room = await prisma.room.findUnique({
+        where: { id: params.id }
+      })
 
-      if (roomResult.rows.length === 0) {
+      if (!room) {
         return NextResponse.json({ error: 'Room not found' }, { status: 404 })
       }
 
-      const room = roomResult.rows[0]
+      // Check if user is already a participant using Prisma
+      const existingParticipant = await prisma.roomParticipant.findFirst({
+        where: {
+          roomId: params.id,
+          userId: tokenData.id
+        }
+      })
 
-      // Check if user is already a participant
-      const existingParticipant = await DatabaseManager.executeQuery(
-        'SELECT * FROM room_participants WHERE room_id = $1 AND user_id = $2',
-        [params.id, tokenData.id]
-      )
-
-      if (existingParticipant.rows.length > 0) {
+      if (existingParticipant) {
         return NextResponse.json({ error: 'Already a participant in this room' }, { status: 409 })
       }
 
-      // Check if there's already a pending request
-      const existingRequest = await DatabaseManager.executeQuery(
-        `SELECT * FROM room_join_requests 
-         WHERE room_id = $1 AND user_id = $2 AND status = 'pending'`,
-        [params.id, tokenData.id]
-      )
+      // Check if there's already a pending request using Prisma
+      const existingRequest = await prisma.joinRequest.findFirst({
+        where: {
+          roomId: params.id,
+          userId: tokenData.id,
+          status: 'PENDING'
+        }
+      })
 
-      if (existingRequest.rows.length > 0) {
+      if (existingRequest) {
         return NextResponse.json({ error: 'Join request already pending' }, { status: 409 })
       }
 
-      // Create join request
-      const requestId = require('crypto').randomUUID()
-      await DatabaseManager.executeQuery(
-        `INSERT INTO room_join_requests (id, room_id, user_id, message, status, created_at)
-         VALUES ($1, $2, $3, $4, 'pending', NOW())`,
-        [requestId, params.id, tokenData.id, message]
-      )
+      // Create join request using Prisma
+      const joinRequest = await prisma.joinRequest.create({
+        data: {
+          roomId: params.id,
+          userId: tokenData.id,
+          message: message,
+          status: 'PENDING'
+        }
+      })
 
       return NextResponse.json({ 
         message: 'Join request sent successfully',
-        requestId 
+        requestId: joinRequest.id 
       })
 
     } catch (dbError) {
@@ -102,35 +105,46 @@ export async function GET(
     }
 
     try {
-      // Check if user is room creator
-      const roomResult = await DatabaseManager.executeQuery(
-        'SELECT * FROM rooms WHERE id = $1 AND creator_id = $2',
-        [params.id, tokenData.id]
-      )
+      // Check if user is room creator using Prisma
+      const room = await prisma.room.findFirst({
+        where: {
+          id: params.id,
+          creatorId: tokenData.id
+        }
+      })
 
-      if (roomResult.rows.length === 0) {
+      if (!room) {
         return NextResponse.json({ error: 'Not authorized to view join requests' }, { status: 403 })
       }
 
-      // Get pending requests
-      const requestsResult = await DatabaseManager.executeQuery(
-        `SELECT rjr.*, u.username, u.email
-         FROM room_join_requests rjr
-         JOIN users u ON rjr.user_id = u.id
-         WHERE rjr.room_id = $1 AND rjr.status = 'pending'
-         ORDER BY rjr.created_at DESC`,
-        [params.id]
-      )
+      // Get pending requests using Prisma
+      const requests = await prisma.joinRequest.findMany({
+        where: {
+          roomId: params.id,
+          status: 'PENDING'
+        },
+        include: {
+          user: {
+            select: {
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
 
-      const requests = requestsResult.rows.map(req => ({
+      const formattedRequests = requests.map((req: any) => ({
         id: req.id,
-        userId: req.user_id,
-        username: req.username || req.email?.split('@')[0] || 'User',
+        userId: req.userId,
+        username: req.user.username || req.user.email?.split('@')[0] || 'User',
         message: req.message,
-        createdAt: req.created_at
+        createdAt: req.createdAt
       }))
 
-      return NextResponse.json({ requests })
+      return NextResponse.json({ requests: formattedRequests })
 
     } catch (dbError) {
       console.log('Database not available for join requests:', dbError)

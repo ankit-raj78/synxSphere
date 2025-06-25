@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 import { v4 as uuidv4 } from 'uuid'
 import { join } from 'path'
@@ -23,58 +23,61 @@ export async function POST(request: NextRequest) {
 
     if (!trackIds || !Array.isArray(trackIds) || trackIds.length < 2) {
       return NextResponse.json({ error: 'At least 2 tracks are required' }, { status: 400 })
-    }    // Get track information from database
+    }    // Get track information from database using Prisma
     // If roomId is provided, check that user is a member and allow composing all room tracks
     // Otherwise, only allow user's own tracks
-    let trackQuery: string
-    let queryParams: any[]
+    
+    let tracks;
     
     if (roomId) {
-      // Verify user is a member of the room
-      const membershipQuery = `
-        SELECT r.id 
-        FROM rooms r 
-        JOIN room_participants rp ON r.id = rp.room_id 
-        WHERE r.id = $1 AND rp.user_id = $2
-      `
-      const membershipResult = await DatabaseManager.executeQuery(membershipQuery, [roomId, user.id])
+      // Verify user is a member of the room using Prisma
+      const membership = await prisma.roomParticipant.findFirst({
+        where: {
+          roomId: roomId,
+          userId: user.id
+        }
+      });
       
-      if (membershipResult.rows.length === 0) {
+      if (!membership) {
         return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
       }
-        // Allow composing tracks from all room members or files associated with the room
-      trackQuery = `
-        SELECT DISTINCT af.* FROM audio_files af
-        WHERE af.id = ANY($1) AND (
-          af.room_id = $2 OR 
-          af.user_id IN (
-            SELECT rp.user_id FROM room_participants rp WHERE rp.room_id = $2
-          )
-        )
-        ORDER BY af.created_at ASC
-      `
-      queryParams = [trackIds, roomId]
+
+      // Allow composing tracks from all room members or files associated with the room
+      tracks = await prisma.audioFile.findMany({
+        where: {
+          id: { in: trackIds },
+          OR: [
+            { roomId: roomId },
+            {
+              user: {
+                roomParticipants: {
+                  some: { roomId: roomId }
+                }
+              }
+            }
+          ]
+        },
+        orderBy: { createdAt: 'asc' }
+      });
     } else {
       // Only allow user's own tracks if no room specified
-      trackQuery = `
-        SELECT * FROM audio_files 
-        WHERE id = ANY($1) AND user_id = $2
-        ORDER BY created_at ASC
-      `
-      queryParams = [trackIds, user.id]
+      tracks = await prisma.audioFile.findMany({
+        where: {
+          id: { in: trackIds },
+          userId: user.id
+        },
+        orderBy: { createdAt: 'asc' }
+      });
     }
+
     
-    const trackResult = await DatabaseManager.executeQuery(trackQuery, queryParams)
-    
-    if (trackResult.rows.length !== trackIds.length) {
+    if (tracks.length !== trackIds.length) {
       return NextResponse.json({ error: 'Some tracks not found or access denied' }, { status: 404 })
     }
 
-    const tracks = trackResult.rows
-
     // Prepare tracks for mixing
     const trackFiles = tracks.map((track, index) => ({
-      file: track.file_path,
+      file: track.filePath,
       volume: 1.0, // Default volume, could be made configurable
       delay: 0     // Default delay, could be made configurable
     }))    // Generate output filename
@@ -110,7 +113,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Build ffmpeg command for mixing
-      const inputs = tracks.map(track => `-i "${track.file_path}"`).join(' ')
+      const inputs = tracks.map(track => `-i "${track.filePath}"`).join(' ')
       const filters = tracks.map((_, index) => `[${index}:0]`).join('')
       const mixFilter = `${filters}amix=inputs=${tracks.length}:duration=longest:dropout_transition=2`
       
@@ -120,63 +123,21 @@ export async function POST(request: NextRequest) {
       execSync(ffmpegCommand, { stdio: 'pipe', env: { ...process.env, PATH: process.env.PATH } })
 
       // Get file stats
-      const stats = await fs.stat(outputPath)      // Create database record for the composition
+      const stats = await fs.stat(outputPath)      // Create database record for the composition using Prisma
       const compositionId = uuidv4()
-      const composition = {
-        id: compositionId,
-        user_id: user.id,
-        room_id: roomId || null,
-        title: `Composition ${tracks.length} Tracks`,
-        filename: outputFilename,
-        file_path: outputPath,
-        file_size: stats.size,
-        mime_type: `audio/${settings?.format || 'mp3'}`,
-        source_track_ids: trackIds,
-        source_track_count: tracks.length,
-        composition_settings: settings || {},
-        is_public: false,
-        created_at: new Date(),
-        updated_at: new Date()
-      }
-
-      const insertQuery = `
-        INSERT INTO compositions (
-          id, user_id, room_id, title, filename, file_path, file_size, 
-          mime_type, source_track_ids, source_track_count, composition_settings, 
-          is_public, created_at, updated_at
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING *
-      `
-
-      const insertValues = [
-        composition.id,
-        composition.user_id,
-        composition.room_id,
-        composition.title,
-        composition.filename,
-        composition.file_path,
-        composition.file_size,
-        composition.mime_type,
-        composition.source_track_ids,
-        composition.source_track_count,
-        composition.composition_settings,
-        composition.is_public,
-        composition.created_at,
-        composition.updated_at
-      ]
-
-      const result = await DatabaseManager.executeQuery(insertQuery, insertValues)
-      const savedComposition = result.rows[0]
-
-      // Store composition metadata
-      const metadataQuery = `
-        INSERT INTO composition_analysis (
-          id, composition_id, created_at, updated_at
-        ) 
-        VALUES ($1, $2, NOW(), NOW())
-      `
-      await DatabaseManager.executeQuery(metadataQuery, [uuidv4(), compositionId])
+      
+      const savedComposition = await prisma.composition.create({
+        data: {
+          id: compositionId,
+          userId: user.id,
+          roomId: roomId,
+          title: `Composition ${tracks.length} Tracks`,
+          filePath: outputPath,
+          fileSize: stats.size,
+          mixSettings: settings || {},
+          isPublic: false
+        }
+      })
 
       return NextResponse.json({
         message: 'Composition created successfully',
@@ -188,52 +149,27 @@ export async function POST(request: NextRequest) {
     } catch (ffmpegError) {
       console.error('FFmpeg error:', ffmpegError)
       
-      // Fallback: create a simple metadata-only composition record
+      // Fallback: create a simple metadata-only composition record using Prisma
       const compositionId = uuidv4()
-      const fallbackComposition = {
-        id: compositionId,
-        user_id: user.id,
-        filename: `composition_${Date.now()}.json`,
-        original_name: `Composition_${tracks.length}_tracks`,
-        file_path: '',
-        file_size: 0,
-        mime_type: 'application/json',
-        is_processed: false,
-        is_public: false,
-        room_id: roomId || null,
-        created_at: new Date(),
-        updated_at: new Date()
-      }
-
-      const fallbackQuery = `
-        INSERT INTO audio_files (
-          id, user_id, filename, original_name, file_path, file_size, 
-          mime_type, is_processed, is_public, room_id, created_at, updated_at
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING *
-      `
-
-      const fallbackValues = [
-        fallbackComposition.id,
-        fallbackComposition.user_id,
-        fallbackComposition.filename,
-        fallbackComposition.original_name,
-        fallbackComposition.file_path,
-        fallbackComposition.file_size,
-        fallbackComposition.mime_type,
-        fallbackComposition.is_processed,
-        fallbackComposition.is_public,
-        fallbackComposition.room_id,
-        fallbackComposition.created_at,
-        fallbackComposition.updated_at
-      ]
-
-      const fallbackResult = await DatabaseManager.executeQuery(fallbackQuery, fallbackValues)
+      
+      const fallbackResult = await prisma.audioFile.create({
+        data: {
+          id: compositionId,
+          userId: user.id,
+          filename: `composition_${Date.now()}.json`,
+          originalName: `Composition_${tracks.length}_tracks`,
+          filePath: '',
+          fileSize: 0,
+          mimeType: 'application/json',
+          isProcessed: false,
+          isPublic: false,
+          roomId: roomId || null
+        }
+      })
 
       return NextResponse.json({
         message: 'Composition metadata created (audio mixing failed)',
-        composition: fallbackResult.rows[0],
+        composition: fallbackResult,
         sourceTrackCount: tracks.length,
         warning: 'Audio mixing failed, but composition metadata was saved'
       }, { status: 201 })

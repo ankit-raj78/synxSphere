@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import DatabaseManager from '../../../shared/config/database';
+import { prisma } from '../../../../lib/prisma';
 import { AudioFile, AudioMixingSettings } from '../../../shared/types';
 import { createLogger } from '../utils/logger';
 import AudioProcessor from '../services/AudioProcessor';
@@ -34,29 +34,24 @@ export class ProcessingController {
         settings 
       });
 
-      // Get track files from database
-      const trackQuery = `
-        SELECT * FROM audio_files 
-        WHERE id = ANY($1) AND user_id = $2
-      `;
-      
-      const trackResult = await DatabaseManager.executeQuery<AudioFile>(
-        trackQuery, 
-        [trackIds, userId]
-      );
+      // Get track files from database using Prisma
+      const tracks = await prisma.audioFile.findMany({
+        where: {
+          id: { in: trackIds },
+          userId: userId
+        }
+      });
 
-      if (trackResult.rows.length !== trackIds.length) {
+      if (tracks.length !== trackIds.length) {
         res.status(404).json({ error: 'Some tracks not found or not accessible' });
         return;
       }
 
-      const tracks = trackResult.rows;
-
       // Prepare tracks for mixing
-      const mixingTracks = tracks.map((track, index) => {
-        const filePath = track.file_path || track.filepath;
+      const mixingTracks = tracks.map((track: any, index: number) => {
+        const filePath = track.filePath;
         if (!filePath) {
-          throw new Error(`File path not found for track ${track._id || track.id}`);
+          throw new Error(`File path not found for track ${track.id}`);
         }
         return {
           file: filePath,
@@ -79,55 +74,24 @@ export class ProcessingController {
       // Analyze the mixed file
       const analysis = await AudioProcessor.analyzeAudio(mixedFilePath);
 
-      // Save mixed file to database
-      const mixedFileData: Partial<AudioFile> = {
-        id: uuidv4(),
-        user_id: userId,
-        filename: outputFileName,
-        original_name: outputFileName,
-        file_path: mixedFilePath,
-        file_size: (await fs.stat(mixedFilePath)).size,
-        mime_type: 'audio/mpeg',
-        duration: analysis.duration,
-        sample_rate: analysis.sample_rate,
-        channels: analysis.channels,
-        bit_rate: analysis.bit_rate,
-        format: analysis.format,
-        is_processed: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
-
-      const insertQuery = `
-        INSERT INTO audio_files (
-          id, user_id, filename, original_name, file_path, file_size, 
-          mime_type, duration, sample_rate, channels, bit_rate, format, 
-          is_processed, created_at, updated_at
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        RETURNING *
-      `;
-
-      const insertValues = [
-        mixedFileData.id,
-        mixedFileData.user_id,
-        mixedFileData.filename,
-        mixedFileData.original_name,
-        mixedFileData.file_path,
-        mixedFileData.file_size,
-        mixedFileData.mime_type,
-        mixedFileData.duration,
-        mixedFileData.sample_rate,
-        mixedFileData.channels,
-        mixedFileData.bit_rate,
-        mixedFileData.format,
-        mixedFileData.is_processed,
-        mixedFileData.created_at,
-        mixedFileData.updated_at
-      ];
-
-      const result = await DatabaseManager.executeQuery<AudioFile>(insertQuery, insertValues);
-      const mixedFile = result.rows[0];
+      // Save mixed file to database using Prisma
+      const mixedFile = await prisma.audioFile.create({
+        data: {
+          id: uuidv4(),
+          userId: userId,
+          filename: outputFileName,
+          originalName: outputFileName,
+          filePath: mixedFilePath,
+          fileSize: (await fs.stat(mixedFilePath)).size,
+          mimeType: 'audio/mpeg',
+          duration: analysis.duration,
+          sampleRate: analysis.sample_rate,
+          channels: analysis.channels,
+          bitRate: analysis.bit_rate,
+          format: analysis.format,
+          isProcessed: true
+        }
+      });
 
       logger.info('Track mixing completed successfully', { 
         mixedFileId: mixedFile.id,
@@ -171,23 +135,25 @@ export class ProcessingController {
 
       logger.info('Applying audio effects', { fileId, effects, userId });
 
-      // Get original file
-      const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2';
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(fileQuery, [fileId, userId]);
+      // Get original file using Prisma
+      const originalFile = await prisma.audioFile.findFirst({
+        where: {
+          id: fileId,
+          userId: userId
+        }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!originalFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
-
-      const originalFile = fileResult.rows[0];
 
       // Generate output file path
       const outputFileName = outputName || `effects_${Date.now()}.mp3`;
       const outputPath = path.resolve('processed/audio', outputFileName);
 
       // Apply effects
-      const originalFilePath = originalFile.file_path || originalFile.filepath;
+      const originalFilePath = originalFile.filePath;
       if (!originalFilePath) {
         res.status(400).json({ error: 'Original file path not found' });
         return;
@@ -202,55 +168,24 @@ export class ProcessingController {
       // Analyze the processed file
       const analysis = await AudioProcessor.analyzeAudio(processedFilePath);
 
-      // Save processed file to database
-      const processedFileData: Partial<AudioFile> = {
-        id: uuidv4(),
-        user_id: userId,
-        filename: outputFileName,
-        original_name: outputFileName,
-        file_path: processedFilePath,
-        file_size: (await fs.stat(processedFilePath)).size,
-        mime_type: 'audio/mpeg',
-        duration: analysis.duration,
-        sample_rate: analysis.sample_rate,
-        channels: analysis.channels,
-        bit_rate: analysis.bit_rate,
-        format: analysis.format,
-        is_processed: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
-
-      const insertQuery = `
-        INSERT INTO audio_files (
-          id, user_id, filename, original_name, file_path, file_size, 
-          mime_type, duration, sample_rate, channels, bit_rate, format, 
-          is_processed, created_at, updated_at
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        RETURNING *
-      `;
-
-      const insertValues = [
-        processedFileData.id,
-        processedFileData.user_id,
-        processedFileData.filename,
-        processedFileData.original_name,
-        processedFileData.file_path,
-        processedFileData.file_size,
-        processedFileData.mime_type,
-        processedFileData.duration,
-        processedFileData.sample_rate,
-        processedFileData.channels,
-        processedFileData.bit_rate,
-        processedFileData.format,
-        processedFileData.is_processed,
-        processedFileData.created_at,
-        processedFileData.updated_at
-      ];
-
-      const result = await DatabaseManager.executeQuery<AudioFile>(insertQuery, insertValues);
-      const processedFile = result.rows[0];
+      // Save processed file to database using Prisma
+      const processedFile = await prisma.audioFile.create({
+        data: {
+          id: uuidv4(),
+          userId: userId,
+          filename: outputFileName,
+          originalName: outputFileName,
+          filePath: processedFilePath,
+          fileSize: (await fs.stat(processedFilePath)).size,
+          mimeType: 'audio/mpeg',
+          duration: analysis.duration,
+          sampleRate: analysis.sample_rate,
+          channels: analysis.channels,
+          bitRate: analysis.bit_rate,
+          format: analysis.format,
+          isProcessed: true
+        }
+      });
 
       logger.info('Audio effects applied successfully', { 
         processedFileId: processedFile.id,
@@ -294,23 +229,25 @@ export class ProcessingController {
 
       logger.info('Converting audio format', { fileId, targetFormat, options, userId });
 
-      // Get original file
-      const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2';
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(fileQuery, [fileId, userId]);
+      // Get original file using Prisma
+      const originalFile = await prisma.audioFile.findFirst({
+        where: {
+          id: fileId,
+          userId: userId
+        }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!originalFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
-
-      const originalFile = fileResult.rows[0];
 
       // Generate output file path
       const outputFileName = `converted_${Date.now()}.${targetFormat}`;
       const outputPath = path.resolve('processed/audio', outputFileName);
 
       // Convert format
-      const originalFilePath2 = originalFile.file_path || originalFile.filepath;
+      const originalFilePath2 = originalFile.filePath;
       if (!originalFilePath2) {
         res.status(400).json({ error: 'Original file path not found' });
         return;
@@ -325,55 +262,24 @@ export class ProcessingController {
       // Analyze the converted file
       const analysis = await AudioProcessor.analyzeAudio(convertedFilePath);
 
-      // Save converted file to database
-      const convertedFileData: Partial<AudioFile> = {
-        id: uuidv4(),
-        user_id: userId,
-        filename: outputFileName,
-        original_name: outputFileName,
-        file_path: convertedFilePath,
-        file_size: (await fs.stat(convertedFilePath)).size,
-        mime_type: `audio/${targetFormat}`,
-        duration: analysis.duration,
-        sample_rate: analysis.sample_rate,
-        channels: analysis.channels,
-        bit_rate: analysis.bit_rate,
-        format: analysis.format,
-        is_processed: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
-
-      const insertQuery = `
-        INSERT INTO audio_files (
-          id, user_id, filename, original_name, file_path, file_size, 
-          mime_type, duration, sample_rate, channels, bit_rate, format, 
-          is_processed, created_at, updated_at
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        RETURNING *
-      `;
-
-      const insertValues = [
-        convertedFileData.id,
-        convertedFileData.user_id,
-        convertedFileData.filename,
-        convertedFileData.original_name,
-        convertedFileData.file_path,
-        convertedFileData.file_size,
-        convertedFileData.mime_type,
-        convertedFileData.duration,
-        convertedFileData.sample_rate,
-        convertedFileData.channels,
-        convertedFileData.bit_rate,
-        convertedFileData.format,
-        convertedFileData.is_processed,
-        convertedFileData.created_at,
-        convertedFileData.updated_at
-      ];
-
-      const result = await DatabaseManager.executeQuery<AudioFile>(insertQuery, insertValues);
-      const convertedFile = result.rows[0];
+      // Save converted file to database using Prisma
+      const convertedFile = await prisma.audioFile.create({
+        data: {
+          id: uuidv4(),
+          userId: userId,
+          filename: outputFileName,
+          originalName: outputFileName,
+          filePath: convertedFilePath,
+          fileSize: (await fs.stat(convertedFilePath)).size,
+          mimeType: `audio/${targetFormat}`,
+          duration: analysis.duration,
+          sampleRate: analysis.sample_rate,
+          channels: analysis.channels,
+          bitRate: analysis.bit_rate,
+          format: analysis.format,
+          isProcessed: true
+        }
+      });
 
       logger.info('Audio conversion completed successfully', { 
         convertedFileId: convertedFile.id,
@@ -423,23 +329,25 @@ export class ProcessingController {
         userId 
       });
 
-      // Get original file
-      const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2';
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(fileQuery, [fileId, userId]);
+      // Get original file using Prisma
+      const originalFile = await prisma.audioFile.findFirst({
+        where: {
+          id: fileId,
+          userId: userId
+        }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!originalFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
-
-      const originalFile = fileResult.rows[0];
 
       // Generate output file path
       const outputFileName = outputName || `segment_${Date.now()}.mp3`;
       const outputPath = path.resolve('processed/audio', outputFileName);
 
       // Extract segment
-      const originalFilePath3 = originalFile.file_path || originalFile.filepath;
+      const originalFilePath3 = originalFile.filePath;
       if (!originalFilePath3) {
         res.status(400).json({ error: 'Original file path not found' });
         return;
@@ -455,55 +363,24 @@ export class ProcessingController {
       // Analyze the segment
       const analysis = await AudioProcessor.analyzeAudio(segmentFilePath);
 
-      // Save segment to database
-      const segmentFileData: Partial<AudioFile> = {
-        id: uuidv4(),
-        user_id: userId,
-        filename: outputFileName,
-        original_name: outputFileName,
-        file_path: segmentFilePath,
-        file_size: (await fs.stat(segmentFilePath)).size,
-        mime_type: 'audio/mpeg',
-        duration: analysis.duration,
-        sample_rate: analysis.sample_rate,
-        channels: analysis.channels,
-        bit_rate: analysis.bit_rate,
-        format: analysis.format,
-        is_processed: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
-
-      const insertQuery = `
-        INSERT INTO audio_files (
-          id, user_id, filename, original_name, file_path, file_size, 
-          mime_type, duration, sample_rate, channels, bit_rate, format, 
-          is_processed, created_at, updated_at
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        RETURNING *
-      `;
-
-      const insertValues = [
-        segmentFileData.id,
-        segmentFileData.user_id,
-        segmentFileData.filename,
-        segmentFileData.original_name,
-        segmentFileData.file_path,
-        segmentFileData.file_size,
-        segmentFileData.mime_type,
-        segmentFileData.duration,
-        segmentFileData.sample_rate,
-        segmentFileData.channels,
-        segmentFileData.bit_rate,
-        segmentFileData.format,
-        segmentFileData.is_processed,
-        segmentFileData.created_at,
-        segmentFileData.updated_at
-      ];
-
-      const result = await DatabaseManager.executeQuery<AudioFile>(insertQuery, insertValues);
-      const segmentFile = result.rows[0];
+      // Save segment to database using Prisma
+      const segmentFile = await prisma.audioFile.create({
+        data: {
+          id: uuidv4(),
+          userId: userId,
+          filename: outputFileName,
+          originalName: outputFileName,
+          filePath: segmentFilePath,
+          fileSize: (await fs.stat(segmentFilePath)).size,
+          mimeType: 'audio/mpeg',
+          duration: analysis.duration,
+          sampleRate: analysis.sample_rate,
+          channels: analysis.channels,
+          bitRate: analysis.bit_rate,
+          format: analysis.format,
+          isProcessed: true
+        }
+      });
 
       logger.info('Audio segment extracted successfully', { 
         segmentFileId: segmentFile.id,

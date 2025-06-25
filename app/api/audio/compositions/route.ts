@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 // Mark route as dynamic since it requires request headers
@@ -22,11 +22,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Query for user's compositions
-    const compositionsQuery = 'SELECT * FROM compositions WHERE user_id = $1 ORDER BY created_at DESC'
-    const result = await DatabaseManager.executeQuery(compositionsQuery, [user.id])
+    // Query for user's compositions using Prisma
+    const compositions = await prisma.composition.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' }
+    })
     
-    return NextResponse.json(result.rows)
+    return NextResponse.json(compositions)
   } catch (error) {
     console.error('Error fetching compositions:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

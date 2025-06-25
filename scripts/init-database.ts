@@ -1,140 +1,116 @@
-// PostgreSQL Database Initialization Script for SyncSphere
-import { Pool } from 'pg';
-import * as fs from 'fs';
-import * as path from 'path';
+// Prisma Database Initialization Script for SyncSphere
+// This script initializes the database using Prisma migrations
+import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
+import { execSync } from 'child_process';
+import { DatabaseService } from '../lib/prisma';
 
 // Load environment variables
-dotenv.config({ path: '.env.dev' });
+dotenv.config({ path: '.env' });
 
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'syncsphere',
-  user: process.env.POSTGRES_USER || 'postgres',
-  password: process.env.POSTGRES_PASSWORD || 'root',
-});
+const prisma = new PrismaClient();
 
 async function initializeDatabase() {
   try {
-    console.log('🔄 Connecting to PostgreSQL database...');
+    console.log('🔄 Initializing database with Prisma...');
     
-    // Test connection
-    const client = await pool.connect();
-    console.log('✅ Connected to PostgreSQL successfully');
+    // Test Prisma connection
+    await prisma.$connect();
+    console.log('✅ Connected to database successfully');
 
-    // Read and execute the SQL initialization script
-    const sqlFilePath = path.join(__dirname, 'database', 'postgresql-init.sql');
-    
-    if (fs.existsSync(sqlFilePath)) {
-      console.log('📖 Reading SQL initialization script...');
-      const sqlScript = fs.readFileSync(sqlFilePath, 'utf8');
-      
-      console.log('🔧 Executing database initialization...');
-      await client.query(sqlScript);
-      
-      console.log('✅ Database tables created successfully!');
-      
-      // Verify tables exist
-      const tablesResult = await client.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        ORDER BY table_name;
-      `);
-      
-      console.log('📋 Created tables:');
-      tablesResult.rows.forEach(row => {
-        console.log(`   - ${row.table_name}`);
+    // Run Prisma migrations to ensure schema is up to date
+    console.log('� Running Prisma migrations...');
+    try {
+      execSync('npx prisma migrate deploy', { 
+        stdio: 'inherit',
+        cwd: process.cwd()
       });
-      
+      console.log('✅ Database migrations completed successfully!');
+    } catch (migrationError) {
+      console.log('⚠️ Migration command failed, trying to push schema...');
+      try {
+        execSync('npx prisma db push', { 
+          stdio: 'inherit',
+          cwd: process.cwd()
+        });
+        console.log('✅ Database schema pushed successfully!');
+      } catch (pushError) {
+        console.error('❌ Failed to apply schema:', pushError);
+        throw pushError;
+      }
+    }
+
+    // Generate Prisma client to ensure it's up to date
+    console.log('📦 Generating Prisma client...');
+    try {
+      execSync('npx prisma generate', { 
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      console.log('✅ Prisma client generated successfully!');
+    } catch (generateError) {
+      console.log('⚠️ Client generation failed, but continuing...');
+    }
+
+    // Verify database health
+    console.log('🔍 Verifying database health...');
+    const healthCheck = await DatabaseService.healthCheck();
+    
+    if (healthCheck.status === 'ok') {
+      console.log('✅ Database health check passed!');
     } else {
-      console.log('⚠️  SQL initialization script not found. Creating basic tables...');
-      
-      // Create basic tables if SQL file doesn't exist
-      await client.query(`
-        -- Create extension for UUID generation
-        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-        
-        -- Create users table
-        CREATE TABLE IF NOT EXISTS users (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          email VARCHAR(255) UNIQUE NOT NULL,
-          username VARCHAR(255) UNIQUE NOT NULL,
-          password_hash VARCHAR(255) NOT NULL,
-          profile JSONB DEFAULT '{"role": "user", "bio": "", "avatar": ""}',
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-        
-        -- Create rooms table
-        CREATE TABLE IF NOT EXISTS rooms (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          name VARCHAR(255) NOT NULL,
-          description TEXT,
-          genre VARCHAR(100),
-          is_live BOOLEAN DEFAULT false,
-          creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          playback_position INTEGER DEFAULT 0,
-          settings JSONB DEFAULT '{}'
-        );
-        
-        -- Create room_participants table
-        CREATE TABLE IF NOT EXISTS room_participants (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
-          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          role VARCHAR(50) DEFAULT 'participant',
-          instruments TEXT[] DEFAULT '{}',
-          is_online BOOLEAN DEFAULT false,
-          joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-        
-        -- Create audio_tracks table
-        CREATE TABLE IF NOT EXISTS audio_tracks (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
-          uploader_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          name VARCHAR(255) NOT NULL,
-          artist VARCHAR(255),
-          duration INTEGER,
-          file_path VARCHAR(500),
-          waveform JSONB,
-          is_currently_playing BOOLEAN DEFAULT false,
-          uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-        
-        -- Create indexes
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-        CREATE INDEX IF NOT EXISTS idx_rooms_creator ON rooms(creator_id);
-        CREATE INDEX IF NOT EXISTS idx_room_participants_room ON room_participants(room_id);
-        CREATE INDEX IF NOT EXISTS idx_room_participants_user ON room_participants(user_id);
-        CREATE INDEX IF NOT EXISTS idx_audio_tracks_room ON audio_tracks(room_id);
-      `);
-      
-      console.log('✅ Basic database schema created successfully!');
+      console.log('⚠️ Database health check failed, but connection works');
+    }
+
+    // Query existing tables to verify setup
+    const tableQuery = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      ORDER BY table_name;
+    `;
+    
+    console.log('📋 Available tables:');
+    (tableQuery as any[]).forEach(row => {
+      console.log(`   - ${row.table_name}`);
+    });
+
+    // Optionally create a test admin user if none exists
+    console.log('👤 Checking for admin user...');
+    const adminUser = await prisma.user.findFirst({
+      where: {
+        profile: {
+          path: ['role'],
+          equals: 'admin'
+        }
+      }
+    });
+
+    if (!adminUser) {
+      console.log('🔐 No admin user found. You may want to create one manually.');
+      console.log('💡 Use the auth registration endpoint or run: npx prisma studio');
+    } else {
+      console.log('✅ Admin user exists');
     }
     
-    client.release();
-      } catch (error: any) {
+  } catch (error: any) {
     console.error('❌ Database initialization failed:', error);
     
-    if (error.code === 'ECONNREFUSED') {
-      console.log('💡 Please make sure PostgreSQL is running and accessible.');
-      console.log('💡 You can start PostgreSQL with: brew start postgresql (Mac) or net start postgresql (Windows)');
-    } else if (error.code === '3D000') {
+    if (error.code === 'P1001') {
+      console.log('💡 Cannot reach database server. Please ensure it is running.');
+      console.log('💡 PostgreSQL: brew services start postgresql (Mac)');
+      console.log('💡 Docker: docker-compose up postgres');
+    } else if (error.code === 'P1003') {
       console.log('💡 Database does not exist. Please create it first:');
-      console.log(`💡 CREATE DATABASE ${process.env.POSTGRES_DB || 'syncsphere'};`);
-    } else if (error.code === '28P01') {
+      console.log(`💡 CREATE DATABASE ${process.env.DATABASE_URL?.split('/').pop() || 'syncsphere'};`);
+    } else if (error.code === 'P1000') {
       console.log('💡 Authentication failed. Please check your database credentials.');
+      console.log('💡 Verify your DATABASE_URL in .env file');
     }
     
     throw error;
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 
@@ -143,10 +119,12 @@ if (require.main === module) {
   initializeDatabase()
     .then(() => {
       console.log('🎉 Database initialization completed successfully!');
+      console.log('💡 You can now run: npm run dev');
       process.exit(0);
     })
     .catch((error) => {
       console.error('💥 Database initialization failed:', error);
+      console.log('💡 Try running: npx prisma migrate reset --force');
       process.exit(1);
     });
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 // Mark route as dynamic since it requires request headers
@@ -27,32 +27,50 @@ export async function GET(
 
     const roomId = params.id
 
-    // Verify user is a member of this room
-    const membershipQuery = `
-      SELECT r.id, r.name, rp.user_id, rp.role 
-      FROM rooms r 
-      JOIN room_participants rp ON r.id = rp.room_id 
-      WHERE r.id = $1 AND rp.user_id = $2
-    `
-    const membershipResult = await DatabaseManager.executeQuery(membershipQuery, [roomId, user.id])
+    // Verify user is a member of this room using Prisma
+    const membership = await prisma.roomParticipant.findFirst({
+      where: {
+        roomId: roomId,
+        userId: user.id
+      },
+      include: {
+        room: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    })
     
-    if (membershipResult.rows.length === 0) {
+    if (!membership) {
       return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
     }
 
-    // Get all files uploaded to this room by all participants
-    const filesQuery = `
-      SELECT 
-        af.*,
-        u.username as uploader_name
-      FROM audio_files af
-      JOIN users u ON af.user_id = u.id
-      WHERE af.room_id = $1
-      ORDER BY af.created_at DESC
-    `
-    const result = await DatabaseManager.executeQuery(filesQuery, [roomId])
+    // Get all files uploaded to this room by all participants using Prisma
+    const files = await prisma.audioFile.findMany({
+      where: {
+        roomId: roomId
+      },
+      include: {
+        user: {
+          select: {
+            username: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
     
-    return NextResponse.json(result.rows)
+    // Format response to match expected structure
+    const formattedFiles = files.map(file => ({
+      ...file,
+      uploader_name: file.user.username
+    }))
+    
+    return NextResponse.json(formattedFiles)
   } catch (error) {
     console.error('Error fetching room files:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

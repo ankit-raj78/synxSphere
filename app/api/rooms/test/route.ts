@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -20,29 +20,38 @@ export async function DELETE(request: NextRequest) {
       console.log('Deleting test rooms...')
       
       // Find all test rooms
-      const testRooms = await DatabaseManager.executeQuery(
-        "SELECT * FROM rooms WHERE name ILIKE '%test%'"
-      )
+      const testRooms = await prisma.room.findMany({
+        where: {
+          name: {
+            contains: 'test',
+            mode: 'insensitive'
+          }
+        }
+      });
       
-      if (testRooms.rows.length === 0) {
+      if (testRooms.length === 0) {
         return NextResponse.json({ message: 'No test rooms found' })
       }
       
       let deletedCount = 0
       
-      // Delete test room participants and rooms
-      for (const room of testRooms.rows) {
-        // Delete participants
-        await DatabaseManager.executeQuery(
-          'DELETE FROM room_participants WHERE room_id = $1',
-          [room.id]
-        )
-        
-        // Delete room
-        await DatabaseManager.executeQuery(
-          'DELETE FROM rooms WHERE id = $1',
-          [room.id]
-        )
+      // Delete test room participants and rooms using transactions
+      for (const room of testRooms) {
+        await prisma.$transaction(async (tx) => {
+          // Delete participants first (due to foreign key constraints)
+          await tx.roomParticipant.deleteMany({
+            where: {
+              roomId: room.id
+            }
+          });
+          
+          // Delete room
+          await tx.room.delete({
+            where: {
+              id: room.id
+            }
+          });
+        });
         
         deletedCount++
         console.log(`Deleted test room: ${room.name}`)

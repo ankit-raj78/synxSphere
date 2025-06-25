@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import DatabaseManager from './database'
+import { prisma } from './prisma'
 
 export interface User {
   id: string
@@ -85,26 +85,23 @@ export async function registerUser(
   }
 
   try {
-    // Use PostgreSQL instead of MongoDB
-    const result = await DatabaseManager.executeQuery(
-      `INSERT INTO users (id, email, username, password_hash, profile, created_at, updated_at) 
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW()) 
-       RETURNING id, email, username, profile, created_at, updated_at`,
-      [email, username, hashedPassword, JSON.stringify(profile)]
-    )
+    // Use Prisma instead of raw SQL
+    const user = await prisma.user.create({
+      data: {
+        email,
+        username,
+        passwordHash: hashedPassword,
+        profile
+      }
+    })
 
-    if (result.rows.length === 0) {
-      throw new Error('Failed to create user')
-    }
-
-    const user = result.rows[0]
     return {
       id: user.id,
       email: user.email,
       username: user.username,
-      profile: typeof user.profile === 'string' ? JSON.parse(user.profile) : user.profile,
-      created_at: user.created_at,
-      updated_at: user.updated_at
+      profile: typeof user.profile === 'string' ? JSON.parse(user.profile as string) : user.profile,
+      created_at: user.createdAt,
+      updated_at: user.updatedAt
     }
   } catch (error) {
     console.error('Registration error:', error)
@@ -114,32 +111,30 @@ export async function registerUser(
 
 export async function loginUser(email: string, password: string): Promise<{ user: User; token: string } | null> {
   try {
-    const result = await DatabaseManager.executeQuery(
-      'SELECT id, email, username, password_hash, profile, created_at, updated_at FROM users WHERE email = $1',
-      [email]
-    )
+    const user = await prisma.user.findUnique({
+      where: { email }
+    })
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return null
     }
 
-    const user = result.rows[0]
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash)
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash || '')
 
     if (!isPasswordValid) {
       return null
     }
 
-    const token = generateToken(user.id, user.email, user.created_at)
+    const token = generateToken(user.id, user.email, user.createdAt)
 
     return {
       user: {
         id: user.id,
         email: user.email,
         username: user.username,
-        profile: typeof user.profile === 'string' ? JSON.parse(user.profile) : user.profile,
-        created_at: user.created_at,
-        updated_at: user.updated_at
+        profile: typeof user.profile === 'string' ? JSON.parse(user.profile as string) : user.profile,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt
       },
       token
     }
@@ -151,23 +146,21 @@ export async function loginUser(email: string, password: string): Promise<{ user
 
 export async function getUserById(id: string): Promise<User | null> {
   try {
-    const result = await DatabaseManager.executeQuery(
-      'SELECT id, email, username, profile, created_at, updated_at FROM users WHERE id = $1',
-      [id]
-    )
+    const user = await prisma.user.findUnique({
+      where: { id }
+    })
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return null
     }
 
-    const user = result.rows[0]
     return {
       id: user.id,
       email: user.email,
       username: user.username,
-      profile: typeof user.profile === 'string' ? JSON.parse(user.profile) : user.profile,
-      created_at: user.created_at,
-      updated_at: user.updated_at
+      profile: typeof user.profile === 'string' ? JSON.parse(user.profile as string) : user.profile,
+      created_at: user.createdAt,
+      updated_at: user.updatedAt
     }
   } catch (error) {
     console.error('Get user error:', error)

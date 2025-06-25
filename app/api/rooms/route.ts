@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,55 +14,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    try {      // Try to fetch rooms from PostgreSQL
-      const query = `
-        SELECT 
-          r.id,
-          r.name,
-          r.description,
-          r.genre,
-          r.is_live,
-          r.created_at,
-          r.creator_id,
-          r.settings,
-          u.username as creator_username,
-          u.email as creator_email,
-          COUNT(DISTINCT rp.user_id) as participant_count
-        FROM rooms r
-        LEFT JOIN users u ON r.creator_id = u.id
-        LEFT JOIN room_participants rp ON r.id = rp.room_id
-        WHERE r.name NOT ILIKE '%test%'
-        GROUP BY r.id, u.username, u.email, r.creator_id, r.settings
-        ORDER BY r.created_at DESC
-      `
-
-      const result = await DatabaseManager.executeQuery(query)
+    try {      // Try to fetch rooms from PostgreSQL using Prisma
+      const rooms = await prisma.room.findMany({
+        where: {
+          name: {
+            not: {
+              contains: 'test'
+            }
+          }
+        },
+        include: {
+          creator: {
+            select: {
+              username: true,
+              email: true
+            }
+          },
+          participants: {
+            select: {
+              userId: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
       
-      const rooms = result.rows.map((row: any) => {
+      const roomsData = rooms.map((room) => {
         let settings = { maxParticipants: 10 }
         try {
-          if (row.settings) {
-            settings = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+          if (room.settings) {
+            settings = typeof room.settings === 'object' ? room.settings as any : JSON.parse(room.settings as string)
           }
         } catch (e) {
           console.log('Error parsing room settings:', e)
         }
         
         return {
-          id: row.id,
-          name: row.name,
-          description: row.description,
-          genre: row.genre,
-          participantCount: parseInt(row.participant_count) || 0,
+          id: room.id,
+          name: room.name,
+          description: room.description,
+          genre: room.genre,
+          participantCount: room.participants.length,
           maxParticipants: settings.maxParticipants || 10,
-          isLive: row.is_live,
-          creator: row.creator_username || row.creator_email?.split('@')[0] || 'Unknown',
-          creatorId: row.creator_id,
-          createdAt: row.created_at
+          isLive: room.isLive,
+          creator: room.creator?.username || room.creator?.email?.split('@')[0] || 'Unknown',
+          creatorId: room.creatorId,
+          createdAt: room.createdAt
         }
       })
 
-      return NextResponse.json(rooms)
+      return NextResponse.json(roomsData)
     } catch (dbError) {
       console.log('Database not available, using mock data:', dbError)
       
@@ -130,42 +133,33 @@ export async function POST(request: NextRequest) {
 
     if (!name || !description) {
       return NextResponse.json({ error: 'Name and description are required' }, { status: 400 })
-    }    // Create room in PostgreSQL
+    }    // Create room in PostgreSQL using Prisma
     try {
-      const roomQuery = `
-        INSERT INTO rooms (name, description, genre, creator_id, is_live, settings)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, name, description, genre, is_live, created_at
-      `
-      
       const settings = {
         isPublic,
         maxParticipants
       }
 
-      const roomResult = await DatabaseManager.executeQuery(roomQuery, [
-        name,
-        description,
-        genre,
-        tokenData.id,
-        true, // is_live
-        JSON.stringify(settings)
-      ])
+      const newRoom = await prisma.room.create({
+        data: {
+          name,
+          description,
+          genre,
+          creatorId: tokenData.id,
+          isLive: true,
+          settings: settings
+        }
+      })
 
-      const newRoom = roomResult.rows[0]
-
-      // Add creator as first participant
-      const participantQuery = `
-        INSERT INTO room_participants (room_id, user_id, role, is_online)
-        VALUES ($1, $2, $3, $4)
-      `
-
-      await DatabaseManager.executeQuery(participantQuery, [
-        newRoom.id,
-        tokenData.id,
-        'creator',
-        true
-      ])
+      // Add creator as first participant using Prisma
+      await prisma.roomParticipant.create({
+        data: {
+          roomId: newRoom.id,
+          userId: tokenData.id,
+          role: 'creator',
+          isOnline: true
+        }
+      })
 
       // Return the created room with participant count
       const responseRoom = {
@@ -175,9 +169,9 @@ export async function POST(request: NextRequest) {
         genre: newRoom.genre,
         participantCount: 1,
         maxParticipants,
-        isLive: newRoom.is_live,
+        isLive: newRoom.isLive,
         creator: tokenData.email?.split('@')[0] || 'User',
-        createdAt: newRoom.created_at
+        createdAt: newRoom.createdAt
       }
 
       return NextResponse.json(responseRoom, { status: 201 })

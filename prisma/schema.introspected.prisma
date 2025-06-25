@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  username         String            @unique
+  passwordHash     String            @map("password_hash")
+  profile          Json              @default("{\"bio\": \"\", \"role\": \"user\", \"avatar\": \"\"}")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  audioFiles       AudioFile[]
+  audioTracks      AudioTrack[]
+  compositions     Composition[]
+  joinRequests     JoinRequest[]
+  roomParticipants RoomParticipant[]
+  rooms            rooms[]
+  sessions         UserSession[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+model RoomParticipant {
+  id          String   @id @default(uuid())
+  roomId      String   @map("room_id")
+  userId      String   @map("user_id")
+  role        String   @default("participant")
+  instruments Json     @default("[]")
+  is_online   Boolean  @default(false)
+  joinedAt    DateTime @default(now()) @map("joined_at")
+  room        rooms    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("room_participants")
+}
+
+model AudioFile {
+  id           String         @id @default(uuid())
+  userId       String         @map("user_id")
+  filename     String
+  originalName String         @map("original_name")
+  filePath     String         @map("file_path")
+  fileSize     BigInt         @map("file_size")
+  mimeType     String         @map("mime_type")
+  duration     Decimal?       @db.Decimal(10, 2)
+  sampleRate   Int?           @map("sample_rate")
+  channels     Int?
+  bitRate      Int?           @map("bit_rate")
+  format       String?
+  isProcessed  Boolean        @default(false) @map("is_processed")
+  isPublic     Boolean        @default(false) @map("is_public")
+  roomId       String?        @map("room_id")
+  metadata     Json           @default("{}")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  analysis     AudioAnalysis?
+  room         rooms?         @relation(fields: [roomId], references: [id])
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audio_files")
+}
+
+model AudioAnalysis {
+  id           String    @id @default(uuid())
+  fileId       String    @unique @map("file_id")
+  duration     Decimal?  @db.Decimal(10, 2)
+  sampleRate   Int?      @map("sample_rate")
+  channels     Int?
+  bitRate      Int?      @map("bit_rate")
+  codec        String?
+  format       String?
+  size         BigInt?
+  tempo        Decimal?  @db.Decimal(6, 2)
+  keySignature String?   @map("key_signature")
+  loudness     Decimal?  @db.Decimal(8, 2)
+  waveformData Json?     @map("waveform_data")
+  analyzedAt   DateTime  @default(now()) @map("analyzed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  file         AudioFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@map("audio_analysis")
+}
+
+model AudioTrack {
+  id                 String   @id @default(uuid())
+  roomId             String   @map("room_id")
+  uploaderId         String   @map("uploader_id")
+  name               String
+  artist             String?
+  duration           String?
+  filePath           String?  @map("file_path")
+  waveform           Json?
+  isCurrentlyPlaying Boolean  @default(false) @map("is_currently_playing")
+  uploadedAt         DateTime @default(now()) @map("uploaded_at")
+  metadata           Json     @default("{}")
+  room               rooms    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  uploader           User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@map("audio_tracks")
+}
+
+model JoinRequest {
+  id        String            @id @default(uuid())
+  roomId    String            @map("room_id")
+  userId    String            @map("user_id")
+  status    JoinRequestStatus @default(PENDING)
+  message   String?
+  response  String?
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  room      rooms             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("join_requests")
+}
+
+model Composition {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  roomId      String   @map("room_id")
+  title       String
+  description String?
+  filePath    String   @map("file_path")
+  duration    Decimal? @db.Decimal(10, 2)
+  fileSize    BigInt   @map("file_size")
+  mixSettings Json     @default("{}") @map("mix_settings")
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  room        rooms    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("compositions")
+}
+
+model rooms {
+  id                String            @id
+  name              String
+  description       String?
+  genre             String?
+  is_live           Boolean           @default(false)
+  creator_id        String
+  playback_position Int               @default(0)
+  settings          Json              @default("{}")
+  created_at        DateTime          @default(now())
+  updated_at        DateTime
+  audioFiles        AudioFile[]
+  audioTracks       AudioTrack[]
+  compositions      Composition[]
+  joinRequests      JoinRequest[]
+  participants      RoomParticipant[]
+  users             User              @relation(fields: [creator_id], references: [id], onDelete: Cascade)
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

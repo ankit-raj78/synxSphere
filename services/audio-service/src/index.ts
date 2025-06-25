@@ -6,7 +6,8 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import DatabaseManager from '../../shared/config/database';
+import DatabaseManager from '../../shared/config/database'; // Still needed for MongoDB/GridFS
+import { prisma } from '../../../lib/prisma'; // Add Prisma client
 import { createLogger } from './utils/logger';
 import uploadRoutes from './routes/uploadRoutes';
 import processingRoutes from './routes/processingRoutes';
@@ -179,9 +180,13 @@ class AudioService {
 
   public async start(): Promise<void> {
     try {
-      // Initialize database connections
+      // Initialize DatabaseManager for MongoDB/GridFS and Redis (PostgreSQL handled by Prisma)
       await DatabaseManager.initialize();
-      logger.info('Database connections established');
+      logger.info('MongoDB/GridFS and Redis connections established');
+
+      // Test Prisma connection
+      await prisma.$connect();
+      logger.info('Prisma (PostgreSQL) connected successfully');
 
       // Start server
       this.app.listen(this.config.port, () => {
@@ -206,6 +211,7 @@ class AudioService {
     
     try {
       await DatabaseManager.close();
+      await prisma.$disconnect();
       logger.info('Database connections closed');
       process.exit(0);
     } catch (error) {

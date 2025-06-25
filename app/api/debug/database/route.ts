@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No token provided' }, { status: 401 })
     }
 
-    const tokenData = await verifyToken(token)
+    const tokenData =  verifyToken(token)
     if (!tokenData) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
@@ -24,25 +24,41 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Count rooms
-      const roomsCount = await DatabaseManager.executeQuery('SELECT COUNT(*) as count FROM rooms')
-      diagnostics.rooms_count = roomsCount.rows[0]?.count || 0
+      // Count rooms using Prisma
+      const roomsCount = await prisma.room.count()
+      diagnostics.rooms_count = roomsCount
 
-      // Count users
-      const usersCount = await DatabaseManager.executeQuery('SELECT COUNT(*) as count FROM users')
-      diagnostics.users_count = usersCount.rows[0]?.count || 0
+      // Count users using Prisma
+      const usersCount = await prisma.user.count()
+      diagnostics.users_count = usersCount
 
-      // Count participants
-      const participantsCount = await DatabaseManager.executeQuery('SELECT COUNT(*) as count FROM room_participants')
-      diagnostics.participants_count = participantsCount.rows[0]?.count || 0
+      // Count participants using Prisma
+      const participantsCount = await prisma.roomParticipant.count()
+      diagnostics.participants_count = participantsCount
 
-      // Sample rooms
-      const sampleRooms = await DatabaseManager.executeQuery('SELECT id, name, creator_id, created_at FROM rooms LIMIT 5')
-      diagnostics.sample_rooms = sampleRooms.rows
+      // Sample rooms using Prisma
+      const sampleRooms = await prisma.room.findMany({
+        select: {
+          id: true,
+          name: true,
+          creatorId: true,
+          createdAt: true
+        },
+        take: 5
+      })
+      diagnostics.sample_rooms = sampleRooms
 
-      // Sample users
-      const sampleUsers = await DatabaseManager.executeQuery('SELECT id, username, email, created_at FROM users LIMIT 5')
-      diagnostics.sample_users = sampleUsers.rows
+      // Sample users using Prisma
+      const sampleUsers = await prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          createdAt: true
+        },
+        take: 5
+      })
+      diagnostics.sample_users = sampleUsers
 
     } catch (dbError: any) {
       diagnostics.database = 'error'

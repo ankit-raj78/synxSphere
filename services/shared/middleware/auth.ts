@@ -1,6 +1,6 @@
 import * as jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import DatabaseManager from '../config/database';
+import { prisma } from '../../../lib/prisma';
 import { User, UserSession, AuthenticatedRequest } from '../types';
 
 export interface AuthTokenPayload {
@@ -34,31 +34,43 @@ class AuthMiddleware {
       const decoded = jwt.verify(token, jwtSecret) as AuthTokenPayload;
       
       // Verify user exists
-      const userResult = await DatabaseManager.executeQuery<User>(
-        'SELECT id, email, username, profile, created_at, updated_at FROM users WHERE id = $1',
-        [decoded.userId]
-      );
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
 
-      if (userResult.rows.length === 0) {
+      if (!user) {
         res.status(401).json({ error: 'User not found' });
         return;
       }
 
       // Check if session is still valid
-      const sessionResult = await DatabaseManager.executeQuery<UserSession>(
-        'SELECT * FROM user_sessions WHERE user_id = $1 AND session_token = $2 AND expires_at > NOW()',
-        [decoded.userId, token]
-      );
+      const session = await prisma.userSession.findFirst({
+        where: {
+          userId: decoded.userId,
+          token: token,
+          expiresAt: {
+            gt: new Date()
+          }
+        }
+      });
 
-      if (sessionResult.rows.length === 0) {
+      if (!session) {
         res.status(401).json({ error: 'Session expired' });
         return;
       }
 
       // Attach user and session info to request
       const authReq = req as unknown as AuthenticatedRequest;
-      authReq.user = userResult.rows[0];
-      authReq.sessionId = sessionResult.rows[0].id;
+      authReq.user = user as any; // Type conversion needed due to camelCase vs snake_case
+      authReq.sessionId = session.id;
       authReq.sessionToken = token;
       
       next();
@@ -144,35 +156,39 @@ class AuthMiddleware {
   async createSession(userId: string, token: string, expiresIn: number = 24 * 60 * 60 * 1000): Promise<UserSession> {
     const expiresAt = new Date(Date.now() + expiresIn);
     
-    const result = await DatabaseManager.executeQuery<UserSession>(
-      `INSERT INTO user_sessions (user_id, session_token, expires_at, metadata)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [userId, token, expiresAt, {}]
-    );
+    const result = await prisma.userSession.create({
+      data: {
+        userId: userId,
+        token: token,
+        expiresAt: expiresAt
+      }
+    });
 
-    return result.rows[0];
+    return result as any; // Type conversion needed due to camelCase vs snake_case
   }
 
   /**
    * Revoke user session
    */
   async revokeSession(sessionId: string): Promise<void> {
-    await DatabaseManager.executeQuery(
-      'DELETE FROM user_sessions WHERE id = $1',
-      [sessionId]
-    );
+    await prisma.userSession.delete({
+      where: { id: sessionId }
+    });
   }
 
   /**
    * Clean up expired sessions
    */
   async cleanupExpiredSessions(): Promise<number> {
-    const result = await DatabaseManager.executeQuery(
-      'DELETE FROM user_sessions WHERE expires_at < NOW()'
-    );
+    const result = await prisma.userSession.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date()
+        }
+      }
+    });
     
-    return result.rowCount || 0;
+    return result.count;
   }
 }
 

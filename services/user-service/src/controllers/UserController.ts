@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 const { validationResult } = require('express-validator');
-import DatabaseManager from '../../../shared/config/database';
+import { prisma } from '../../../../lib/prisma';
 import { User, UserSession } from '../../../shared/types';
 import { createError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
@@ -25,54 +25,44 @@ class UserController {
       const role = req.query.role as string;
       const offset = (page - 1) * limit;
 
-      let query = `
-        SELECT id, email, username, profile, created_at, updated_at
-        FROM users
-        WHERE 1=1
-      `;
-      const params: any[] = [];
-      let paramIndex = 1;
+      // Build Prisma where clause
+      const whereClause: any = {};
 
-      // Add search conditions
       if (search) {
-        query += ` AND (username ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
+        whereClause.OR = [
+          { username: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } }
+        ];
       }
 
       if (role) {
-        query += ` AND profile->>'role' = $${paramIndex}`;
-        params.push(role);
-        paramIndex++;
+        whereClause.profile = {
+          path: ['role'],
+          equals: role
+        };
       }
 
-      // Add pagination
-      query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-      params.push(limit, offset);
-
-      const result = await DatabaseManager.executeQuery<User>(query, params);
-
-      // Get total count for pagination
-      let countQuery = 'SELECT COUNT(*) FROM users WHERE 1=1';
-      const countParams: any[] = [];
-      let countParamIndex = 1;
-
-      if (search) {
-        countQuery += ` AND (username ILIKE $${countParamIndex} OR email ILIKE $${countParamIndex})`;
-        countParams.push(`%${search}%`);
-        countParamIndex++;
-      }
-
-      if (role) {
-        countQuery += ` AND profile->>'role' = $${countParamIndex}`;
-        countParams.push(role);
-      }
-
-      const countResult = await DatabaseManager.executeQuery(countQuery, countParams);
-      const totalUsers = parseInt(countResult.rows[0].count);
+      // Get users with Prisma
+      const [users, totalUsers] = await Promise.all([
+        prisma.user.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            profile: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset
+        }),
+        prisma.user.count({ where: whereClause })
+      ]);
 
       res.json({
-        users: result.rows,
+        users: users,
         pagination: {
           page,
           limit,
@@ -106,17 +96,24 @@ class UserController {
         return;
       }
 
-      const result = await DatabaseManager.executeQuery<User>(
-        'SELECT id, email, username, profile, created_at, updated_at FROM users WHERE id = $1',
-        [id]
-      );
+      const result = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
 
-      if (result.rows.length === 0) {
+      if (!result) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      res.json({ user: result.rows[0] });
+      res.json({ user: result });
 
     } catch (error) {
       logger.error('Get user by ID error:', error);
@@ -144,54 +141,70 @@ class UserController {
         return;
       }
 
-      // Check if user exists
-      const existingUser = await DatabaseManager.executeQuery<User>(
-        'SELECT * FROM users WHERE id = $1',
-        [id]
-      );
+      // Check if user exists using Prisma
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true
+        }
+      });
 
-      if (existingUser.rows.length === 0) {
+      if (!existingUser) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      const currentUser = existingUser.rows[0];
+      const currentUser = existingUser;
 
-      // Check for email/username conflicts
+      // Check for email/username conflicts using Prisma
       if (email || username) {
-        const conflictCheck = await DatabaseManager.executeQuery(
-          'SELECT id FROM users WHERE (email = $1 OR username = $2) AND id != $3',
-          [email || currentUser.email, username || currentUser.username, id]
-        );
+        const conflictCheck = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: email || currentUser.email },
+              { username: username || currentUser.username }
+            ],
+            NOT: { id: id }
+          },
+          select: { id: true }
+        });
 
-        if (conflictCheck.rows.length > 0) {
+        if (conflictCheck) {
           res.status(409).json({ error: 'Email or username already exists' });
           return;
         }
       }
 
       // Merge profile data
-      const updatedProfile = profile ? { ...currentUser.profile, ...profile } : currentUser.profile;
+      const currentProfileObj = (currentUser.profile as any) || {};
+      const updatedProfile = profile ? { ...currentProfileObj, ...profile } : currentProfileObj;
 
-      // Update user
-      const result = await DatabaseManager.executeQuery<User>(
-        `UPDATE users 
-         SET email = $1, username = $2, profile = $3, updated_at = NOW()
-         WHERE id = $4
-         RETURNING id, email, username, profile, created_at, updated_at`,
-        [
-          email || currentUser.email,
-          username || currentUser.username,
-          JSON.stringify(updatedProfile),
-          id
-        ]
-      );
+      // Update user using Prisma
+      const result = await prisma.user.update({
+        where: { id },
+        data: {
+          email: email || currentUser.email,
+          username: username || currentUser.username,
+          profile: updatedProfile as any
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
 
       logger.info('User updated', { userId: id, updatedBy: req.user?.id });
 
       res.json({
         message: 'User updated successfully',
-        user: result.rows[0]
+        user: result
       });
 
     } catch (error) {
@@ -213,27 +226,29 @@ class UserController {
 
       const { id } = req.params;
 
-      // Check if user exists
-      const userResult = await DatabaseManager.executeQuery(
-        'SELECT id, email FROM users WHERE id = $1',
-        [id]
-      );
+      // Check if user exists using Prisma
+      const userResult = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true
+        }
+      });
 
-      if (userResult.rows.length === 0) {
+      if (!userResult) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      // Delete user (this should cascade to sessions and other related data)
-      await DatabaseManager.executeQuery(
-        'DELETE FROM users WHERE id = $1',
-        [id]
-      );
+      // Delete user using Prisma (this should cascade to sessions and other related data)
+      await prisma.user.delete({
+        where: { id }
+      });
 
       logger.info('User deleted', { 
         deletedUserId: id, 
         deletedBy: req.user?.id,
-        deletedEmail: userResult.rows[0].email
+        deletedEmail: userResult.email
       });
 
       res.json({ message: 'User deleted successfully' });
@@ -263,15 +278,25 @@ class UserController {
         return;
       }
 
-      const result = await DatabaseManager.executeQuery<UserSession>(
-        `SELECT id, user_id, expires_at, metadata, created_at
-         FROM user_sessions 
-         WHERE user_id = $1 AND expires_at > NOW()
-         ORDER BY created_at DESC`,
-        [id]
-      );
+      const sessions = await prisma.userSession.findMany({
+        where: {
+          userId: id,
+          expiresAt: {
+            gt: new Date()
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        select: {
+          id: true,
+          userId: true,
+          expiresAt: true,
+          createdAt: true
+        }
+      });
 
-      res.json({ sessions: result.rows });
+      res.json({ sessions });
 
     } catch (error) {
       logger.error('Get user sessions error:', error);
@@ -292,48 +317,102 @@ class UserController {
 
       const { genres, instruments, experience, collaborationStyle } = req.body;
 
-      let query = `
-        SELECT id, username, profile->>'bio' as bio, profile->'musicalPreferences' as musical_preferences
-        FROM users
-        WHERE 1=1
-      `;
-      const params: any[] = [];
-      let paramIndex = 1;
+      // Use Prisma with JSON filtering capabilities
+      const whereConditions: any = {};
 
-      // Search by genres
+      // Build filter conditions for musical preferences
       if (genres && genres.length > 0) {
-        query += ` AND profile->'musicalPreferences'->'genres' ?| array[${genres.map(() => `$${paramIndex++}`).join(',')}]`;
-        params.push(...genres);
+        whereConditions.profile = {
+          ...whereConditions.profile,
+          path: ['musicalPreferences', 'genres'],
+          array_contains: genres
+        };
       }
 
-      // Search by instruments
       if (instruments && instruments.length > 0) {
-        query += ` AND profile->'musicalPreferences'->'instruments' ?| array[${instruments.map(() => `$${paramIndex++}`).join(',')}]`;
-        params.push(...instruments);
+        whereConditions.profile = {
+          ...whereConditions.profile,
+          path: ['musicalPreferences', 'instruments'],
+          array_contains: instruments
+        };
       }
 
-      // Search by experience level
       if (experience) {
-        query += ` AND profile->'musicalPreferences'->>'experience' = $${paramIndex}`;
-        params.push(experience);
-        paramIndex++;
+        whereConditions.profile = {
+          ...whereConditions.profile,
+          path: ['musicalPreferences', 'experience'],
+          equals: experience
+        };
       }
 
-      // Search by collaboration style
       if (collaborationStyle) {
-        query += ` AND profile->'musicalPreferences'->>'collaborationStyle' = $${paramIndex}`;
-        params.push(collaborationStyle);
+        whereConditions.profile = {
+          ...whereConditions.profile,
+          path: ['musicalPreferences', 'collaborationStyle'],
+          equals: collaborationStyle
+        };
       }
 
-      query += ' LIMIT 50'; // Limit results
+      // If no filters provided, get all users with musical preferences
+      if (!genres && !instruments && !experience && !collaborationStyle) {
+        whereConditions.profile = {
+          path: ['musicalPreferences'],
+          not: undefined
+        };
+      }
 
-      const result = await DatabaseManager.executeQuery(query, params);
+      const users = await prisma.user.findMany({
+        where: whereConditions,
+        select: {
+          id: true,
+          username: true,
+          profile: true
+        },
+        take: 50
+      });
 
-      res.json({ users: result.rows });
+      // Transform the response to match expected format
+      const transformedUsers = users.map(user => ({
+        id: user.id,
+        username: user.username,
+        bio: (user.profile as any)?.bio || '',
+        musical_preferences: (user.profile as any)?.musicalPreferences || {}
+      }));
+
+      res.json({ users: transformedUsers });
 
     } catch (error) {
       logger.error('Search users by preferences error:', error);
-      next(createError('Failed to search users', 500));
+      // Fallback to simple search if complex JSON filtering fails
+      try {
+        const fallbackUsers = await prisma.user.findMany({
+          where: {
+            profile: {
+              not: undefined
+            }
+          },
+          select: {
+            id: true,
+            username: true,
+            profile: true
+          },
+          take: 50
+        });
+
+        const transformedUsers = fallbackUsers
+          .filter(user => (user.profile as any)?.musicalPreferences)
+          .map(user => ({
+            id: user.id,
+            username: user.username,
+            bio: (user.profile as any)?.bio || '',
+            musical_preferences: (user.profile as any)?.musicalPreferences || {}
+          }));
+
+        res.json({ users: transformedUsers });
+      } catch (fallbackError) {
+        logger.error('Fallback search also failed:', fallbackError);
+        next(createError('Failed to search users', 500));
+      }
     }
   }
 }

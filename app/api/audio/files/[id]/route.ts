@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 // Mark route as dynamic since it requires request headers
@@ -29,39 +29,43 @@ export async function PATCH(
     const body = await request.json()
     const { room_id } = body
 
-    // Verify the user owns this file
-    const fileQuery = 'SELECT * FROM audio_files WHERE id = $1 AND user_id = $2'
-    const fileResult = await DatabaseManager.executeQuery(fileQuery, [fileId, user.id])
+    // Verify the user owns this file using Prisma
+    const audioFile = await prisma.audioFile.findFirst({
+      where: {
+        id: fileId,
+        userId: user.id
+      }
+    })
     
-    if (fileResult.rows.length === 0) {
+    if (!audioFile) {
       return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 })
     }
 
-    // If room_id is provided, verify user is a member of that room
+    // If room_id is provided, verify user is a member of that room using Prisma
     if (room_id) {
-      const membershipQuery = `
-        SELECT r.id 
-        FROM rooms r 
-        JOIN room_participants rp ON r.id = rp.room_id 
-        WHERE r.id = $1 AND rp.user_id = $2
-      `
-      const membershipResult = await DatabaseManager.executeQuery(membershipQuery, [room_id, user.id])
+      const membership = await prisma.roomParticipant.findFirst({
+        where: {
+          roomId: room_id,
+          userId: user.id
+        }
+      })
       
-      if (membershipResult.rows.length === 0) {
+      if (!membership) {
         return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
       }
     }
 
-    // Update the file's room association
-    const updateQuery = `
-      UPDATE audio_files 
-      SET room_id = $1, updated_at = NOW()
-      WHERE id = $2 AND user_id = $3
-      RETURNING *
-    `
-    const result = await DatabaseManager.executeQuery(updateQuery, [room_id, fileId, user.id])
+    // Update the file's room association using Prisma
+    const updatedFile = await prisma.audioFile.update({
+      where: {
+        id: fileId
+      },
+      data: {
+        roomId: room_id
+      }
+    })
     
-    return NextResponse.json(result.rows[0])
+    return NextResponse.json(updatedFile)
   } catch (error) {
     console.error('Error updating file:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
@@ -17,56 +17,59 @@ export async function POST(request: NextRequest) {
     }
 
     // Create sample rooms if none exist
-    const roomsCount = await DatabaseManager.executeQuery('SELECT COUNT(*) as count FROM rooms')
-    const currentRoomsCount = parseInt(roomsCount.rows[0]?.count || '0')
+    const roomsCount = await prisma.room.count()
 
-    if (currentRoomsCount === 0) {
+    if (roomsCount === 0) {
       // Create some sample rooms
       const sampleRooms = [
         {
           name: 'Chill Vibes Collaboration',
           description: 'Relaxing music collaboration space',
           genre: 'Electronic',
-          creator_id: tokenData.id
+          creatorId: tokenData.id
         },
         {
           name: 'Jazz Fusion Jam',
           description: 'Experimental jazz collaboration',
           genre: 'Jazz',
-          creator_id: tokenData.id
+          creatorId: tokenData.id
         },
         {
           name: 'Rock Collaboration Studio',
           description: 'High energy rock music creation',
           genre: 'Rock',
-          creator_id: tokenData.id
+          creatorId: tokenData.id
         }
       ]
 
       const createdRooms = []
       for (const room of sampleRooms) {
-        const result = await DatabaseManager.executeQuery(
-          `INSERT INTO rooms (id, name, description, genre, creator_id, is_live, settings, created_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, true, $5, NOW())
-           RETURNING id, name`,
-          [
-            room.name,
-            room.description,
-            room.genre,
-            room.creator_id,
-            JSON.stringify({ maxParticipants: 8, isPublic: true })
-          ]
-        )
+        const newRoom = await prisma.room.create({
+          data: {
+            name: room.name,
+            description: room.description,
+            genre: room.genre,
+            creatorId: room.creatorId,
+            isLive: true,
+            settings: { maxParticipants: 8, isPublic: true }
+          },
+          select: {
+            id: true,
+            name: true
+          }
+        })
 
-        const newRoom = result.rows[0]
         createdRooms.push(newRoom)
 
         // Add creator as participant
-        await DatabaseManager.executeQuery(
-          `INSERT INTO room_participants (room_id, user_id, role, is_online)
-           VALUES ($1, $2, 'creator', true)`,
-          [newRoom.id, room.creator_id]
-        )
+        await prisma.roomParticipant.create({
+          data: {
+            roomId: newRoom.id,
+            userId: tokenData.id,
+            role: 'creator',
+            isOnline: true
+          }
+        })
       }
 
       return NextResponse.json({
@@ -77,8 +80,8 @@ export async function POST(request: NextRequest) {
     } else {
       return NextResponse.json({
         success: true,
-        message: `Database already has ${currentRoomsCount} rooms`,
-        rooms_count: currentRoomsCount
+        message: `Database already has ${roomsCount} rooms`,
+        rooms_count: roomsCount
       })
     }
 

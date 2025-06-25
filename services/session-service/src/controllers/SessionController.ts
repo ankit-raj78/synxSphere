@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import DatabaseManager from '../../../shared/config/database';
 import { EventPublisher } from '../services/EventPublisher';
 import { logger } from '../utils/logger';
 import { 
@@ -10,6 +9,47 @@ import {
   CreateSessionRequest,
   UpdateSessionRequest 
 } from '../../../shared/types';
+import { prisma } from '../../../../lib/prisma';
+
+// Define SessionSettings interface
+interface SessionSettings {
+  maxParticipants: number;
+  allowGuestControl: boolean;
+  requireApproval: boolean;
+  autoPlay: boolean;
+  crossfade: boolean;
+  volume: number;
+}
+
+// Default settings
+const DEFAULT_SESSION_SETTINGS: SessionSettings = {
+  maxParticipants: 50,
+  allowGuestControl: false,
+  requireApproval: false,
+  autoPlay: true,
+  crossfade: false,
+  volume: 0.8
+};
+
+// Type guard to ensure settings is properly typed
+function isValidSessionSettings(settings: any): settings is SessionSettings {
+  return settings && 
+    typeof settings === 'object' &&
+    typeof settings.maxParticipants === 'number' &&
+    typeof settings.allowGuestControl === 'boolean' &&
+    typeof settings.requireApproval === 'boolean' &&
+    typeof settings.autoPlay === 'boolean' &&
+    typeof settings.crossfade === 'boolean' &&
+    typeof settings.volume === 'number';
+}
+
+// Helper function to safely get settings
+function getSessionSettings(rawSettings: any): SessionSettings {
+  if (isValidSessionSettings(rawSettings)) {
+    return rawSettings;
+  }
+  return DEFAULT_SESSION_SETTINGS;
+}
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -36,15 +76,13 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-class SessionController {  private readonly dbManager;
+class SessionController {
   private readonly eventPublisher;
 
   constructor() {
-    this.dbManager = DatabaseManager;
     this.eventPublisher = new EventPublisher();
   }
 
-  // Convert all static methods to instance methods
   async createSession(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
@@ -61,68 +99,57 @@ class SessionController {  private readonly dbManager;
         return;
       }
 
-      // Check if room exists and user has access
-      const room = await this.dbManager.executeQuery(
-        'SELECT * FROM rooms WHERE id = $1 AND (is_public = true OR creator_id = $2)',
-        [sessionData.roomId, userId]
-      );
+      // Check if room exists and user has access using Prisma
+      const room = await prisma.room.findFirst({
+        where: {
+          id: sessionData.roomId,
+          OR: [
+            { 
+              participants: {
+                some: {
+                  userId: userId
+                }
+              }
+            },
+            { creatorId: userId }
+          ]
+        }
+      });
 
-      if (!room.rows.length) {
+      if (!room) {
         res.status(404).json({ error: 'Room not found or access denied' });
         return;
       }
 
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      const session: Session = {
-        id: sessionId,
-        name: sessionData.name,
-        roomId: sessionData.roomId,
-        createdBy: userId,
-        creatorId: userId,
-        status: SessionState.ACTIVE,
-        participants: [],
-        state: {
-          currentTrack: null,
-          position: 0,
-          isPlaying: false,
-          volume: 0.8,
-          queue: [],
-          playbackMode: 'normal'
-        },
-        settings: {
-          maxParticipants: sessionData.maxParticipants || 50,
-          allowGuestControl: sessionData.allowGuestControl || false,
-          requireApproval: sessionData.requireApproval || false,
-          autoPlay: sessionData.autoPlay || true,
-          crossfade: false,
-          volume: 0.8
-        },
-        currentTrack: undefined,
-        playbackPosition: 0,
-        isPlaying: false,
-        isActive: true,
-        lastActivity: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      // Save session to database
-      await this.dbManager.executeQuery(
-        `INSERT INTO sessions (id, name, room_id, creator_id, settings, state, is_active, created_at, last_activity)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          session.id,
-          session.name,
-          session.roomId,
-          session.creatorId,
-          JSON.stringify(session.settings),
-          JSON.stringify(session.state),
-          session.isActive,
-          session.createdAt,
-          session.lastActivity
-        ]
-      );
+      // Create session using Prisma
+      const session = await prisma.session.create({
+        data: {
+          id: sessionId,
+          name: sessionData.name,
+          roomId: sessionData.roomId,
+          creatorId: userId,
+          settings: {
+            maxParticipants: sessionData.maxParticipants || 50,
+            allowGuestControl: sessionData.allowGuestControl || false,
+            requireApproval: sessionData.requireApproval || false,
+            autoPlay: sessionData.autoPlay || true,
+            crossfade: false,
+            volume: 0.8
+          },
+          state: {
+            currentTrack: null,
+            position: 0,
+            isPlaying: false,
+            volume: 0.8,
+            queue: [],
+            playbackMode: 'normal'
+          },
+          isActive: true,
+          lastActivity: new Date()
+        }
+      });
 
       // Publish session created event
       await this.eventPublisher.publishSessionEvent(
@@ -146,55 +173,65 @@ class SessionController {  private readonly dbManager;
     try {
       const { sessionId } = req.params;
 
-      const result = await this.dbManager.executeQuery(
-        `SELECT s.*, r.name as room_name, u.username as creator_name
-         FROM sessions s
-         JOIN rooms r ON s.room_id = r.id
-         JOIN users u ON s.creator_id = u.id
-         WHERE s.id = $1`,
-        [sessionId]
-      );
+      // Get session with related data using Prisma
+      const sessionData = await prisma.session.findFirst({
+        where: { id: sessionId },
+        include: {
+          room: {
+            select: {
+              name: true
+            }
+          },
+          creator: {
+            select: {
+              username: true
+            }
+          },
+          participants: {
+            where: {
+              isActive: true
+            },
+            include: {
+              user: {
+                select: {
+                  username: true,
+                  profile: true
+                }
+              }
+            }
+          }
+        }
+      });
 
-      if (!result.rows.length) {
+      if (!sessionData) {
         res.status(404).json({ error: 'Session not found' });
         return;
       }
 
-      const sessionData = result.rows[0];
-      
-      // Get participants
-      const participantsResult = await this.dbManager.executeQuery(
-        `SELECT sp.*, u.username, u.profile_picture_url
-         FROM session_participants sp
-         JOIN users u ON sp.user_id = u.id
-         WHERE sp.session_id = $1 AND sp.is_active = true`,
-        [sessionId]
-      );
-
       const session: Session = {
         id: sessionData.id,
         name: sessionData.name,
-        roomId: sessionData.room_id,
-        createdBy: sessionData.creator_id,
-        creatorId: sessionData.creator_id,
+        roomId: sessionData.roomId,
+        createdBy: sessionData.creatorId,
+        creatorId: sessionData.creatorId,
         status: SessionState.ACTIVE,
-        participants: participantsResult.rows.map(p => ({
-          userId: p.user_id,
-          username: p.username,
+        participants: sessionData.participants.map((p: any) => ({
+          userId: p.userId,
+          username: p.user.username,
           role: p.role,
-          joinedAt: p.joined_at,
-          isActive: p.is_active,
-          permissions: JSON.parse(p.permissions || '[]')
+          joinedAt: p.joinedAt,
+          isActive: p.isActive,
+          permissions: p.permissions
         })),
-        state: JSON.parse(sessionData.state),
-        settings: JSON.parse(sessionData.settings),
+        state: sessionData.state,
+        settings: getSessionSettings(sessionData.settings),
         currentTrack: undefined,
         playbackPosition: 0,
         isPlaying: false,
-        isActive: sessionData.is_active,
-        lastActivity: sessionData.last_activity,
-        createdAt: sessionData.created_at,
-        updatedAt: sessionData.updated_at || sessionData.created_at
+        isActive: sessionData.isActive,
+        lastActivity: sessionData.lastActivity,
+        createdAt: sessionData.createdAt,
+        updatedAt: sessionData.updatedAt
       };
 
       res.json({ session });
@@ -216,61 +253,53 @@ class SessionController {  private readonly dbManager;
       const updateData: UpdateSessionRequest = req.body;
       const userId = req.user.id;
 
-      // Check if user has permission to update session
-      const session = await this.dbManager.executeQuery(
-        'SELECT * FROM sessions WHERE id = $1',
-        [sessionId]
-      );
+      // Check if user has permission to update session using Prisma
+      const session = await prisma.session.findFirst({
+        where: { id: sessionId }
+      });
 
-      if (!session.rows.length) {
+      if (!session) {
         res.status(404).json({ error: 'Session not found' });
         return;
       }
 
-      const sessionData = session.rows[0];
-      
       // Check if user is creator or has admin permissions
-      if (sessionData.creator_id !== userId) {
-        const participant = await this.dbManager.executeQuery(
-          'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2 AND role = $3',
-          [sessionId, userId, 'admin']
-        );
+      if (session.creatorId !== userId) {
+        const participant = await prisma.sessionParticipant.findFirst({
+          where: {
+            sessionId: sessionId,
+            userId: userId,
+            role: 'admin'
+          }
+        });
 
-        if (!participant.rows.length) {
+        if (!participant) {
           res.status(403).json({ error: 'Permission denied' });
           return;
         }
       }
 
-      // Update session
-      const updateFields = [];
-      const updateValues = [];
-      let paramIndex = 1;
+      // Update session using Prisma
+      const updateFields: any = {
+        lastActivity: new Date()
+      };
 
       if (updateData.name) {
-        updateFields.push(`name = $${paramIndex++}`);
-        updateValues.push(updateData.name);
+        updateFields.name = updateData.name;
       }
 
       if (updateData.settings) {
-        updateFields.push(`settings = $${paramIndex++}`);
-        updateValues.push(JSON.stringify(updateData.settings));
+        updateFields.settings = updateData.settings;
       }
 
       if (updateData.isActive !== undefined) {
-        updateFields.push(`is_active = $${paramIndex++}`);
-        updateValues.push(updateData.isActive);
+        updateFields.isActive = updateData.isActive;
       }
 
-      updateFields.push(`last_activity = $${paramIndex++}`);
-      updateValues.push(new Date());
-
-      updateValues.push(sessionId);
-
-      await this.dbManager.executeQuery(
-        `UPDATE sessions SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
-        updateValues
-      );
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: updateFields
+      });
 
       // Publish session updated event
       await this.eventPublisher.publishSessionEvent(
@@ -278,7 +307,7 @@ class SessionController {  private readonly dbManager;
         'updated',
         updateData,
         userId,
-        sessionData.room_id
+        session.roomId
       );
 
       logger.info(`Session updated: ${sessionId} by user ${userId}`);
@@ -300,28 +329,36 @@ class SessionController {  private readonly dbManager;
       const { sessionId } = req.params;
       const userId = req.user.id;
 
-      // Check if user is session creator
-      const session = await this.dbManager.executeQuery(
-        'SELECT * FROM sessions WHERE id = $1 AND creator_id = $2',
-        [sessionId, userId]
-      );
+      // Check if user is session creator using Prisma
+      const session = await prisma.session.findFirst({
+        where: {
+          id: sessionId,
+          creatorId: userId
+        }
+      });
 
-      if (!session.rows.length) {
+      if (!session) {
         res.status(404).json({ error: 'Session not found or permission denied' });
         return;
       }
 
-      // Soft delete session (mark as inactive)
-      await this.dbManager.executeQuery(
-        'UPDATE sessions SET is_active = false, last_activity = $1 WHERE id = $2',
-        [new Date(), sessionId]
-      );
+      // Use Prisma transaction for soft delete
+      await prisma.$transaction(async (tx: any) => {
+        // Soft delete session (mark as inactive)
+        await tx.session.update({
+          where: { id: sessionId },
+          data: {
+            isActive: false,
+            lastActivity: new Date()
+          }
+        });
 
-      // Remove all participants
-      await this.dbManager.executeQuery(
-        'UPDATE session_participants SET is_active = false WHERE session_id = $1',
-        [sessionId]
-      );
+        // Remove all participants
+        await tx.sessionParticipant.updateMany({
+          where: { sessionId: sessionId },
+          data: { isActive: false }
+        });
+      });
 
       // Publish session deleted event
       await this.eventPublisher.publishSessionEvent(
@@ -329,7 +366,7 @@ class SessionController {  private readonly dbManager;
         'deleted',
         {},
         userId,
-        session.rows[0].room_id
+        session.roomId
       );
 
       logger.info(`Session deleted: ${sessionId} by user ${userId}`);
@@ -351,57 +388,71 @@ class SessionController {  private readonly dbManager;
       const { sessionId } = req.params;
       const userId = req.user.id;
 
-      // Check if session exists and is active
-      const session = await this.dbManager.executeQuery(
-        'SELECT * FROM sessions WHERE id = $1 AND is_active = true',
-        [sessionId]
-      );
+      // Check if session exists and is active using Prisma
+      const session = await prisma.session.findFirst({
+        where: {
+          id: sessionId,
+          isActive: true
+        }
+      });
 
-      if (!session.rows.length) {
+      if (!session) {
         res.status(404).json({ error: 'Session not found or inactive' });
         return;
       }
 
-      const sessionData = session.rows[0];
-      const settings = JSON.parse(sessionData.settings);
+      const settings = getSessionSettings(session.settings);
 
-      // Check if user is already a participant
-      const existingParticipant = await this.dbManager.executeQuery(
-        'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2',
-        [sessionId, userId]
-      );
+      // Check if user is already a participant using Prisma
+      const existingParticipant = await prisma.sessionParticipant.findFirst({
+        where: {
+          sessionId: sessionId,
+          userId: userId
+        }
+      });
 
-      if (existingParticipant.rows.length) {
+      if (existingParticipant) {
         // Reactivate if inactive
-        await this.dbManager.executeQuery(
-          'UPDATE session_participants SET is_active = true, joined_at = $1 WHERE session_id = $2 AND user_id = $3',
-          [new Date(), sessionId, userId]
-        );
+        await prisma.sessionParticipant.update({
+          where: {
+            id: existingParticipant.id
+          },
+          data: {
+            isActive: true,
+            joinedAt: new Date()
+          }
+        });
       } else {
-        // Check participant limit
-        const participantCount = await this.dbManager.executeQuery(
-          'SELECT COUNT(*) FROM session_participants WHERE session_id = $1 AND is_active = true',
-          [sessionId]
-        );
+        // Check participant limit using Prisma
+        const participantCount = await prisma.sessionParticipant.count({
+          where: {
+            sessionId: sessionId,
+            isActive: true
+          }
+        });
 
-        if (parseInt(participantCount.rows[0].count) >= settings.maxParticipants) {
+        if (participantCount >= settings.maxParticipants) {
           res.status(400).json({ error: 'Session is full' });
           return;
         }
 
-        // Add new participant
-        await this.dbManager.executeQuery(
-          `INSERT INTO session_participants (session_id, user_id, role, joined_at, is_active, permissions)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [sessionId, userId, 'participant', new Date(), true, JSON.stringify({})]
-        );
+        // Add new participant using Prisma
+        await prisma.sessionParticipant.create({
+          data: {
+            sessionId: sessionId,
+            userId: userId,
+            role: 'participant',
+            isActive: true,
+            permissions: {}
+          }
+        });
       }
 
-      // Update session last activity
-      await this.dbManager.executeQuery(
-        'UPDATE sessions SET last_activity = $1 WHERE id = $2',
-        [new Date(), sessionId]
-      );
+      // Update session last activity using Prisma
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: { lastActivity: new Date() }
+      });
 
       // Publish participant joined event
       await this.eventPublisher.publishSessionEvent(
@@ -409,7 +460,7 @@ class SessionController {  private readonly dbManager;
         'participant.joined',
         { username: req.user.username },
         userId,
-        sessionData.room_id
+        session.roomId
       );
 
       logger.info(`User ${userId} joined session ${sessionId}`);
@@ -431,26 +482,29 @@ class SessionController {  private readonly dbManager;
       const { sessionId } = req.params;
       const userId = req.user.id;
 
-      // Remove participant
-      await this.dbManager.executeQuery(
-        'UPDATE session_participants SET is_active = false WHERE session_id = $1 AND user_id = $2',
-        [sessionId, userId]
-      );
+      // Remove participant using Prisma
+      await prisma.sessionParticipant.updateMany({
+        where: {
+          sessionId: sessionId,
+          userId: userId
+        },
+        data: { isActive: false }
+      });
 
-      // Get session info for event
-      const session = await this.dbManager.executeQuery(
-        'SELECT room_id FROM sessions WHERE id = $1',
-        [sessionId]
-      );
+      // Get session info for event using Prisma
+      const session = await prisma.session.findFirst({
+        where: { id: sessionId },
+        select: { roomId: true }
+      });
 
-      if (session.rows.length) {
+      if (session) {
         // Publish participant left event
         await this.eventPublisher.publishSessionEvent(
           sessionId,
           'participant.left',
           { username: req.user.username },
           userId,
-          session.rows[0].room_id
+          session.roomId
         );
       }
 
@@ -467,23 +521,34 @@ class SessionController {  private readonly dbManager;
     try {
       const { sessionId } = req.params;
 
-      const participants = await this.dbManager.executeQuery(
-        `SELECT sp.*, u.username, u.profile_picture_url, u.email
-         FROM session_participants sp
-         JOIN users u ON sp.user_id = u.id
-         WHERE sp.session_id = $1 AND sp.is_active = true
-         ORDER BY sp.joined_at ASC`,
-        [sessionId]
-      );
+      // Get participants using Prisma with relations
+      const participants = await prisma.sessionParticipant.findMany({
+        where: {
+          sessionId: sessionId,
+          isActive: true
+        },
+        include: {
+          user: {
+            select: {
+              username: true,
+              email: true,
+              profile: true
+            }
+          }
+        },
+        orderBy: {
+          joinedAt: 'asc'
+        }
+      });
 
-      const participantList = participants.rows.map(p => ({
-        userId: p.user_id,
-        username: p.username,
-        email: p.email,
-        profilePictureUrl: p.profile_picture_url,
+      const participantList = participants.map((p: any) => ({
+        userId: p.userId,
+        username: p.user.username,
+        email: p.user.email,
+        profilePictureUrl: p.user.profile?.avatar,
         role: p.role,
-        joinedAt: p.joined_at,
-        permissions: JSON.parse(p.permissions || '{}')
+        joinedAt: p.joinedAt,
+        permissions: p.permissions
       }));
 
       res.json({ participants: participantList });
@@ -502,51 +567,51 @@ class SessionController {  private readonly dbManager;
       }
 
       const { sessionId } = req.params;
-      const stateUpdate: Partial<SessionState> = req.body;
+      const stateUpdate: any = req.body;
       const userId = req.user.id;
 
-      // Check if user has permission to update state
-      const participant = await this.dbManager.executeQuery(
-        `SELECT sp.*, s.creator_id, s.room_id
-         FROM session_participants sp
-         JOIN sessions s ON sp.session_id = s.id
-         WHERE sp.session_id = $1 AND sp.user_id = $2 AND sp.is_active = true`,
-        [sessionId, userId]
-      );
+      // Check if user has permission to update state using Prisma
+      const participant = await prisma.sessionParticipant.findFirst({
+        where: {
+          sessionId: sessionId,
+          userId: userId,
+          isActive: true
+        },
+        include: {
+          session: {
+            select: {
+              creatorId: true,
+              roomId: true,
+              state: true
+            }
+          }
+        }
+      });
 
-      if (!participant.rows.length) {
+      if (!participant) {
         res.status(403).json({ error: 'Permission denied or not a participant' });
         return;
       }
 
-      const participantData = participant.rows[0];
-      const isCreator = participantData.creator_id === userId;
-      const isAdmin = participantData.role === 'admin';
+      const isCreator = participant.session.creatorId === userId;
+      const isAdmin = participant.role === 'admin';
 
       if (!isCreator && !isAdmin) {
         res.status(403).json({ error: 'Insufficient permissions to update session state' });
         return;
       }
 
-      // Get current state
-      const currentSession = await this.dbManager.executeQuery(
-        'SELECT state FROM sessions WHERE id = $1',
-        [sessionId]
-      );
+      const currentState = participant.session.state as any || {};
+      const updatedState = { ...currentState, ...stateUpdate };
 
-      if (!currentSession.rows.length) {
-        res.status(404).json({ error: 'Session not found' });
-        return;
-      }
-
-      const currentState = JSON.parse(currentSession.rows[0].state);
-      const updatedState = Object.assign({}, currentState, stateUpdate);
-
-      // Update session state
-      await this.dbManager.executeQuery(
-        'UPDATE sessions SET state = $1, last_activity = $2 WHERE id = $3',
-        [JSON.stringify(updatedState), new Date(), sessionId]
-      );
+      // Update session state using Prisma
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          state: updatedState,
+          lastActivity: new Date()
+        }
+      });
 
       // Publish state update event
       await this.eventPublisher.publishSessionEvent(
@@ -554,7 +619,7 @@ class SessionController {  private readonly dbManager;
         'state.updated',
         { stateUpdate },
         userId,
-        participantData.room_id
+        participant.session.roomId
       );
 
       logger.info(`Session state updated: ${sessionId} by user ${userId}`);
@@ -570,18 +635,23 @@ class SessionController {  private readonly dbManager;
     try {
       const { sessionId } = req.params;
 
-      const session = await this.dbManager.executeQuery(
-        'SELECT state FROM sessions WHERE id = $1 AND is_active = true',
-        [sessionId]
-      );
+      // Get session state using Prisma
+      const session = await prisma.session.findFirst({
+        where: {
+          id: sessionId,
+          isActive: true
+        },
+        select: {
+          state: true
+        }
+      });
 
-      if (!session.rows.length) {
+      if (!session) {
         res.status(404).json({ error: 'Session not found' });
         return;
       }
 
-      const state = JSON.parse(session.rows[0].state);
-      res.json({ state });
+      res.json({ state: session.state });
 
     } catch (error) {
       logger.error('Error getting session state:', error);
@@ -594,25 +664,37 @@ class SessionController {  private readonly dbManager;
       const { userId } = req.params;
       const { limit = 20, offset = 0 } = req.query;
 
-      const sessions = await this.dbManager.executeQuery(
-        `SELECT s.*, r.name as room_name
-         FROM sessions s
-         JOIN rooms r ON s.room_id = r.id
-         JOIN session_participants sp ON s.id = sp.session_id
-         WHERE sp.user_id = $1
-         ORDER BY sp.joined_at DESC
-         LIMIT $2 OFFSET $3`,
-        [userId, limit, offset]
-      );
+      // Get user session history using Prisma
+      const sessions = await prisma.sessionParticipant.findMany({
+        where: {
+          userId: userId
+        },
+        include: {
+          session: {
+            include: {
+              room: {
+                select: {
+                  name: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: {
+          joinedAt: 'desc'
+        },
+        take: Number(limit),
+        skip: Number(offset)
+      });
 
-      const sessionHistory = sessions.rows.map(s => ({
-        id: s.id,
-        name: s.name,
-        roomName: s.room_name,
-        roomId: s.room_id,
-        joinedAt: s.joined_at,
-        duration: s.last_activity - s.created_at,
-        isActive: s.is_active
+      const sessionHistory = sessions.map((sp: any) => ({
+        id: sp.session.id,
+        name: sp.session.name,
+        roomName: sp.session.room.name,
+        roomId: sp.session.roomId,
+        joinedAt: sp.joinedAt,
+        duration: sp.session.lastActivity.getTime() - sp.session.createdAt.getTime(),
+        isActive: sp.session.isActive
       }));
 
       res.json({ sessions: sessionHistory });

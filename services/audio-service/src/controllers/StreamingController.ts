@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import fs from 'fs';
 import { createReadStream, statSync } from 'fs';
-import DatabaseManager from '../../../shared/config/database';
+import { prisma } from '../../../../lib/prisma';
 import { AudioFile } from '../../../shared/types';
 import { createLogger } from '../utils/logger';
 
@@ -23,19 +23,18 @@ export class StreamingController {
 
       logger.info('Streaming audio file', { fileId, range });
 
-      // Get file info from database
-      const fileQuery = 'SELECT * FROM audio_files WHERE id = $1';
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(fileQuery, [fileId]);
+      // Get file info from database using Prisma
+      const audioFile = await prisma.audioFile.findUnique({
+        where: { id: fileId }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!audioFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
 
-      const audioFile = fileResult.rows[0];
-
       // Check if file exists on disk
-      const filePath = audioFile.file_path || audioFile.filepath;
+      const filePath = audioFile.filePath;
       if (!filePath) {
         res.status(400).json({ error: 'File path not found' });
         return;
@@ -66,7 +65,7 @@ export class StreamingController {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize,
-          'Content-Type': audioFile.mime_type || audioFile.mimeType || 'audio/mpeg',
+          'Content-Type': audioFile.mimeType || 'audio/mpeg',
           'Cache-Control': 'public, max-age=3600'
         });
 
@@ -75,7 +74,7 @@ export class StreamingController {
         // Send entire file
         res.writeHead(200, {
           'Content-Length': fileSize,
-          'Content-Type': audioFile.mime_type || audioFile.mimeType || 'audio/mpeg',
+          'Content-Type': audioFile.mimeType || 'audio/mpeg',
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'public, max-age=3600'
         });
@@ -114,25 +113,28 @@ export class StreamingController {
 
       logger.info('Downloading audio file', { fileId, userId });
 
-      // Get file info from database
-      const fileQuery = userId 
-        ? 'SELECT * FROM audio_files WHERE id = $1 AND (user_id = $2 OR is_public = true)'
-        : 'SELECT * FROM audio_files WHERE id = $1 AND is_public = true';
-      
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(
-        fileQuery, 
-        userId ? [fileId, userId] : [fileId]
-      );
+      // Get file info from database using Prisma
+      const audioFile = await prisma.audioFile.findFirst({
+        where: {
+          id: fileId,
+          ...(userId ? {
+            OR: [
+              { userId: userId },
+              { isPublic: true }
+            ]
+          } : {
+            isPublic: true
+          })
+        }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!audioFile) {
         res.status(404).json({ error: 'File not found or not accessible' });
         return;
       }
 
-      const audioFile = fileResult.rows[0];
-
       // Check if file exists on disk
-      const downloadFilePath = audioFile.file_path || audioFile.filepath;
+      const downloadFilePath = audioFile.filePath;
       if (!downloadFilePath) {
         res.status(400).json({ error: 'File path not found' });
         return;
@@ -149,8 +151,8 @@ export class StreamingController {
 
       const stat = statSync(downloadFilePath);
 
-      res.setHeader('Content-Disposition', `attachment; filename="${audioFile.original_name || audioFile.originalName}"`);
-      res.setHeader('Content-Type', audioFile.mime_type || audioFile.mimeType || 'audio/mpeg');
+      res.setHeader('Content-Disposition', `attachment; filename="${audioFile.originalName}"`);
+      res.setHeader('Content-Type', audioFile.mimeType || 'audio/mpeg');
       res.setHeader('Content-Length', stat.size);
       res.setHeader('Cache-Control', 'no-cache');
 
@@ -159,7 +161,7 @@ export class StreamingController {
 
       logger.info('Audio download initiated', { 
         fileId, 
-        fileName: audioFile.original_name,
+        fileName: audioFile.originalName,
         fileSize: stat.size 
       });
 
@@ -186,40 +188,33 @@ export class StreamingController {
 
       logger.info('Getting audio metadata', { fileId });
 
-      // Get file info and analysis from database
-      const metadataQuery = `
-        SELECT 
-          af.*,
-          aa.duration, aa.sample_rate, aa.channels, aa.bit_rate,
-          aa.codec, aa.tempo, aa.key, aa.loudness
-        FROM audio_files af
-        LEFT JOIN audio_analysis aa ON af.id = aa.file_id
-        WHERE af.id = $1
-      `;
+      // Get file info and analysis from database using Prisma
+      const audioFile = await prisma.audioFile.findUnique({
+        where: { id: fileId },
+        include: {
+          analysis: true
+        }
+      });
 
-      const result = await DatabaseManager.executeQuery(metadataQuery, [fileId]);
-
-      if (result.rows.length === 0) {
+      if (!audioFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
 
-      const metadata = result.rows[0];
-
       res.json({
-        id: metadata.id,
-        filename: metadata.original_name,
-        duration: metadata.duration,
-        format: metadata.format,
-        codec: metadata.codec,
-        sampleRate: metadata.sample_rate,
-        channels: metadata.channels,
-        bitRate: metadata.bit_rate,
-        size: metadata.file_size,
-        tempo: metadata.tempo,
-        key: metadata.key,
-        loudness: metadata.loudness,
-        mimeType: metadata.mime_type,
+        id: audioFile.id,
+        filename: audioFile.originalName,
+        duration: audioFile.analysis?.duration,
+        format: audioFile.format,
+        codec: audioFile.analysis?.codec,
+        sampleRate: audioFile.analysis?.sampleRate,
+        channels: audioFile.analysis?.channels,
+        bitRate: audioFile.analysis?.bitRate,
+        size: audioFile.fileSize,
+        tempo: audioFile.analysis?.tempo,
+        key: audioFile.analysis?.keySignature,
+        loudness: audioFile.analysis?.loudness,
+        mimeType: audioFile.mimeType,
         streamUrl: `/api/stream/audio/${fileId}`,
         downloadUrl: `/api/stream/download/${fileId}`
       });
@@ -251,38 +246,39 @@ export class StreamingController {
 
       logger.info('Generating waveform data', { fileId, width, height });
 
-      // Get file info from database
-      const fileQuery = 'SELECT * FROM audio_files WHERE id = $1';
-      const fileResult = await DatabaseManager.executeQuery<AudioFile>(fileQuery, [fileId]);
+      // Get file info from database using Prisma
+      const audioFile = await prisma.audioFile.findUnique({
+        where: { id: fileId },
+        include: {
+          analysis: true
+        }
+      });
 
-      if (fileResult.rows.length === 0) {
+      if (!audioFile) {
         res.status(404).json({ error: 'File not found' });
         return;
       }
 
-      const audioFile = fileResult.rows[0];
-
-      // Check if waveform data is already cached
-      const cacheQuery = 'SELECT waveform_data FROM audio_analysis WHERE file_id = $1';
-      const cacheResult = await DatabaseManager.executeQuery(cacheQuery, [fileId]);
-
       let waveformData;
 
-      if (cacheResult.rows.length > 0 && cacheResult.rows[0].waveform_data) {
-        waveformData = cacheResult.rows[0].waveform_data;
+      if (audioFile.analysis?.waveformData) {
+        waveformData = audioFile.analysis.waveformData;
         logger.info('Using cached waveform data', { fileId });
       } else {
         // Generate waveform data (simplified mock implementation)
         // In a real implementation, you'd use FFmpeg or similar to extract audio peaks
-        waveformData = this.generateMockWaveform(width, audioFile.duration || 180);
+        waveformData = this.generateMockWaveform(width, Number(audioFile.duration) || 180);
 
         // Cache the waveform data
-        const updateQuery = `
-          UPDATE audio_analysis 
-          SET waveform_data = $1, updated_at = NOW() 
-          WHERE file_id = $2
-        `;
-        await DatabaseManager.executeQuery(updateQuery, [JSON.stringify(waveformData), fileId]);
+        if (audioFile.analysis) {
+          await prisma.audioAnalysis.update({
+            where: { fileId: fileId },
+            data: { 
+              waveformData: waveformData,
+              updatedAt: new Date()
+            }
+          });
+        }
 
         logger.info('Generated and cached waveform data', { fileId });
       }
@@ -292,7 +288,7 @@ export class StreamingController {
         width,
         height,
         duration: audioFile.duration,
-        waveform: typeof waveformData === 'string' ? JSON.parse(waveformData) : waveformData
+        waveform: Array.isArray(waveformData) ? waveformData : (typeof waveformData === 'string' ? JSON.parse(waveformData) : waveformData)
       });
 
     } catch (error) {
@@ -338,47 +334,60 @@ export class StreamingController {
 
       logger.info('Getting playlist', { userId, roomId, limit });
 
-      let playlistQuery: string;
-      let queryParams: any[];
+      let audioFiles;
 
       if (roomId) {
-        // Get room-specific playlist
-        playlistQuery = `
-          SELECT af.*, aa.duration, aa.sample_rate, aa.channels
-          FROM audio_files af
-          LEFT JOIN audio_analysis aa ON af.id = aa.file_id
-          WHERE af.room_id = $1
-          ORDER BY af.created_at DESC
-          LIMIT $2
-        `;
-        queryParams = [roomId, limit];
+        // Get room-specific playlist using Prisma
+        audioFiles = await prisma.audioFile.findMany({
+          where: { roomId: roomId },
+          include: {
+            analysis: {
+              select: {
+                duration: true,
+                sampleRate: true,
+                channels: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit
+        });
       } else {
-        // Get user's personal playlist
-        playlistQuery = `
-          SELECT af.*, aa.duration, aa.sample_rate, aa.channels
-          FROM audio_files af
-          LEFT JOIN audio_analysis aa ON af.id = aa.file_id
-          WHERE af.user_id = $1 AND (af.room_id IS NULL OR af.is_public = true)
-          ORDER BY af.created_at DESC
-          LIMIT $2
-        `;
-        queryParams = [userId, limit];
+        // Get user's personal playlist using Prisma
+        audioFiles = await prisma.audioFile.findMany({
+          where: {
+            userId: userId,
+            OR: [
+              { roomId: null },
+              { isPublic: true }
+            ]
+          },
+          include: {
+            analysis: {
+              select: {
+                duration: true,
+                sampleRate: true,
+                channels: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit
+        });
       }
 
-      const result = await DatabaseManager.executeQuery(playlistQuery, queryParams);
-
-      const playlist = result.rows.map(file => ({
+      const playlist = audioFiles.map(file => ({
         id: file.id,
-        title: file.original_name,
-        duration: file.duration,
-        artist: file.artist || 'Unknown Artist',
+        title: file.originalName,
+        duration: file.analysis?.duration,
+        artist: (file.metadata as any)?.artist || 'Unknown Artist',
         streamUrl: `/api/stream/audio/${file.id}`,
         downloadUrl: `/api/stream/download/${file.id}`,
         metadata: {
-          sampleRate: file.sample_rate,
-          channels: file.channels,
+          sampleRate: file.analysis?.sampleRate,
+          channels: file.analysis?.channels,
           format: file.format,
-          size: file.file_size
+          size: file.fileSize
         }
       }));
 
