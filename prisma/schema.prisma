@@ -30,6 +30,7 @@ model User {
   sessions             UserSession[]
   createdSessions      Session[]          @relation("SessionCreator")
   sessionParticipants  SessionParticipant[]
+  messages             Message[]
 
   @@map("users")
 }
@@ -69,6 +70,7 @@ model Room {
   joinRequests JoinRequest[]
   compositions Composition[]
   sessions     Session[]
+  messages     Message[]
 
   @@map("rooms")
 }
@@ -243,6 +245,33 @@ model SessionParticipant {
 
   @@unique([sessionId, userId])
   @@map("session_participants")
+}
+
+// Room messages for chat functionality
+model Message {
+  id        String      @id @default(uuid())
+  roomId    String      @map("room_id")
+  userId    String      @map("user_id")
+  username  String
+  message   String
+  type      MessageType @default(TEXT)
+  metadata  Json        @default("{}")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// Enum for message types
+enum MessageType {
+  TEXT
+  SYSTEM
+  FILE
+  AUDIO
 }
 
 // Enum for join request status

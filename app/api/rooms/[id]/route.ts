@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import DatabaseManager from '@/lib/database'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
@@ -72,98 +72,85 @@ export async function GET(
 
   // Try to fetch room details from PostgreSQL
     try {
-      const roomQuery = `
-        SELECT 
-          r.id,
-          r.name,
-          r.description,
-          r.genre,
-          r.is_live,
-          r.created_at,
-          r.playback_position,
-          r.settings,
-          u.username as creator_username,
-          u.email as creator_email
-        FROM rooms r
-        LEFT JOIN users u ON r.creator_id = u.id
-        WHERE r.id = $1
-      `
-
-      const roomResult = await DatabaseManager.executeQuery(roomQuery, [params.id])
+      // Fetch room details with creator information
+      const room = await prisma.room.findUnique({
+        where: { id: params.id },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
       
-      if (roomResult.rows.length === 0) {
+      if (!room) {
         return NextResponse.json({ error: 'Room not found' }, { status: 404 })
       }
 
-      const room = roomResult.rows[0]
-
       // Fetch participants
-      const participantsQuery = `
-        SELECT 
-          rp.role,
-          rp.instruments,
-          rp.is_online,
-          u.id,
-          u.username,
-          u.email
-        FROM room_participants rp
-        LEFT JOIN users u ON rp.user_id = u.id
-        WHERE rp.room_id = $1
-      `
+      const participants = await prisma.roomParticipant.findMany({
+        where: { roomId: params.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
 
-      const participantsResult = await DatabaseManager.executeQuery(participantsQuery, [params.id])
-      
-      const participants = participantsResult.rows.map((p: any) => ({
-        id: p.id,
-        username: p.username || p.email?.split('@')[0] || 'User',
-        isOnline: p.is_online,
+      const participantList = participants.map((p) => ({
+        id: p.user.id,
+        username: p.user.username || p.user.email?.split('@')[0] || 'User',
+        isOnline: p.isOnline,
         instruments: p.instruments || [],
         role: p.role
-      }))
+      }));
 
       // Fetch tracks
-      const tracksQuery = `
-        SELECT 
-          at.id,
-          at.name,
-          at.artist,
-          at.duration,
-          at.waveform,
-          at.is_currently_playing,
-          u.username as uploader_username,
-          u.email as uploader_email
-        FROM audio_tracks at
-        LEFT JOIN users u ON at.uploader_id = u.id
-        WHERE at.room_id = $1
-        ORDER BY at.uploaded_at
-      `
-
-      const tracksResult = await DatabaseManager.executeQuery(tracksQuery, [params.id])
+      const audioTracks = await prisma.audioTrack.findMany({
+        where: { roomId: params.id },
+        include: {
+          uploader: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { uploadedAt: 'asc' }
+      });
       
-      const tracks = tracksResult.rows.map((t: any) => ({
+      const tracks = audioTracks.map((t) => ({
         id: t.id,
         name: t.name,
         artist: t.artist,
         duration: t.duration,
-        uploadedBy: t.uploader_username || t.uploader_email?.split('@')[0] || 'User',
-        waveform: t.waveform || Array.from({ length: 100 }, () => Math.random() * 0.8 + 0.2),
-        isCurrentlyPlaying: t.is_currently_playing
-      }))
+        uploadedBy: t.uploader.username || t.uploader.email?.split('@')[0] || 'User',
+        waveform: t.waveform as number[] || Array.from({ length: 100 }, () => Math.random() * 0.8 + 0.2),
+        isCurrentlyPlaying: t.isCurrentlyPlaying
+      }));
 
-      const currentTrack = tracks.find((track: any) => track.isCurrentlyPlaying) || null
+      const currentTrack = tracks.find((track) => track.isCurrentlyPlaying) || null;
 
       const roomData = {
         id: room.id,
         name: room.name,
         description: room.description,
         genre: room.genre,
-        isLive: room.is_live,
-        creator: room.creator_username || room.creator_email?.split('@')[0] || 'User',
-        createdAt: room.created_at,
-        participants,
+        isLive: room.isLive,
+        creator: room.creator.username || room.creator.email?.split('@')[0] || 'User',
+        createdAt: room.createdAt,
+        participants: participantList,
         currentTrack,
         tracks,
-        playbackPosition: room.playback_position || 0
+        playbackPosition: room.playbackPosition || 0
       }
 
       return NextResponse.json(roomData)
@@ -299,37 +286,27 @@ export async function DELETE(
 
     try {
       // Check if user is the room creator
-      const roomQuery = `
-        SELECT r.*, u.id as creator_user_id
-        FROM rooms r
-        LEFT JOIN users u ON r.creator_id = u.id
-        WHERE r.id = $1
-      `
+      const room = await prisma.room.findUnique({
+        where: { id: params.id },
+        select: {
+          id: true,
+          creatorId: true
+        }
+      });
       
-      const roomResult = await DatabaseManager.executeQuery(roomQuery, [params.id])
-      
-      if (roomResult.rows.length === 0) {
+      if (!room) {
         return NextResponse.json({ error: 'Room not found' }, { status: 404 })
       }
       
-      const room = roomResult.rows[0]
-      
       // Check if current user is the creator
-      if (room.creator_id !== tokenData.id) {
+      if (room.creatorId !== tokenData.id) {
         return NextResponse.json({ error: 'Only room creator can delete the room' }, { status: 403 })
       }
       
-      // Delete room participants first
-      await DatabaseManager.executeQuery(
-        'DELETE FROM room_participants WHERE room_id = $1',
-        [params.id]
-      )
-      
-      // Delete the room
-      await DatabaseManager.executeQuery(
-        'DELETE FROM rooms WHERE id = $1',
-        [params.id]
-      )
+      // Delete room using transaction (participants will be deleted due to cascade)
+      await prisma.room.delete({
+        where: { id: params.id }
+      });
       
       return NextResponse.json({ message: 'Room deleted successfully' })
       

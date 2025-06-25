@@ -7,7 +7,8 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
-import DatabaseManager from '../../shared/config/database';
+import DatabaseManager from '../../shared/config/database'; // Still needed for MongoDB/Redis
+import { prisma } from '../../../lib/prisma'; // Add Prisma client
 import { WebSocketManager } from './services/WebSocketManager';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
@@ -32,8 +33,7 @@ const io = new SocketIOServer(server, {
 
 const PORT = process.env.PORT || 3003;
 
-// Initialize services
-const dbManager = DatabaseManager;
+// Initialize WebSocket service
 const webSocketManager = new WebSocketManager(server);
 
 // Security middleware
@@ -126,7 +126,8 @@ const gracefulShutdown = async (signal: string) => {
     logger.info('WebSocket connections closed');
 
     // Close database connections
-    await dbManager.close();
+    await DatabaseManager.close();
+    await prisma.$disconnect();
     logger.info('Database connections closed');
 
     logger.info('Graceful shutdown completed');
@@ -156,9 +157,13 @@ process.on('uncaughtException', (error) => {
 // Initialize services and start server
 async function startServer() {
   try {
-    // Initialize database
-    await dbManager.initialize();
-    logger.info('Database initialized successfully');
+    // Initialize DatabaseManager for MongoDB and Redis (PostgreSQL handled by Prisma)
+    await DatabaseManager.initialize();
+    logger.info('MongoDB and Redis initialized successfully');
+
+    // Test Prisma connection
+    await prisma.$connect();
+    logger.info('Prisma (PostgreSQL) connected successfully');
 
     // WebSocket manager is initialized in constructor
     logger.info('WebSocket manager initialized successfully');

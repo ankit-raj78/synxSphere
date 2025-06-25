@@ -4,7 +4,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import DatabaseManager from '../../shared/config/database';
+import DatabaseManager from '../../shared/config/database'; // Still needed for MongoDB/Redis
+import { prisma } from '../../../lib/prisma'; // Add Prisma client
 import { createLogger } from './utils/logger';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
@@ -133,9 +134,13 @@ class UserService {
 
   public async start(): Promise<void> {
     try {
-      // Initialize database connections
+      // Initialize DatabaseManager for MongoDB and Redis (PostgreSQL handled by Prisma)
       await DatabaseManager.initialize();
-      logger.info('Database connections established');
+      logger.info('MongoDB and Redis connections established');
+
+      // Test Prisma connection
+      await prisma.$connect();
+      logger.info('Prisma (PostgreSQL) connected successfully');
 
       // Start server
       this.app.listen(this.config.port, () => {
@@ -160,6 +165,7 @@ class UserService {
     
     try {
       await DatabaseManager.close();
+      await prisma.$disconnect();
       logger.info('Database connections closed');
       process.exit(0);
     } catch (error) {

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 const { validationResult } = require('express-validator');
-import DatabaseManager from '../../../shared/config/database';
+import { prisma } from '../../../../lib/prisma';
 import { User, MusicalPreferences } from '../../../shared/types';
 import { createError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
@@ -18,17 +18,24 @@ class ProfileController {
         return;
       }
 
-      const result = await DatabaseManager.executeQuery<User>(
-        'SELECT id, email, username, profile, created_at, updated_at FROM users WHERE id = $1',
-        [req.user.id]
-      );
+      const result = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
 
-      if (result.rows.length === 0) {
+      if (!result) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      res.json({ profile: result.rows[0] });
+      res.json({ profile: result });
 
     } catch (error) {
       logger.error('Get my profile error:', error);
@@ -54,18 +61,18 @@ class ProfileController {
 
       const { bio, avatar, musicalPreferences } = req.body;
 
-      // Get current profile
-      const currentUser = await DatabaseManager.executeQuery<User>(
-        'SELECT profile FROM users WHERE id = $1',
-        [req.user.id]
-      );
+      // Get current profile using Prisma
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { profile: true }
+      });
 
-      if (currentUser.rows.length === 0) {
+      if (!currentUser) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      const currentProfile = currentUser.rows[0].profile;
+      const currentProfile = currentUser.profile as any;
 
       // Update profile
       const updatedProfile = {
@@ -80,19 +87,24 @@ class ProfileController {
         })
       };
 
-      const result = await DatabaseManager.executeQuery<User>(
-        `UPDATE users 
-         SET profile = $1, updated_at = NOW()
-         WHERE id = $2
-         RETURNING id, email, username, profile, created_at, updated_at`,
-        [JSON.stringify(updatedProfile), req.user.id]
-      );
+      const result = await prisma.user.update({
+        where: { id: req.user.id },
+        data: { profile: updatedProfile as any },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
 
       logger.info('Profile updated', { userId: req.user.id });
 
       res.json({
         message: 'Profile updated successfully',
-        profile: result.rows[0]
+        profile: result
       });
 
     } catch (error) {
@@ -126,18 +138,18 @@ class ProfileController {
         return;
       }
 
-      // Get current profile
-      const currentUser = await DatabaseManager.executeQuery<User>(
-        'SELECT profile FROM users WHERE id = $1',
-        [req.user.id]
-      );
+      // Get current profile using Prisma
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { profile: true }
+      });
 
-      if (currentUser.rows.length === 0) {
+      if (!currentUser) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      const currentProfile = currentUser.rows[0].profile;
+      const currentProfile = currentUser.profile as any;
 
       // Update musical preferences
       const updatedProfile = {
@@ -148,19 +160,24 @@ class ProfileController {
         }
       };
 
-      const result = await DatabaseManager.executeQuery<User>(
-        `UPDATE users 
-         SET profile = $1, updated_at = NOW()
-         WHERE id = $2
-         RETURNING id, email, username, profile, created_at, updated_at`,
-        [JSON.stringify(updatedProfile), req.user.id]
-      );
+      const result = await prisma.user.update({
+        where: { id: req.user.id },
+        data: { profile: updatedProfile as any },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          profile: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
 
       logger.info('Musical preferences updated', { userId: req.user.id });
 
       res.json({
         message: 'Musical preferences updated successfully',
-        musicalPreferences: result.rows[0].profile.musicalPreferences
+        musicalPreferences: (result.profile as any).musicalPreferences
       });
 
     } catch (error) {
@@ -186,19 +203,27 @@ class ProfileController {
         return;
       }
 
-      // Get both users' profiles
-      const result = await DatabaseManager.executeQuery<User>(
-        'SELECT id, username, profile FROM users WHERE id IN ($1, $2)',
-        [req.user.id, userId]
-      );
+      // Get both users' profiles using Prisma
+      const users = await prisma.user.findMany({
+        where: {
+          id: {
+            in: [req.user.id, userId]
+          }
+        },
+        select: {
+          id: true,
+          username: true,
+          profile: true
+        }
+      });
 
-      if (result.rows.length !== 2) {
+      if (users.length !== 2) {
         res.status(404).json({ error: 'One or both users not found' });
         return;
       }
 
-      const currentUser = result.rows.find(u => u.id === req.user!.id);
-      const otherUser = result.rows.find(u => u.id === userId);
+      const currentUser = users.find(u => u.id === req.user!.id);
+      const otherUser = users.find(u => u.id === userId);
 
       if (!currentUser || !otherUser) {
         res.status(404).json({ error: 'User data inconsistency' });
@@ -206,14 +231,17 @@ class ProfileController {
       }
 
       // Ensure both users have musical preferences
-      if (!currentUser.profile?.musicalPreferences || !otherUser.profile?.musicalPreferences) {
+      const currentProfile = currentUser.profile as any;
+      const otherProfile = otherUser.profile as any;
+      
+      if (!currentProfile?.musicalPreferences || !otherProfile?.musicalPreferences) {
         res.status(400).json({ error: 'Both users must have musical preferences set for compatibility calculation' });
         return;
       }
 
       const compatibility = this.calculateCompatibility(
-        currentUser.profile.musicalPreferences,
-        otherUser.profile.musicalPreferences
+        currentProfile.musicalPreferences,
+        otherProfile.musicalPreferences
       );
 
       logger.info('Compatibility calculated', { 
