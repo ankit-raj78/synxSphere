@@ -21,11 +21,42 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData()
-    const files = formData.getAll('files') as File[]
+    
+    // Try multiple common field names for file uploads
+    let files: File[] = []
+    const possibleFieldNames = ['files', 'file', 'audio', 'upload', 'audioFile']
+    
+    for (const fieldName of possibleFieldNames) {
+      const foundFiles = formData.getAll(fieldName) as File[]
+      if (foundFiles.length > 0) {
+        files = foundFiles
+        console.log(`Found ${foundFiles.length} file(s) using field name: ${fieldName}`)
+        break
+      }
+    }
+    
+    // If no files found with common names, check all form data entries
+    if (files.length === 0) {
+      console.log('No files found with common field names, checking all form data...')
+      const formDataEntries = Array.from(formData.entries())
+      for (const [key, value] of formDataEntries) {
+        console.log(`Form field: ${key}, type: ${typeof value}, isFile: ${value instanceof File}`)
+        if (value instanceof File && value.size > 0) {
+          files.push(value)
+          console.log(`Found file: ${value.name} (${value.size} bytes) in field: ${key}`)
+        }
+      }
+    }
+    
     const roomId = formData.get('roomId') as string | null
     
     if (files.length === 0) {
-      return NextResponse.json({ error: 'No files provided' }, { status: 400 })
+      console.log('No files provided in the request')
+      return NextResponse.json({ 
+        error: 'No files provided',
+        availableFields: Array.from(formData.keys()),
+        debugInfo: 'Check that files are being sent with proper field names'
+      }, { status: 400 })
     }
 
     // ✅ SECURE - If roomId provided, verify membership using Prisma
