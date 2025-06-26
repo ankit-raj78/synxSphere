@@ -75,13 +75,21 @@ class DatabaseManager:
                 await session.close()
 
 # Global database manager instance
-db_manager = DatabaseManager()
+db_manager = None
+
+def get_db_manager():
+    """Get or create database manager instance"""
+    global db_manager
+    if db_manager is None:
+        db_manager = DatabaseManager()
+    return db_manager
 
 # Convenience functions for app lifecycle
 async def init_db():
     """Initialize database (create tables if needed)"""
     try:
-        await db_manager.create_tables()
+        manager = get_db_manager()
+        await manager.create_tables()
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
@@ -90,7 +98,8 @@ async def init_db():
 async def close_db():
     """Close database connections"""
     try:
-        await db_manager.close()
+        manager = get_db_manager()
+        await manager.close()
         logger.info("Database closed successfully")
     except Exception as e:
         logger.error(f"Failed to close database: {e}")
@@ -98,5 +107,6 @@ async def close_db():
 # Dependency for FastAPI routes
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency for database sessions"""
-    async with db_manager.get_session() as session:
+    manager = get_db_manager()
+    async with manager.get_session() as session:
         yield session

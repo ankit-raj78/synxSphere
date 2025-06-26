@@ -32,8 +32,18 @@ async def analyze_audio(
     """
     Analyze an audio file and extract features, optionally saving to database
     """
-    if not file.content_type.startswith('audio/'):
-        raise HTTPException(status_code=400, detail="File must be an audio file")
+    # Check if file is an audio file by content type or extension
+    is_audio_content_type = file.content_type and file.content_type.startswith('audio/')
+    is_audio_extension = file.filename and any(
+        file.filename.lower().endswith(ext) 
+        for ext in ['.wav', '.mp3', '.m4a', '.flac', '.aac', '.ogg']
+    )
+    
+    if not (is_audio_content_type or is_audio_extension):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File must be an audio file. Got content_type: {file.content_type}, filename: {file.filename}"
+        )
     
     try:
         # Read file content
@@ -200,8 +210,18 @@ async def analyze_and_save_audio(
     """
     Analyze an audio file and save features to database
     """
-    if not file.content_type.startswith('audio/'):
-        raise HTTPException(status_code=400, detail="File must be an audio file")
+    # Check if file is an audio file by content type or extension
+    is_audio_content_type = file.content_type and file.content_type.startswith('audio/')
+    is_audio_extension = file.filename and any(
+        file.filename.lower().endswith(ext) 
+        for ext in ['.wav', '.mp3', '.m4a', '.flac', '.aac', '.ogg']
+    )
+    
+    if not (is_audio_content_type or is_audio_extension):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File must be an audio file. Got content_type: {file.content_type}, filename: {file.filename}"
+        )
     
     try:
         # Read file content
