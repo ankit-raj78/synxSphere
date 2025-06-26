@@ -1,0 +1,13 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.defaultInterpreterPath": "./venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.analysis.extraPaths": ["./src"],
+        "python.analysis.autoSearchPaths": true
+    }
+}

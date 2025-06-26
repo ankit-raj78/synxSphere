@@ -1,0 +1,32 @@
+# AI Service Dependencies for SyncSphere
+# Audio Processing
+librosa>=0.10.0
+soundfile>=0.12.0
+numpy>=1.24.0
+
+# Machine Learning
+# tensorflow>=2.13.0  # Commented for Mac compatibility
+scikit-learn>=1.3.0
+pandas>=2.0.0
+
+# Web Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+
+# Database & Caching
+psycopg2-binary>=2.9.0
+redis>=4.6.0
+sqlalchemy>=2.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+aiofiles>=23.0.0
+pillow>=10.0.0
+psutil>=5.9.0
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.7.0

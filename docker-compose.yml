@@ -127,28 +127,24 @@ services:
       - redis
       - kafka
 
-  # AI Recommendation Service
+  # AI Recommendation Service (Python/FastAPI)
   ai-service:
-    build: ./services/recommendation-service
+    build: ./services/ai-service
     ports:
-      - "3004:3000"
+      - "8004:8004"
     environment:
-      - NODE_ENV=development
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=syncsphere
-      - POSTGRES_USER=syncsphere
-      - POSTGRES_PASSWORD=syncsphere_password
-      - MONGODB_URI=mongodb://syncsphere:syncsphere_password@mongodb:27017/syncsphere
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BROKER=kafka:9092
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://syncsphere:syncsphere_password@postgres:5432/syncsphere
+      - REDIS_URL=redis://redis:6379/0
+      - USER_SERVICE_URL=http://user-service:8001
+      - AUDIO_SERVICE_URL=http://audio-service:8002
+      - SESSION_SERVICE_URL=http://session-service:8003
     depends_on:
       - postgres
-      - mongodb
       - redis
-      - kafka
+    volumes:
+      - ./services/ai-service:/app
+      - audio_uploads:/app/uploads
 
 volumes:
   postgres_data:
