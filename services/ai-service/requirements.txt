@@ -28,5 +28,12 @@ psutil>=5.9.0
 
 # Development
 pytest>=7.4.0
-pytest-asyncio>=0.21.0
+pytest-asyncio>=1.0.0
+pytest-cov>=6.0.0
+httpx>=0.28.0
+aiosqlite>=0.21.0
 black>=23.7.0
+
+# Additional dependencies for async support
+greenlet>=2.0.2
+asyncpg>=0.29.0
