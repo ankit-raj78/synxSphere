@@ -129,7 +129,7 @@ services:
 
   # AI Recommendation Service
   ai-service:
-    build: ./services/ai-service
+    build: ./services/recommendation-service
     ports:
       - "3004:3000"
     environment:
