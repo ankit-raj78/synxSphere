@@ -31,7 +31,7 @@ class AuthController {
           id: true,
           email: true,
           username: true,
-          passwordHash: true,
+          password: true,
           profile: true,
           createdAt: true,
           updatedAt: true
@@ -44,7 +44,7 @@ class AuthController {
       }
 
       // Verify password
-      const isPasswordValid = await bcrypt.compare(password, user.passwordHash || '');
+      const isPasswordValid = await bcrypt.compare(password, user.password || '');
       if (!isPasswordValid) {
         res.status(401).json({ error: 'Invalid credentials' });
         return;
@@ -54,7 +54,7 @@ class AuthController {
       const userForToken = {
         ...user,
         created_at: user.createdAt,
-        password_hash: user.passwordHash
+        password_hash: user.password
       } as any;
       const token = authMiddleware.generateToken(userForToken);
 
@@ -62,7 +62,7 @@ class AuthController {
       const session = await authMiddleware.createSession(user.id, token);
 
       // Remove password from response
-      const { passwordHash, ...userWithoutPassword } = user;
+      const { password: userPassword, ...userWithoutPassword } = user;
 
       logger.info('User logged in successfully', { userId: user.id, email: user.email });
 
@@ -133,7 +133,7 @@ class AuthController {
           id: uuidv4(),
           email: email,
           username: username,
-          passwordHash: passwordHash,
+          password: passwordHash,
           profile: userProfile as any // Type conversion needed for JSON field
         },
         select: {

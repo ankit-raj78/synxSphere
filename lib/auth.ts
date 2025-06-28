@@ -90,7 +90,7 @@ export async function registerUser(
       data: {
         email,
         username,
-        passwordHash: hashedPassword,
+        password: hashedPassword,
         profile
       }
     })
@@ -119,7 +119,7 @@ export async function loginUser(email: string, password: string): Promise<{ user
       return null
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash || '')
+    const isPasswordValid = await bcrypt.compare(password, user.password || '')
 
     if (!isPasswordValid) {
       return null

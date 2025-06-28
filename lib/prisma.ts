@@ -33,14 +33,14 @@ export class DatabaseService {
   static async createUser(data: {
     email: string
     username: string
-    passwordHash: string
+    password: string
     profile?: object
   }): Promise<User> {
     return prisma.user.create({
       data: {
         email: data.email,
         username: data.username,
-        passwordHash: data.passwordHash,
+        password: data.password,
         profile: data.profile || { role: 'user', bio: '', avatar: '' }
       }
     })
