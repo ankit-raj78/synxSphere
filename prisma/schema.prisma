@@ -7,305 +7,337 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- User and Auth ---
 model User {
-  id              String                @id @default(cuid())
-  email           String                @unique
-  username        String                @unique
-  password        String
-  profile         Json?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  audioFiles      AudioFile[]
-  roomMemberships RoomMembership[]
-  sessions        Session[]
-  userSessions    UserSession[]
-  recommendations RecommendationCache[]
-  interactions    UserInteraction[]
-  preferences     UserPreferences?
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String   @unique
+  password String   @map("password_hash")
+  profile      Json     @default("{\"role\": \"user\", \"bio\": \"\", \"avatar\": \"\"}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@map("User")
+  // Relations
+  createdRooms         Room[]             @relation("RoomCreator")
+  roomParticipants     RoomParticipant[]
+  audioFiles           AudioFile[]
+  audioTracks          AudioTrack[]
+  joinRequests         JoinRequest[]
+  compositions         Composition[]
+  sessions             UserSession[]
+  createdSessions      Session[]          @relation("SessionCreator")
+  sessionParticipants  SessionParticipant[]
+  messages             Message[]
+  recommendations      RecommendationCache[]
+  interactions         UserInteraction[]
+  preferences          UserPreferences?
 }
 
+// --- Room and Participation ---
 model Room {
-  id           String            @id @default(cuid())
-  name         String
-  description  String?
-  isPublic     Boolean           @default(false)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  creatorId    String
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  genre           String?
+  isLive          Boolean  @default(false) @map("is_live")
+  creatorId       String   @map("creator_id")
+  playbackPosition Int     @default(0) @map("playback_position")
+  settings        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  creator      User              @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants RoomParticipant[]
   audioFiles   AudioFile[]
-  memberships  RoomMembership[]
+  audioTracks  AudioTrack[]
+  joinRequests JoinRequest[]
+  compositions Composition[]
   sessions     Session[]
+  messages     Message[]
   analytics    RoomAnalytics?
   interactions UserInteraction[]
-
-  @@map("Room")
 }
 
+model RoomParticipant {
+  id         String   @id @default(uuid())
+  roomId     String   @map("room_id")
+  userId     String   @map("user_id")
+  role       String   @default("participant")
+  instruments Json    @default("[]")
+  isOnline   Boolean  @default(false) @map("is_online")
+  joinedAt   DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("room_participants")
+}
+
+// --- Audio ---
 model AudioFile {
-  id             String            @id @default(cuid())
-  filename       String
-  originalName   String
-  filePath       String
-  fileSize       BigInt
-  mimeType       String
-  isProcessed    Boolean           @default(false)
-  isPublic       Boolean           @default(false)
-  metadata       Json?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  userId         String
-  roomId         String?
-  duration       Int?
-  bitrate        Int?
-  sampleRate     Int?
-  channels       Int?
-  format         String?
-  quality        String?
-  encoding       String?
-  tags           Json?
-  isAnalyzed     Boolean           @default(false)
-  analysisStatus String            @default("pending")
-  lastAnalyzed   DateTime?
-  playCount      Int               @default(0)
-  likeCount      Int               @default(0)
-  downloadCount  Int               @default(0)
-  shareCount     Int               @default(0)
-  room           Room?             @relation(fields: [roomId], references: [id])
-  user           User              @relation(fields: [userId], references: [id])
-  features       AudioFeatures?
-  interactions   UserInteraction[]
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  filename     String
+  originalName String   @map("original_name")
+  filePath     String   @map("file_path")
+  fileSize     BigInt   @map("file_size")
+  mimeType     String   @map("mime_type")
+  duration     Decimal? @db.Decimal(10, 2)
+  sampleRate   Int?     @map("sample_rate")
+  channels     Int?
+  bitRate      Int?     @map("bit_rate")
+  format       String?
+  isProcessed  Boolean  @default(false) @map("is_processed")
+  isPublic     Boolean  @default(false) @map("is_public")
+  roomId       String?  @map("room_id")
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@map("AudioFile")
+  // Relations
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room     Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  analysis AudioAnalysis?
+  features AudioFeatures?
+  interactions UserInteraction[]
 }
 
-model RoomMembership {
-  id       String   @id @default(cuid())
-  userId   String
-  roomId   String
-  role     String   @default("member")
-  joinedAt DateTime @default(now())
-  room     Room     @relation(fields: [roomId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
+model AudioAnalysis {
+  id            String   @id @default(uuid())
+  fileId        String   @unique @map("file_id")
+  duration      Decimal? @db.Decimal(10, 2)
+  sampleRate    Int?     @map("sample_rate")
+  channels      Int?
+  bitRate       Int?     @map("bit_rate")
+  codec         String?
+  format        String?
+  size          BigInt?
+  tempo         Decimal? @db.Decimal(6, 2)
+  keySignature  String?  @map("key_signature")
+  loudness      Decimal? @db.Decimal(8, 2)
+  waveformData  Json?    @map("waveform_data")
+  analyzedAt    DateTime @default(now()) @map("analyzed_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  @@unique([userId, roomId])
-  @@map("RoomMembership")
+  // Relations
+  file AudioFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@map("audio_analysis")
 }
 
-model UserSession {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+model AudioTrack {
+  id                 String   @id @default(uuid())
+  roomId             String   @map("room_id")
+  uploaderId         String   @map("uploader_id")
+  name               String
+  artist             String?
+  duration           String?
+  filePath           String?  @map("file_path")
+  waveform           Json?
+  isCurrentlyPlaying Boolean  @default(false) @map("is_currently_playing")
+  uploadedAt         DateTime @default(now()) @map("uploaded_at")
+  metadata           Json     @default("{}")
 
-  @@map("UserSession")
+  // Relations
+  room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@map("audio_tracks")
 }
 
-model Session {
-  id          String   @id @default(cuid())
-  name        String
+// --- Join Requests ---
+model JoinRequest {
+  id        String            @id @default(uuid())
+  roomId    String            @map("room_id")
+  userId    String            @map("user_id")
+  status    JoinRequestStatus @default(PENDING)
+  message   String?
+  response  String?
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("join_requests")
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// --- Compositions ---
+model Composition {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  roomId      String   @map("room_id")
+  title       String
   description String?
-  isActive    Boolean  @default(true)
-  settings    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  creatorId   String
-  roomId      String
-  creator     User     @relation(fields: [creatorId], references: [id])
-  room        Room     @relation(fields: [roomId], references: [id])
+  filePath    String   @map("file_path")
+  duration    Decimal? @db.Decimal(10, 2)
+  fileSize    BigInt   @map("file_size")
+  mixSettings Json     @default("{}") @map("mix_settings")
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  @@map("Session")
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("compositions")
 }
 
-model AudioFeatures {
-  id               String    @id @default(cuid())
-  audioFileId      String    @unique
-  mfccFeatures     Json?
-  spectralFeatures Json?
-  rhythmFeatures   Json?
-  harmonicFeatures Json?
-  tempo            Float?
-  key              String?
-  energy           Float?
-  valence          Float?
-  danceability     Float?
-  loudness         Float?
-  duration         Int?
-  embeddings       Json?
-  analysisVersion  String?
-  processingTime   Int?
-  extractedAt      DateTime  @default(now())
-  confidence       Float     @default(0.0)
-  audioFile        AudioFile @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
+// --- Sessions ---
+model Session {
+  id               String              @id @default(uuid())
+  name             String
+  roomId           String              @map("room_id")
+  creatorId        String              @map("creator_id")
+  settings         Json                @default("{}")
+  state            Json                @default("{}")
+  isActive         Boolean             @default(true) @map("is_active")
+  lastActivity     DateTime            @default(now()) @map("last_activity")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
 
-  @@map("audio_features")
+  // Relations
+  room             Room                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  creator          User                @relation("SessionCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants     SessionParticipant[]
+}
+
+model SessionParticipant {
+  id          String   @id @default(uuid())
+  sessionId   String   @map("session_id")
+  userId      String   @map("user_id")
+  role        String   @default("participant")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+  isActive    Boolean  @default(true) @map("is_active")
+  permissions Json     @default("{}")
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("session_participants")
+}
+
+// --- Messages ---
+model Message {
+  id        String      @id @default(uuid())
+  roomId    String      @map("room_id")
+  userId    String      @map("user_id")
+  username  String
+  message   String
+  type      MessageType @default(TEXT)
+  metadata  Json        @default("{}")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  FILE
+  AUDIO
+}
+
+// --- User Session ---
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+// --- Analytics, Recommendations, ML, etc. ---
+model RecommendationCache {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("recommendation_cache")
 }
 
 model UserInteraction {
-  id          String     @id @default(cuid())
-  userId      String
-  roomId      String?
-  audioFileId String?
-  actionType  String
-  timestamp   DateTime   @default(now())
-  duration    Int?
-  rating      Int?
-  sessionId   String?
-  deviceType  String?
-  timeOfDay   String?
-  location    String?
-  metadata    Json?
-  audioFile   AudioFile? @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
-  room        Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roomId    String?  @map("room_id")
+  audioFileId String? @map("audio_file_id")
+  type      String
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room      Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  audioFile AudioFile? @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
 
   @@map("user_interactions")
 }
 
 model UserPreferences {
-  id                      String   @id @default(cuid())
-  userId                  String   @unique
-  genrePreferences        Json?
-  explicitGenres          Json?
-  tempoRange              Json?
-  energyRange             Json?
-  valenceRange            Json?
-  loudnessRange           Json?
-  danceabilityRange       Json?
-  preferredRoomSizes      Json?
-  activityTimes           Json?
-  sessionLengthPreference Int?
-  preferredRoomTypes      Json?
-  discoveryMode           String   @default("balanced")
-  confidenceScore         Float    @default(0.0)
-  lastUpdated             DateTime @updatedAt
-  interactionCount        Int      @default(0)
-  learningEnabled         Boolean  @default(true)
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  preferences Json   @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }
 
 model RoomAnalytics {
-  id                   String    @id @default(cuid())
-  roomId               String    @unique
-  dominantGenres       Json?
-  averageTempo         Float?
-  averageEnergy        Float?
-  averageValence       Float?
-  averageDanceability  Float?
-  averageLoudness      Float?
-  audioDiversityScore  Float?
-  totalAudioDuration   Int?
-  totalSessions        Int       @default(0)
-  uniqueParticipants   Int       @default(0)
-  activeParticipants   Int       @default(0)
-  averageSessionTime   Float?
-  peakActivityTimes    Json?
-  lastActivityAt       DateTime?
-  likesRatio           Float?
-  retentionRate        Float?
-  diversityIndex       Float?
-  interactionRate      Float?
-  popularityScore      Float     @default(0.0)
-  trendingScore        Float     @default(0.0)
-  growthRate           Float     @default(0.0)
-  uploadsPerDay        Float     @default(0.0)
-  averageUploadQuality Float?
-  contentFreshness     Float?
-  lastCalculated       DateTime  @default(now())
-  calculationVersion   String?   @default("1.0")
-  dataQuality          Float     @default(1.0)
-  room                 Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  roomId    String   @unique @map("room_id")
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@map("room_analytics")
 }
 
-model RecommendationCache {
-  id                   String   @id @default(cuid())
-  userId               String
-  recommendedRooms     Json
-  reasoning            Json?
-  totalRecommendations Int      @default(0)
-  algorithmVersion     String
-  contentScore         Float?
-  collaborativeScore   Float?
-  sessionScore         Float?
-  hybridWeights        Json?
-  contextData          Json?
-  queryParameters      Json?
-  createdAt            DateTime @default(now())
-  expiresAt            DateTime
-  hitCount             Int      @default(0)
-  lastAccessed         DateTime @default(now())
-  isValid              Boolean  @default(true)
-  generationTimeMs     Int?
-  cacheEfficiency      Float?
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model AudioFeatures {
+  id        String   @id @default(uuid())
+  audioFileId String @unique @map("audio_file_id")
+  features  Json    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("recommendation_cache")
-}
+  // Relations
+  audioFile AudioFile @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
 
-model MLModel {
-  id                String    @id @default(cuid())
-  name              String
-  version           String
-  type              String
-  framework         String
-  architecture      String?
-  parameters        Json?
-  inputShape        Json?
-  outputShape       Json?
-  accuracy          Float?
-  precision         Float?
-  recall            Float?
-  f1Score           Float?
-  performance       Json?
-  isActive          Boolean   @default(false)
-  isProduction      Boolean   @default(false)
-  modelPath         String?
-  apiEndpoint       String?
-  deploymentConfig  Json?
-  trainedOn         DateTime?
-  trainingDataSize  Int?
-  trainingDuration  Int?
-  validationMetrics Json?
-  trainingConfig    Json?
-  datasetVersion    String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  deprecatedAt      DateTime?
-  retiredAt         DateTime?
-  usageCount        Int       @default(0)
-  lastUsed          DateTime?
-  avgInferenceTime  Float?
-
-  @@unique([name, version])
-  @@map("ml_models")
-}
-
-model RecommendationExperiment {
-  id                      String    @id @default(cuid())
-  name                    String
-  description             String?
-  algorithmA              Json
-  algorithmB              Json
-  trafficSplit            Float     @default(0.5)
-  isActive                Boolean   @default(false)
-  startDate               DateTime?
-  endDate                 DateTime?
-  status                  String    @default("draft")
-  primaryMetric           String
-  successCriteria         Json?
-  results                 Json?
-  statisticalSignificance Float?
-  winner                  String?
-  createdBy               String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-
-  @@map("recommendation_experiments")
+  @@map("audio_features")
 }
