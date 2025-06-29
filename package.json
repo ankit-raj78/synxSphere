@@ -2,7 +2,6 @@
   "name": "syncsphere",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -57,6 +56,7 @@
     "socket.io": "^4.7.4",
     "socket.io-client": "^4.7.4",
     "tailwindcss": "^3.3.0",
+    "typescript": "^5",
     "uuid": "^11.1.0",
     "web-audio-api": "^0.2.2",
     "winston": "^3.17.0"
@@ -74,7 +74,6 @@
     "eslint": "^8",
     "eslint-config-next": "14.0.0",
     "prisma": "^6.10.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "ts-node": "^10.9.2"
   }
 }
