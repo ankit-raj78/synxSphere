@@ -131,6 +131,33 @@ async def update_user_preferences(
     Update user preferences for recommendations
     """
     try:
+        # Validate required fields
+        if not user_id or len(user_id.strip()) == 0:
+            raise HTTPException(status_code=422, detail="Invalid user_id")
+        
+        # Validate updates structure
+        if not updates or not isinstance(updates, dict):
+            raise HTTPException(status_code=422, detail="Updates must be a non-empty dictionary")
+            
+        # Validate preference keys
+        valid_keys = [
+            "preferred_genres", "preferred_tempo_range", "activity_level",
+            "genre_preferences", "tempo_range", "energy_range", 
+            "discovery_mode", "confidence_score"
+        ]
+        
+        for key in updates.keys():
+            if key not in valid_keys:
+                raise HTTPException(status_code=422, detail=f"Invalid preference key: {key}")
+        
+        # Validate specific field types if present
+        if "tempo_range" in updates:
+            tempo_range = updates["tempo_range"]
+            if not isinstance(tempo_range, (list, tuple)) or len(tempo_range) != 2:
+                raise HTTPException(status_code=422, detail="tempo_range must be a list/tuple of 2 numbers")
+            if not all(isinstance(x, (int, float)) for x in tempo_range):
+                raise HTTPException(status_code=422, detail="tempo_range values must be numbers")
+        
         preferences = await UserPreferencesService.update_preferences(db, user_id, updates)
         await db.commit()
         

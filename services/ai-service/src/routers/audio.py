@@ -49,6 +49,14 @@ async def analyze_audio(
         # Read file content
         audio_content = await file.read()
         
+        # Check for empty file
+        if len(audio_content) == 0:
+            raise HTTPException(status_code=400, detail="Empty audio file")
+        
+        # Check minimum file size (e.g., at least 1KB for a valid audio file)
+        if len(audio_content) < 1024:
+            raise HTTPException(status_code=400, detail="Audio file too small to be valid")
+        
         # Analyze audio
         features = await analyzer.extract_features(audio_content, file.filename)
         
@@ -70,6 +78,8 @@ async def analyze_audio(
             status="success"
         )
     
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Audio analysis failed: {str(e)}")
 
@@ -94,6 +104,25 @@ async def batch_analyze_audio(
             
         try:
             audio_content = await file.read()
+            
+            # Check for empty file
+            if len(audio_content) == 0:
+                results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "error": "Empty audio file"
+                })
+                continue
+            
+            # Check minimum file size
+            if len(audio_content) < 1024:
+                results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "error": "Audio file too small to be valid"
+                })
+                continue
+            
             features = await analyzer.extract_features(audio_content, file.filename)
             
             results.append({
