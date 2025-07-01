@@ -17,8 +17,8 @@ router = APIRouter()
 
 def get_recommendation_engine():
     """Dependency to get recommendation engine instance"""
-    from main import app
-    return app.state.recommendation_engine
+    import main
+    return main.app.state.recommendation_engine
 
 @router.post("/rooms", response_model=List[RecommendationResponse])
 async def get_room_recommendations(
