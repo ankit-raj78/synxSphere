@@ -37,3 +37,4 @@ black>=23.7.0
 # Additional dependencies for async support
 greenlet>=2.0.2
 asyncpg>=0.29.0
+python-multipart>=0.0.5
