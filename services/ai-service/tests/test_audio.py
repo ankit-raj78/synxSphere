@@ -6,6 +6,11 @@ import pytest
 import io
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
+import sys
+from pathlib import Path
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 class TestAudioAnalysis:
@@ -177,8 +182,13 @@ class TestAudioAnalysisEdgeCases:
         # Mock analyzer to raise an exception
         mock_audio_analyzer.extract_features.side_effect = Exception("Corrupted audio file")
         
-        with patch('routers.audio.get_audio_analyzer', return_value=mock_audio_analyzer):
-            corrupted_file = io.BytesIO(b"CORRUPTED_AUDIO_DATA")
+        # Override the dependency directly for this test
+        from routers.audio import get_audio_analyzer
+        test_client.app.dependency_overrides[get_audio_analyzer] = lambda: mock_audio_analyzer
+        
+        try:
+            # Create corrupted data that meets size requirement but will fail analysis
+            corrupted_file = io.BytesIO(b"CORRUPTED_AUDIO_DATA" + b"X" * 1024)
             
             response = test_client.post(
                 "/audio/analyze",
@@ -187,6 +197,10 @@ class TestAudioAnalysisEdgeCases:
             
             assert response.status_code == 500
             assert "Audio analysis failed" in response.json()["detail"]
+        finally:
+            # Clean up dependency override
+            if get_audio_analyzer in test_client.app.dependency_overrides:
+                del test_client.app.dependency_overrides[get_audio_analyzer]
     
     def test_analyze_large_file_extension_list(self, test_client, sample_audio_data, mock_audio_analyzer):
         """Test that various audio file extensions are accepted"""

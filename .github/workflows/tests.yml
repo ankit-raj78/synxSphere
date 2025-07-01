@@ -56,11 +56,29 @@ jobs:
         cd services/ai-service
         cp .env.example .env || echo "DATABASE_URL=postgresql+asyncpg://syncsphere:dev_password@localhost:5432/syncsphere_test" > .env
         
+    - name: Start AI service for integration tests
+      run: |
+        cd services/ai-service
+        export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
+        export PORT=8004
+        export NODE_ENV=test
+        chmod +x start_ai_service.sh
+        ./start_ai_service.sh --background
+        
     - name: Run AI service tests
       run: |
         cd services/ai-service
         export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
         python -m pytest tests/ -v --cov=src --cov-report=xml
+        
+    - name: Stop AI service
+      if: always()
+      run: |
+        cd services/ai-service
+        if [ -f ai_service.pid ]; then
+          kill $(cat ai_service.pid) || true
+          rm ai_service.pid
+        fi
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

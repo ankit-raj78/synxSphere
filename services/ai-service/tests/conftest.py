@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
+from sqlalchemy import text
 
 # Import the app
 import sys
@@ -56,7 +57,19 @@ async def test_db_session(test_engine):
     )
     
     async with async_session() as session:
+        # Clean up all tables at the start of each test
+        await session.execute(text("DELETE FROM audio_features"))
+        await session.execute(text("DELETE FROM user_interactions"))
+        await session.execute(text("DELETE FROM user_preferences"))
+        await session.execute(text("DELETE FROM recommendation_cache"))
+        await session.execute(text("DELETE FROM room_analytics"))
+        await session.execute(text("DELETE FROM ml_models"))
+        await session.commit()
+        
         yield session
+        
+        # Clean up after test
+        await session.rollback()
 
 @pytest.fixture
 def test_client(test_db_session):
@@ -74,9 +87,17 @@ def test_client(test_db_session):
 @pytest.fixture
 def sample_audio_data():
     """Provide sample audio data for testing"""
+    # Create WAV data that meets minimum size requirement (>1KB)
+    wav_header = b"RIFF\x00\x10\x00\x00WAVE"
+    wav_data = wav_header + b"\x00" * 4096  # 4KB of audio data
+    
+    # Create MP3 data that meets minimum size requirement (>1KB)
+    mp3_header = b"ID3\x03\x00\x00\x00"
+    mp3_data = mp3_header + b"\x00" * 4096  # 4KB of audio data
+    
     return {
-        "wav_content": b"RIFF\x24\x00\x00\x00WAVE" + b"\x00" * 32,  # Minimal WAV header
-        "mp3_content": b"ID3\x03\x00\x00\x00" + b"\x00" * 40,       # Minimal MP3 header
+        "wav_content": wav_data,
+        "mp3_content": mp3_data,
         "filename": "test_audio.wav"
     }
 

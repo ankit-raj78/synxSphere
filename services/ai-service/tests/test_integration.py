@@ -71,11 +71,12 @@ class TestAIServiceIntegration:
     
     def test_audio_analysis_workflow(self):
         """Test complete audio analysis workflow"""
-        # Create a minimal WAV file for testing
-        wav_header = b"RIFF\x24\x00\x00\x00WAVE" + b"\x00" * 32
+        # Create a larger WAV file that meets the 1KB minimum requirement
+        wav_header = b"RIFF\x00\x10\x00\x00WAVE"
+        wav_data = wav_header + b"\x00" * 4096  # 4KB of audio data
         
         # Test audio analysis
-        files = {"file": ("test.wav", io.BytesIO(wav_header), "audio/wav")}
+        files = {"file": ("test.wav", io.BytesIO(wav_data), "audio/wav")}
         
         response = requests.post(f"{AI_SERVICE_URL}/audio/analyze", files=files)
         

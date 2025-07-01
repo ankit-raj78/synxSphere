@@ -171,9 +171,9 @@ class TestRecommendationIntegration:
             
             # 1. Set user preferences
             preferences = {
-                "preferred_genres": ["jazz", "blues"],
-                "preferred_tempo_range": [80, 120],
-                "activity_level": "medium"
+                "genre_preferences": ["jazz", "blues"],  # Use valid key
+                "tempo_range": [80, 120],  # Use valid key
+                "discovery_mode": "balanced"  # Use valid key
             }
             
             prefs_response = test_client.put(f"/recommendations/preferences/{user_id}", json=preferences)
@@ -188,15 +188,15 @@ class TestRecommendationIntegration:
             
             # 3. Submit feedback (if recommendations exist)
             if recommendations:
-                feedback = {
+                # Use query parameters instead of JSON body for feedback endpoint
+                feedback_params = {
                     "user_id": user_id,
                     "room_id": recommendations[0]["room_id"],
                     "rating": 5,
-                    "feedback_type": "recommendation",
-                    "comments": "Perfect match!"
+                    "feedback_type": "like"
                 }
                 
-                feedback_response = test_client.post("/recommendations/feedback", json=feedback)
+                feedback_response = test_client.post("/recommendations/feedback", params=feedback_params)
                 assert feedback_response.status_code in [200, 500]
     
     def test_recommendation_caching_behavior(self, test_client, mock_recommendation_engine):
