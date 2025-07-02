@@ -1,6 +1,3 @@
-// SyncSphere Database Schema with Prisma ORM
-// This schema replaces all raw SQL queries with secure, type-safe operations
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,12 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model with secure authentication
+// --- User and Auth ---
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   username     String   @unique
-  passwordHash String   @map("password_hash")
+  password String   @map("password_hash")
   profile      Json     @default("{\"role\": \"user\", \"bio\": \"\", \"avatar\": \"\"}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -31,25 +28,12 @@ model User {
   createdSessions      Session[]          @relation("SessionCreator")
   sessionParticipants  SessionParticipant[]
   messages             Message[]
-
-  @@map("users")
+  recommendations      RecommendationCache[]
+  interactions         UserInteraction[]
+  preferences          UserPreferences?
 }
 
-// User session management for secure authentication
-model UserSession {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_sessions")
-}
-
-// Room model for collaborative music spaces
+// --- Room and Participation ---
 model Room {
   id              String   @id @default(uuid())
   name            String
@@ -71,11 +55,10 @@ model Room {
   compositions Composition[]
   sessions     Session[]
   messages     Message[]
-
-  @@map("rooms")
+  analytics    RoomAnalytics?
+  interactions UserInteraction[]
 }
 
-// Room participation with roles and permissions
 model RoomParticipant {
   id         String   @id @default(uuid())
   roomId     String   @map("room_id")
@@ -93,7 +76,7 @@ model RoomParticipant {
   @@map("room_participants")
 }
 
-// Audio file storage with metadata
+// --- Audio ---
 model AudioFile {
   id           String   @id @default(uuid())
   userId       String   @map("user_id")
@@ -118,11 +101,10 @@ model AudioFile {
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   room     Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
   analysis AudioAnalysis?
-
-  @@map("audio_files")
+  features AudioFeatures?
+  interactions UserInteraction[]
 }
 
-// Audio analysis results
 model AudioAnalysis {
   id            String   @id @default(uuid())
   fileId        String   @unique @map("file_id")
@@ -147,7 +129,6 @@ model AudioAnalysis {
   @@map("audio_analysis")
 }
 
-// Audio tracks for playback
 model AudioTrack {
   id                 String   @id @default(uuid())
   roomId             String   @map("room_id")
@@ -168,7 +149,7 @@ model AudioTrack {
   @@map("audio_tracks")
 }
 
-// Join requests for private rooms
+// --- Join Requests ---
 model JoinRequest {
   id        String            @id @default(uuid())
   roomId    String            @map("room_id")
@@ -187,7 +168,13 @@ model JoinRequest {
   @@map("join_requests")
 }
 
-// Compositions - mixed audio outputs
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// --- Compositions ---
 model Composition {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")
@@ -209,7 +196,7 @@ model Composition {
   @@map("compositions")
 }
 
-// Session models for real-time collaboration
+// --- Sessions ---
 model Session {
   id               String              @id @default(uuid())
   name             String
@@ -226,8 +213,6 @@ model Session {
   room             Room                @relation(fields: [roomId], references: [id], onDelete: Cascade)
   creator          User                @relation("SessionCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   participants     SessionParticipant[]
-
-  @@map("sessions")
 }
 
 model SessionParticipant {
@@ -247,7 +232,7 @@ model SessionParticipant {
   @@map("session_participants")
 }
 
-// Room messages for chat functionality
+// --- Messages ---
 model Message {
   id        String      @id @default(uuid())
   roomId    String      @map("room_id")
@@ -266,7 +251,6 @@ model Message {
   @@map("messages")
 }
 
-// Enum for message types
 enum MessageType {
   TEXT
   SYSTEM
@@ -274,9 +258,86 @@ enum MessageType {
   AUDIO
 }
 
-// Enum for join request status
-enum JoinRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
+// --- User Session ---
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+// --- Analytics, Recommendations, ML, etc. ---
+model RecommendationCache {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("recommendation_cache")
+}
+
+model UserInteraction {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roomId    String?  @map("room_id")
+  audioFileId String? @map("audio_file_id")
+  type      String
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room      Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  audioFile AudioFile? @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
+
+  @@map("user_interactions")
+}
+
+model UserPreferences {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  preferences Json   @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model RoomAnalytics {
+  id        String   @id @default(uuid())
+  roomId    String   @unique @map("room_id")
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("room_analytics")
+}
+
+model AudioFeatures {
+  id        String   @id @default(uuid())
+  audioFileId String @unique @map("audio_file_id")
+  features  Json    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  audioFile AudioFile @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
+
+  @@map("audio_features")
 }

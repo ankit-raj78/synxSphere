@@ -2,7 +2,9 @@
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { motion } from 'framer-motion'
-import { Users, Music, Clock, Star, ArrowRight, Zap, Heart, Target, Plus } from 'lucide-react'
+import { Users, Music, Clock, Star, ArrowRight, Zap, Heart, Target, Plus, Bot, Settings } from 'lucide-react'
+import { AIService } from '@/lib/ai-service'
+import UserPreferencesModal from './UserPreferencesModal'
 
 interface Room {
   _id: string
@@ -55,6 +57,7 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
     const [recommendations, setRecommendations] = useState<RoomRecommendation[]>([])
     const [loading, setLoading] = useState(true)
     const [joining, setJoining] = useState<string | null>(null)
+    const [showPreferences, setShowPreferences] = useState(false)
 
     const loadRecommendations = async () => {
       try {
@@ -78,17 +81,22 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
           console.log('Test rooms cleanup completed')
         } catch (error) {
           console.log('Test rooms cleanup failed (may not exist):', error)
-        }        // Fetch actual rooms from the API
-        const response = await fetch('/api/rooms', {
+        }
+
+        // Fetch AI-powered room recommendations
+        const response = await fetch('/api/rooms/recommendations', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         })
 
         if (response.ok) {
-          const rooms = await response.json()
-          console.log('✅ Loaded rooms from API:', rooms)
+          const data = await response.json()
+          const rooms = data.rooms || []
+          
+          console.log('✅ Loaded AI-powered room recommendations:', data)
           console.log(`📊 Found ${Array.isArray(rooms) ? rooms.length : 0} rooms`)
+          console.log(`🤖 AI-powered: ${data.aiPowered ? 'Yes' : 'No'} (${data.recommendations || 0} recommendations)`)
           
           // Check if we got an array
           if (!Array.isArray(rooms)) {
@@ -107,6 +115,10 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
             // Get membership status from userRoomData
             const membershipStatus = userRoomData?.membership_map?.[room.id] || 'none'
             const isOwnRoom = membershipStatus === 'creator'
+            
+            // Use AI score if available, otherwise calculate a basic compatibility score
+            const aiScore = room.aiScore || 0
+            const hasAIRecommendation = room.aiRecommended || false
             
             return {
               room: {
@@ -130,20 +142,23 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                 currentTracks: [],
                 createdAt: room.createdAt
               },
-              compatibilityScore: 0.85, // Default score - could be calculated based on user preferences
+              compatibilityScore: aiScore > 0 ? aiScore : 0.85, // Use AI score or default
               compatibilityFactors: {
-                musicalStyle: 0.8,
-                instrumentMatch: 0.7,
-                genreMatch: 0.9,
-                tempoCompatibility: 0.8,
-                experienceLevel: 0.85
+                musicalStyle: hasAIRecommendation ? aiScore * 0.9 : 0.8,
+                instrumentMatch: hasAIRecommendation ? aiScore * 0.8 : 0.7,
+                genreMatch: hasAIRecommendation ? aiScore * 0.95 : 0.9,
+                tempoCompatibility: hasAIRecommendation ? aiScore * 0.85 : 0.8,
+                experienceLevel: hasAIRecommendation ? aiScore * 0.9 : 0.85
               },
-              explanation: [
-                `${room.genre} music collaboration`,
-                `Created by ${room.creator}`,
-                `${room.participantCount || 0} active participants`,
-                room.isLive ? 'Currently active' : 'Ready to start'
-              ],              membershipStatus: membershipStatus
+              explanation: hasAIRecommendation && room.aiReasoning 
+                ? [room.aiReasoning, `${room.genre} music collaboration`, `Created by ${room.creator}`, `${room.participantCount || 0} active participants`, room.isLive ? 'Currently active' : 'Ready to start']
+                : [
+                    `${room.genre} music collaboration`,
+                    `Created by ${room.creator}`,
+                    `${room.participantCount || 0} active participants`,
+                    room.isLive ? 'Currently active' : 'Ready to start'
+                  ],
+              membershipStatus: membershipStatus
             }
           })
           
@@ -222,6 +237,22 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
       loadRecommendations()
     }, [userId, refreshTrigger]);
 
+    // Add feedback recording function
+    const recordFeedback = async (roomId: string, feedbackType: 'like' | 'dislike') => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) return
+        
+        const currentUserId = JSON.parse(atob(token.split('.')[1])).id
+        const room = recommendations.find(rec => rec.room._id === roomId)
+        
+        await AIService.recordFeedback(currentUserId, roomId, feedbackType, room?.compatibilityScore)
+        console.log(`✅ Recorded ${feedbackType} feedback for room ${roomId}`)
+      } catch (error) {
+        console.log('Failed to record feedback:', error)
+      }
+    }
+
     const joinRoom = async (roomId: string) => {
       setJoining(roomId)
       try {
@@ -230,6 +261,13 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
         // Check room membership status
         const room = recommendations.find(rec => rec.room._id === roomId)
         const membershipStatus = room?.membershipStatus || 'none'
+        
+        // Record AI feedback for join attempt
+        if (room) {
+          const currentUserId = JSON.parse(atob(token!.split('.')[1])).id
+          AIService.recordFeedback(currentUserId, roomId, 'join', room.compatibilityScore)
+            .catch(error => console.log('Failed to record AI feedback:', error))
+        }
         
         if (membershipStatus === 'creator' || membershipStatus === 'member') {
           // User is already a member or creator, enter room directly
@@ -309,9 +347,19 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                 Discover collaboration rooms perfectly matched to your musical style
               </p>
             </div>
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
-              <Zap className="w-4 h-4 text-yellow-400" />
-              <span>Powered by AI</span>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowPreferences(true)}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm"
+                title="Configure AI preferences"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Preferences</span>
+              </button>
+              <div className="flex items-center space-x-2 text-sm text-gray-400">
+                <Zap className="w-4 h-4 text-yellow-400" />
+                <span>Powered by AI</span>
+              </div>
             </div>
           </div>
 
@@ -338,14 +386,41 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
                 >
                   {/* Compatibility Score */}
                   <div className="flex items-center justify-between mb-4">
-                    <div className={`px-3 py-1 bg-gradient-to-r ${getCompatibilityColor(rec.compatibilityScore)} rounded-full text-white text-sm font-medium`}>
-                      {Math.round(rec.compatibilityScore * 100)}% {getCompatibilityLabel(rec.compatibilityScore)}
+                    <div className="flex items-center space-x-2">
+                      <div className={`px-3 py-1 bg-gradient-to-r ${getCompatibilityColor(rec.compatibilityScore)} rounded-full text-white text-sm font-medium`}>
+                        {Math.round(rec.compatibilityScore * 100)}% {getCompatibilityLabel(rec.compatibilityScore)}
+                      </div>
+                      {/* AI Recommendation Badge */}
+                      {rec.compatibilityScore > 0.85 && (
+                        <div className="flex items-center space-x-1 px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs">
+                          <Bot className="w-3 h-3" />
+                          <span>AI Recommended</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center space-x-1 text-gray-400">
-                      <Users className="w-4 h-4" />
-                      <span className="text-sm">
-                        {rec.room.participantCount || 0}/{rec.room.maxParticipants}
-                      </span>
+                    <div className="flex items-center space-x-3">
+                      {/* Feedback Buttons */}
+                      <button
+                        onClick={() => recordFeedback(rec.room._id, 'like')}
+                        className="p-1 hover:bg-green-500/20 rounded-full transition-colors group"
+                        title="Like this recommendation"
+                      >
+                        <Heart className="w-4 h-4 text-gray-400 group-hover:text-green-400 transition-colors" />
+                      </button>
+                      <button
+                        onClick={() => recordFeedback(rec.room._id, 'dislike')}
+                        className="p-1 hover:bg-red-500/20 rounded-full transition-colors group"
+                        title="Not interested"
+                      >
+                        <Target className="w-4 h-4 text-gray-400 group-hover:text-red-400 transition-colors rotate-45" />
+                      </button>
+                      {/* Participants Count */}
+                      <div className="flex items-center space-x-1 text-gray-400">
+                        <Users className="w-4 h-4" />
+                        <span className="text-sm">
+                          {rec.room.participantCount || 0}/{rec.room.maxParticipants}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -449,6 +524,17 @@ const RoomRecommendations = forwardRef<RoomRecommendationsRef, RoomRecommendatio
             </button>
           </div>
         </div>
+
+        {/* User Preferences Modal */}
+        <UserPreferencesModal
+          isOpen={showPreferences}
+          onClose={() => setShowPreferences(false)}
+          userId={userId}
+          onPreferencesSaved={() => {
+            // Refresh recommendations after preferences are saved
+            loadRecommendations()
+          }}
+        />
       </div>
     )
   }
