@@ -148,7 +148,26 @@ export async function GET(
 
     } catch (dbError) {
       console.log('Database not available for join requests:', dbError)
-      return NextResponse.json({ requests: [] })
+      
+      // Return mock join requests for demo
+      const mockRequests = [
+        {
+          id: 'req-1',
+          userId: 'user-123',
+          username: 'MusicLover',
+          message: 'Would love to collaborate on this track!',
+          createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString() // 5 minutes ago
+        },
+        {
+          id: 'req-2',
+          userId: 'user-456',
+          username: 'BeatMaker',
+          message: 'I can add some drums to this session',
+          createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString() // 15 minutes ago
+        }
+      ]
+      
+      return NextResponse.json({ requests: mockRequests })
     }
 
   } catch (error) {

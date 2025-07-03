@@ -17,8 +17,18 @@ router = APIRouter()
 
 def get_recommendation_engine():
     """Dependency to get recommendation engine instance"""
-    import main
-    return main.app.state.recommendation_engine
+    # Import here to avoid circular imports
+    import sys
+    import os
+    
+    # Get the main module
+    main_module = sys.modules.get('main')
+    if main_module and hasattr(main_module, 'app') and hasattr(main_module.app, 'state'):
+        return main_module.app.state.recommendation_engine
+    
+    # Fallback: create a new instance
+    from services.recommendation_engine import RecommendationEngine
+    return RecommendationEngine()
 
 @router.post("/rooms", response_model=List[RecommendationResponse])
 async def get_room_recommendations(

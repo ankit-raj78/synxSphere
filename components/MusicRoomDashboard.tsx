@@ -6,7 +6,7 @@ import {
   Music, Users, Clock, Share2, 
   MoreHorizontal, UserPlus, Settings, Crown, Mic2, 
   Radio, MessageCircle, Headphones, Volume2, Download,
-  Upload, Eye, Activity, Sliders, FileAudio, Pause, Play
+  Upload, Eye, Activity, Sliders, FileAudio, Pause, Play, Check, X, Bell
 } from 'lucide-react'
 import AudioMixer from './AudioMixer'
 import FileUploadModal from './FileUploadModal'
@@ -79,17 +79,58 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [participantActivity, setParticipantActivity] = useState<{[key: string]: Date}>({})
+  const [newParticipants, setNewParticipants] = useState<string[]>([])
+  const [joinRequests, setJoinRequests] = useState<any[]>([])
+  const [showJoinRequests, setShowJoinRequests] = useState(false)
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null)
 
   useEffect(() => {
     loadRoomData()
     loadTracks()
-    // Simulate real-time updates every 5 seconds
-    const interval = setInterval(() => {
+    loadJoinRequests()
+    
+    // Real-time updates - poll for room changes every 5 seconds
+    const roomUpdateInterval = setInterval(() => {
+      loadRoomData()
+      loadJoinRequests() // Check for new join requests
+    }, 5000)
+    
+    // Time tracking
+    const timeInterval = setInterval(() => {
       setCurrentTime(prev => prev + 1)
     }, 1000)
     
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(roomUpdateInterval)
+      clearInterval(timeInterval)
+    }
   }, [roomId])
+
+  useEffect(() => {
+    if (room?.participants) {
+      const currentParticipantIds = room.participants.map(p => p._id)
+      const previousParticipants = participantActivity
+      
+      // Check for new participants
+      const newlyJoined = currentParticipantIds.filter(id => !previousParticipants[id])
+      if (newlyJoined.length > 0) {
+        setNewParticipants(newlyJoined)
+        // Clear the "new" indicator after 5 seconds
+        setTimeout(() => {
+          setNewParticipants([])
+        }, 5000)
+      }
+      
+      // Update participant activity
+      const newActivity: {[key: string]: Date} = {}
+      room.participants.forEach(p => {
+        newActivity[p._id] = new Date()
+      })
+      setParticipantActivity(newActivity)
+    }
+  }, [room?.participants])
 
   const loadRoomData = async () => {
     try {
@@ -103,6 +144,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       if (response.ok) {
         const roomData = await response.json()
         setRoom(roomData)
+        setLastUpdate(new Date())
       }
     } catch (error) {
       console.error('Error loading room data:', error)
@@ -126,6 +168,24 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       }
     } catch (error) {
       console.error('Error loading tracks:', error)
+    }
+  }
+
+  const loadJoinRequests = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/rooms/${roomId}/join`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setJoinRequests(data.requests || [])
+      }
+    } catch (error) {
+      console.error('Error loading join requests:', error)
     }
   }
 
@@ -188,6 +248,32 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     setShowUploadModal(false)
   }
 
+  const handleJoinRequest = async (requestId: string, action: 'approve' | 'reject') => {
+    try {
+      setProcessingRequest(requestId)
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch(`/api/rooms/${roomId}/join/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action })
+      })
+
+      if (response.ok) {
+        // Refresh join requests and room data
+        await loadJoinRequests()
+        await loadRoomData()
+      }
+    } catch (error) {
+      console.error('Error handling join request:', error)
+    } finally {
+      setProcessingRequest(null)
+    }
+  }
+
   const togglePlayback = () => {
     setIsPlaying(!isPlaying)
     // Emit WebSocket event to sync playback with other participants
@@ -210,7 +296,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
         <div className="text-center">
           <Music className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-white mb-2">Room Not Found</h2>
-          <p className="text-gray-400">The music room you&apos;re looking for doesn&apos;t exist.</p>
+          <p className="text-gray-400">The music room you&apos;re looking for doesn&apos;ty exist.</p>
         </div>
       </div>
     )
@@ -242,11 +328,19 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                     {room.participants?.length || 0} participants
                   </span>
                   {room.isLive && (
-                    <span className="flex items-center text-sm text-green-400">
+                    <motion.span 
+                      animate={{ opacity: [1, 0.5, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="flex items-center text-sm text-green-400"
+                    >
                       <Activity className="w-4 h-4 mr-1" />
                       Live
-                    </span>
+                    </motion.span>
                   )}
+                  <span className="flex items-center text-sm text-gray-400">
+                    <Clock className="w-4 h-4 mr-1" />
+                    {Math.floor(currentTime / 60)}:{(currentTime % 60).toString().padStart(2, '0')}
+                  </span>
                 </div>
               </div>
             </div>
@@ -259,6 +353,18 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                 <UserPlus className="w-4 h-4" />
                 <span>Invite</span>
               </button>
+              {room?.creator === (JSON.parse(localStorage.getItem('user') || '{}').username || 'User') && joinRequests.length > 0 && (
+                <button
+                  onClick={() => setShowJoinRequests(true)}
+                  className="relative flex items-center space-x-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>Join Requests</span>
+                  <span className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold">
+                    {joinRequests.length}
+                  </span>
+                </button>
+              )}
               <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
                 <Settings className="w-5 h-5 text-gray-400" />
               </button>
@@ -376,7 +482,16 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-white">Participants</h2>
                 <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    <span className="text-sm text-gray-400">Live</span>
+                  </div>
+                  <span className="text-sm text-gray-400">•</span>
                   <span className="text-sm text-gray-400">{room.participants?.length || 0} online</span>
+                  <span className="text-sm text-gray-400">•</span>
+                  <span className="text-xs text-gray-500">
+                    Updated {Math.floor((new Date().getTime() - lastUpdate.getTime()) / 1000)}s ago
+                  </span>
                   <button
                     onClick={() => setShowInviteModal(true)}
                     className="flex items-center space-x-1 px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors"
@@ -388,22 +503,61 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               </div>
               
               <div className="space-y-3">
-                {room.participants?.map((participant) => (
-                  <div
+                {room.participants?.map((participant, index) => (
+                  <motion.div
                     key={participant._id}
-                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className={`flex items-center justify-between p-3 rounded-lg transition-all duration-300 ${
+                      newParticipants.includes(participant._id) 
+                        ? 'bg-purple-600/20 border border-purple-500/50' 
+                        : 'bg-gray-700/50 hover:bg-gray-700/70'
+                    }`}
                   >
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-white">
-                          {participant.username.charAt(0).toUpperCase()}
-                        </span>
+                      <div className="relative">
+                        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-bold text-white">
+                            {participant.username.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        {participant.isOnline && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-gray-800 animate-pulse" />
+                        )}
+                        {newParticipants.includes(participant._id) && (
+                          <motion.div
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="absolute -top-2 -right-2 w-5 h-5 bg-yellow-400 rounded-full border-2 border-gray-800 flex items-center justify-center"
+                          >
+                            <span className="text-xs font-bold text-gray-900">!</span>
+                          </motion.div>
+                        )}
                       </div>
                       <div>
                         <div className="flex items-center space-x-2">
                           <p className="font-medium text-white">{participant.username}</p>
                           {participant.role === 'creator' && (
                             <Crown className="w-4 h-4 text-yellow-400" />
+                          )}
+                          {participant.isOnline && (
+                            <motion.span
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="text-xs bg-green-400/20 text-green-400 px-2 py-0.5 rounded-full"
+                            >
+                              Active
+                            </motion.span>
+                          )}
+                          {newParticipants.includes(participant._id) && (
+                            <motion.span
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="text-xs bg-yellow-400/20 text-yellow-400 px-2 py-0.5 rounded-full"
+                            >
+                              Just joined!
+                            </motion.span>
                           )}
                         </div>
                         <div className="flex items-center space-x-2">
@@ -421,10 +575,108 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                     </div>
                     <div className="flex items-center space-x-2">
                       <Headphones className="w-4 h-4 text-gray-400" />
+                      {participant.isOnline && (
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="w-2 h-2 bg-purple-400 rounded-full"
+                        />
+                      )}
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
+                
+                {/* Show when room is empty */}
+                {(!room.participants || room.participants.length === 0) && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-8"
+                  >
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-400 opacity-50" />
+                    <p className="text-gray-400">No participants yet</p>
+                    <p className="text-sm text-gray-500 mt-1">Invite friends to start collaborating!</p>
+                  </motion.div>
+                )}
               </div>
+
+              {/* Join Requests Section */}
+              {showJoinRequests && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 p-4 bg-gray-700 rounded-lg border border-gray-600"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">Join Requests</h3>
+                    <button
+                      onClick={() => setShowJoinRequests(false)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  {joinRequests.length === 0 ? (
+                    <div className="text-center text-gray-400 py-8">
+                      <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No join requests yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {joinRequests.map((request, index) => (
+                        <motion.div
+                          key={request._id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex items-center justify-between p-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-all duration-300"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="relative">
+                              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-bold text-white">
+                                  {request.username.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              {request.isOnline && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-gray-800 animate-pulse" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-white">{request.username}</p>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xs bg-purple-400/20 text-purple-400 px-2 py-0.5 rounded-full">
+                                  Join Request
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {request.createdAt}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => handleJoinRequest(request._id, 'approve')}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition-colors"
+                            >
+                              <Check className="w-4 h-4" />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              onClick={() => handleJoinRequest(request._id, 'reject')}
+                              className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
             </motion.div>
           )}
         </motion.div>
@@ -477,6 +729,84 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           maxFiles={5}
           acceptedFormats={['audio/mpeg', 'audio/wav', 'audio/flac', 'audio/m4a']}
         />
+      )}
+
+      {/* Join Requests Modal */}
+      {showJoinRequests && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-md w-full mx-4"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Join Requests</h3>
+              <button
+                onClick={() => setShowJoinRequests(false)}
+                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {joinRequests.length === 0 ? (
+                <div className="text-center py-8">
+                  <Bell className="w-12 h-12 mx-auto mb-4 text-gray-400 opacity-50" />
+                  <p className="text-gray-400">No pending join requests</p>
+                </div>
+              ) : (
+                joinRequests.map((request) => (
+                  <motion.div
+                    key={request.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gray-700/50 rounded-lg p-4 border border-gray-600/50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-bold text-white">
+                              {request.username.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">{request.username}</p>
+                            <p className="text-xs text-gray-400">
+                              {new Date(request.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        {request.message && (
+                          <p className="text-sm text-gray-300 mb-3">"{request.message}"</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleJoinRequest(request.id, 'approve')}
+                        disabled={processingRequest === request.id}
+                        className="flex items-center space-x-1 px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition-colors disabled:opacity-50"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Approve</span>
+                      </button>
+                      <button
+                        onClick={() => handleJoinRequest(request.id, 'reject')}
+                        disabled={processingRequest === request.id}
+                        className="flex items-center space-x-1 px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors disabled:opacity-50"
+                      >
+                        <X className="w-4 h-4" />
+                        <span>Reject</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   )
