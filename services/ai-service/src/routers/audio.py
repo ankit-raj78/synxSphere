@@ -9,10 +9,10 @@ from typing import List, Optional, Dict, Any
 import json
 import uuid
 
-from services.audio_analyzer import AudioAnalyzer
-from models.audio_models import AudioFeaturesResponse, AudioAnalysisRequest
-from database.connection import get_db_session
-from database.operations import AudioFeatureService
+from ..services.audio_analyzer import AudioAnalyzer
+from ..models.audio_models import AudioFeaturesResponse, AudioAnalysisRequest
+from ..database.connection import get_db_session
+from ..database.operations import AudioFeatureService
 
 router = APIRouter()
 

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Play, Pause, Volume2, VolumeX, RotateCcw, Settings, 
   Sliders, Mic, Headphones, Download, Upload, Plus,
-  Trash2, Eye, EyeOff, Lock, Unlock, Users, Clock
+  Trash2, Eye, EyeOff, Lock, Unlock, Users, Clock, FileAudio
 } from 'lucide-react'
 
 interface AudioTrack {
@@ -84,6 +84,7 @@ export default function AudioMixer({
   const [selectedTracks, setSelectedTracks] = useState<string[]>([])
   const [isLooping, setIsLooping] = useState(false)
   const [tempo, setTempo] = useState(120)
+  const [exportProgress, setExportProgress] = useState(0)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const masterGainRef = useRef<GainNode | null>(null)
@@ -170,6 +171,38 @@ export default function AudioMixer({
     return path
   }
 
+  const handleExportMix = async () => {
+    try {
+      setExportProgress(0)
+      
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setExportProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval)
+            return 90
+          }
+          return prev + 10
+        })
+      }, 200)
+
+      // Call the parent's export function
+      await onExportMix()
+
+      clearInterval(progressInterval)
+      setExportProgress(100)
+      
+      setTimeout(() => {
+        setExportProgress(0)
+      }, 2000)
+      
+    } catch (error) {
+      console.error('Error exporting mix:', error)
+      alert('Failed to export mix. Please try again.')
+      setExportProgress(0)
+    }
+  }
+
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-2xl overflow-hidden">
       {/* Mixer Header */}
@@ -211,28 +244,35 @@ export default function AudioMixer({
             )}
             
             <button
-              onClick={onExportMix}
-              disabled={isExporting}
-              className={`p-2 rounded-lg transition-colors text-white ${
-                isExporting 
-                  ? 'bg-gray-600 cursor-not-allowed' 
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
-              title={isExporting ? 'Creating Mix...' : 'Export Mix'}
+              onClick={onAddTrack}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white font-medium shadow-lg"
+              title="Upload Audio File to Room"
             >
-              {isExporting ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
+              <Upload className="w-4 h-4" />
+              <span>Upload Track</span>
             </button>
             
             <button
-              onClick={onAddTrack}
-              className="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white"
-              title="Add Track"
+              onClick={onExportMix}
+              disabled={isExporting || tracks.length === 0}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors text-white font-medium ${
+                isExporting || tracks.length === 0
+                  ? 'bg-gray-600 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700 shadow-lg'
+              }`}
+              title={isExporting ? `Exporting... ${exportProgress}%` : 'Export & Download Mixed Audio'}
             >
-              <Plus className="w-4 h-4" />
+              {isExporting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Mixing... {exportProgress}%</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Mix & Export</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -281,8 +321,33 @@ export default function AudioMixer({
 
       {/* Track List */}
       <div className="max-h-96 overflow-y-auto">
-        <AnimatePresence>
-          {tracks.map((track, index) => (
+        {tracks.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <div className="mb-4">
+              <FileAudio className="w-16 h-16 mx-auto text-gray-400 opacity-50" />
+            </div>
+            <h3 className="text-lg font-medium text-white mb-2">No Audio Tracks Yet</h3>
+            <p className="text-gray-400 mb-6 max-w-md mx-auto">
+              Upload audio files to start collaborating! Each user can contribute their own tracks to create amazing music together.
+            </p>
+            <button
+              onClick={onAddTrack}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white font-medium"
+            >
+              <Upload className="w-5 h-5" />
+              <span>Upload Your First Track</span>
+            </button>
+            <div className="mt-4 text-sm text-gray-500">
+              Supported formats: MP3, WAV, FLAC, M4A • Max size: 50MB
+            </div>
+          </motion.div>
+        ) : (
+          <AnimatePresence>
+            {tracks.map((track, index) => (
             <motion.div
               key={track.id}
               initial={{ opacity: 0, y: 20 }}
@@ -428,24 +493,9 @@ export default function AudioMixer({
               </div>
             </motion.div>
           ))}
-        </AnimatePresence>
+          </AnimatePresence>
+        )}
       </div>
-
-      {/* Empty State */}
-      {tracks.length === 0 && (
-        <div className="p-12 text-center">
-          <Mic className="w-16 h-16 mx-auto mb-4 text-gray-500" />
-          <h3 className="text-xl font-semibold text-gray-300 mb-2">No tracks yet</h3>
-          <p className="text-gray-500 mb-4">Upload audio files to start mixing</p>
-          <button
-            onClick={onAddTrack}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white font-medium"
-          >
-            <Plus className="w-5 h-5 inline mr-2" />
-            Add Your First Track
-          </button>
-        </div>
-      )}
     </div>
   )
 }

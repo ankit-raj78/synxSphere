@@ -231,9 +231,38 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     }
   }
 
-  const handleExportMix = () => {
-    // Implementation for exporting the mix
-    console.log('Exporting mix...')
+  const handleExportMix = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch(`/api/rooms/${roomId}/export`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tracks: tracks,
+          mixSettings: {
+            masterVolume: 1.0,
+            format: 'wav',
+            sampleRate: 44100,
+            bitDepth: 16
+          }
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        alert(`Mix exported successfully! Mix ID: ${data.mixId}`)
+      } else {
+        throw new Error('Export failed')
+      }
+      
+    } catch (error) {
+      console.error('Error exporting mix:', error)
+      alert('Failed to export mix. Please try again.')
+    }
   }
 
   const handleToggleRecording = () => {
@@ -241,11 +270,40 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   }
 
   const handleFileUpload = async (files: File[]) => {
-    // Handle file upload logic here
-    console.log('Uploading files:', files)
-    // After successful upload, reload tracks
-    await loadTracks()
-    setShowUploadModal(false)
+    try {
+      const token = localStorage.getItem('token')
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('name', file.name.replace(/\.[^/.]+$/, ''))
+
+        const response = await fetch(`/api/rooms/${roomId}/tracks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          return data.track
+        } else {
+          throw new Error(`Failed to upload ${file.name}`)
+        }
+      })
+
+      const uploadedTracks = await Promise.all(uploadPromises)
+      console.log('Successfully uploaded tracks:', uploadedTracks)
+      
+      // Refresh tracks from server
+      await loadTracks()
+      setShowUploadModal(false)
+      
+    } catch (error) {
+      console.error('Error uploading files:', error)
+      alert('Error uploading files. Please try again.')
+    }
   }
 
   const handleJoinRequest = async (requestId: string, action: 'approve' | 'reject') => {
@@ -432,7 +490,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               userId={userId}
               tracks={tracks}
               onTrackUpdate={handleTrackUpdate}
-              onAddTrack={handleAddTrack}
+              onAddTrack={() => setShowUploadModal(true)}
               onRemoveTrack={handleRemoveTrack}
               onExportMix={handleExportMix}
               isRecording={isRecording}

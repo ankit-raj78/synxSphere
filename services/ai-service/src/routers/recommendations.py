@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from services.recommendation_engine import RecommendationEngine
-from models.recommendation_models import RecommendationRequest, RecommendationResponse
-from database.connection import get_db_session
-from database.operations import UserInteractionService, UserPreferencesService, RecommendationCacheService
+from ..services.recommendation_engine import RecommendationEngine
+from ..models.recommendation_models import RecommendationRequest, RecommendationResponse
+from ..database.connection import get_db_session
+from ..database.operations import UserInteractionService, UserPreferencesService, RecommendationCacheService
 
 router = APIRouter()
 
