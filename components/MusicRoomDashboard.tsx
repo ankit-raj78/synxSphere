@@ -837,7 +837,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                           </div>
                         </div>
                         {request.message && (
-                          <p className="text-sm text-gray-300 mb-3">"{request.message}"</p>
+                          <p className="text-sm text-gray-300 mb-3">&quot;{request.message}&quot;</p>
                         )}
                       </div>
                     </div>
