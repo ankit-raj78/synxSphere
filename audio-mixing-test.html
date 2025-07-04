@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Upload & Mixing Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        button {
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #7c3aed;
+        }
+        button:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #374151;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+        }
+        .error {
+            border-left-color: #ef4444;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #4b5563;
+            border-radius: 5px;
+            background: #374151;
+            color: white;
+        }
+        .track-item {
+            background: #374151;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #4b5563;
+        }
+        .track-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .track-controls label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+        .track-controls input[type="range"] {
+            width: 100px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #374151;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #8b5cf6, #ec4899);
+            transition: width 0.3s ease;
+        }
+        .upload-area {
+            border: 2px dashed #6b7280;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #8b5cf6;
+        }
+        .upload-area.dragging {
+            border-color: #ec4899;
+            background: #374151;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 Audio Upload & Mixing Test</h1>
+    
+    <div class="container">
+        <h2>Room Audio Collaboration Demo</h2>
+        <div class="grid">
+            <div>
+                <h3>📁 Upload Audio Files</h3>
+                <div>
+                    <label>Room ID:</label>
+                    <input type="text" id="roomId" value="test-room" placeholder="Enter room ID">
+                </div>
+                
+                <div class="upload-area" id="uploadArea">
+                    <p>🎧 Drag & Drop Audio Files Here</p>
+                    <p>or</p>
+                    <input type="file" id="fileInput" multiple accept="audio/*" style="display: none;">
+                    <button onclick="document.getElementById('fileInput').click()">Choose Files</button>
+                    <p style="font-size: 12px; color: #9ca3af; margin-top: 10px;">
+                        Supports: WAV, MP3, FLAC, M4A, OGG (Max 50MB each)
+                    </p>
+                </div>
+                
+                <button onclick="uploadSelectedFiles()" id="uploadBtn" disabled>Upload Files</button>
+                <div id="uploadProgress"></div>
+            </div>
+            
+            <div>
+                <h3>🎚️ Current Room Tracks</h3>
+                <button onclick="loadRoomTracks()">🔄 Refresh Tracks</button>
+                <button onclick="exportMix()" id="exportBtn" disabled>📥 Export Mix</button>
+                <div id="tracksList"></div>
+            </div>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <div class="container">
+        <h2>📋 How to Test:</h2>
+        <ol>
+            <li><strong>Upload Files</strong>: Select audio files and upload them to the room</li>
+            <li><strong>View Tracks</strong>: See all uploaded tracks from all users</li>
+            <li><strong>Adjust Mix</strong>: Use volume, pan, and effect controls</li>
+            <li><strong>Export Mix</strong>: Combine all tracks into a single audio file</li>
+            <li><strong>Collaborate</strong>: Open room in multiple tabs to simulate multiple users</li>
+        </ol>
+        
+        <h3>🔗 Test Links:</h3>
+        <ul>
+            <li><a href="http://localhost:3000/room/test-room" target="_blank">Room Interface</a></li>
+            <li><a href="http://localhost:3000/dashboard" target="_blank">Dashboard</a></li>
+        </ul>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        let roomTracks = [];
+
+        function addResult(message, isError = false) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : ''}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            const files = Array.from(e.dataTransfer.files);
+            handleFileSelection(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            handleFileSelection(files);
+        });
+
+        function handleFileSelection(files) {
+            const audioFiles = files.filter(file => file.type.startsWith('audio/'));
+            if (audioFiles.length === 0) {
+                addResult('❌ No valid audio files selected', true);
+                return;
+            }
+
+            selectedFiles = audioFiles;
+            addResult(`✅ Selected ${audioFiles.length} audio file${audioFiles.length > 1 ? 's' : ''}`);
+            audioFiles.forEach(file => {
+                addResult(`📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+            });
+
+            document.getElementById('uploadBtn').disabled = false;
+        }
+
+        async function uploadSelectedFiles() {
+            if (selectedFiles.length === 0) {
+                addResult('❌ No files selected', true);
+                return;
+            }
+
+            const roomId = document.getElementById('roomId').value;
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
+
+            try {
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('name', file.name.replace(/\\.[^/.]+$/, ''));
+
+                    addResult(`📤 Uploading ${file.name}...`);
+
+                    const response = await fetch(`http://localhost:3000/api/rooms/${roomId}/tracks`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer test-token'
+                        },
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        addResult(`✅ ${file.name} uploaded successfully!`);
+                    } else {
+                        const error = await response.json();
+                        addResult(`❌ Failed to upload ${file.name}: ${error.error}`, true);
+                    }
+                }
+
+                selectedFiles = [];
+                await loadRoomTracks();
+                
+            } catch (error) {
+                addResult(`❌ Upload error: ${error.message}`, true);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload Files';
+            }
+        }
+
+        async function loadRoomTracks() {
+            const roomId = document.getElementById('roomId').value;
+            
+            try {
+                const response = await fetch(`http://localhost:3000/api/rooms/${roomId}/tracks`, {
+                    headers: {
+                        'Authorization': 'Bearer test-token'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    roomTracks = data.tracks || [];
+                    displayTracks();
+                    addResult(`🎵 Loaded ${roomTracks.length} track${roomTracks.length !== 1 ? 's' : ''} from room`);
+                } else {
+                    const error = await response.json();
+                    addResult(`❌ Failed to load tracks: ${error.error}`, true);
+                }
+            } catch (error) {
+                addResult(`❌ Error loading tracks: ${error.message}`, true);
+            }
+        }
+
+        function displayTracks() {
+            const tracksList = document.getElementById('tracksList');
+            const exportBtn = document.getElementById('exportBtn');
+            
+            exportBtn.disabled = roomTracks.length === 0;
+
+            if (roomTracks.length === 0) {
+                tracksList.innerHTML = '<p style="color: #9ca3af;">No tracks uploaded yet</p>';
+                return;
+            }
+
+            tracksList.innerHTML = roomTracks.map(track => `
+                <div class="track-item">
+                    <h4>${track.name}</h4>
+                    <p style="font-size: 12px; color: #9ca3af;">
+                        By: ${track.uploadedBy.username} • 
+                        Duration: ${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')} • 
+                        Size: ${(track.fileSize / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                    <div class="track-controls">
+                        <label>
+                            Volume: <input type="range" min="0" max="100" value="${Math.round(track.volume * 100)}" 
+                                   onchange="updateTrack('${track.id}', 'volume', this.value / 100)">
+                            <span>${Math.round(track.volume * 100)}%</span>
+                        </label>
+                        <label>
+                            Pan: <input type="range" min="-100" max="100" value="${track.pan * 100}" 
+                                  onchange="updateTrack('${track.id}', 'pan', this.value / 100)">
+                            <span>${track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" ${track.isMuted ? '' : 'checked'} 
+                                   onchange="updateTrack('${track.id}', 'muted', !this.checked)"> Include in Mix
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTrack(trackId, property, value) {
+            const track = roomTracks.find(t => t.id === trackId);
+            if (track) {
+                if (property === 'volume') track.volume = value;
+                else if (property === 'pan') track.pan = value;
+                else if (property === 'muted') track.isMuted = value;
+                
+                addResult(`🎚️ Updated ${track.name}: ${property} = ${value}`);
+                displayTracks(); // Refresh display
+            }
+        }
+
+        async function exportMix() {
+            const roomId = document.getElementById('roomId').value;
+            const exportBtn = document.getElementById('exportBtn');
+            
+            exportBtn.disabled = true;
+            exportBtn.textContent = 'Exporting...';
+
+            try {
+                addResult(`🎛️ Starting mix export for ${roomTracks.length} tracks...`);
+
+                const response = await fetch(`http://localhost:3000/api/rooms/${roomId}/export`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer test-token',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tracks: roomTracks,
+                        mixSettings: {
+                            masterVolume: 1.0,
+                            format: 'wav',
+                            sampleRate: 44100,
+                            bitDepth: 16
+                        }
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(`🎉 Mix exported successfully!`);
+                    addResult(`📁 Mix ID: ${data.mixId}`);
+                    addResult(`🔗 Download URL: ${data.downloadUrl}`);
+                    
+                    // Show export details
+                    const includedTracks = roomTracks.filter(t => !t.isMuted);
+                    addResult(`📊 Included ${includedTracks.length} of ${roomTracks.length} tracks in mix`);
+                } else {
+                    const error = await response.json();
+                    addResult(`❌ Export failed: ${error.error}`, true);
+                }
+            } catch (error) {
+                addResult(`❌ Export error: ${error.message}`, true);
+            } finally {
+                exportBtn.disabled = false;
+                exportBtn.textContent = '📥 Export Mix';
+            }
+        }
+
+        // Auto-load tracks on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadRoomTracks();
+            addResult(`🚀 Audio Upload & Mixing Test loaded!`);
+            addResult(`💡 Try uploading audio files and then export a mix!`);
+        });
+
+        // Auto-refresh tracks every 10 seconds
+        setInterval(loadRoomTracks, 10000);
+    </script>
+</body>
+</html>

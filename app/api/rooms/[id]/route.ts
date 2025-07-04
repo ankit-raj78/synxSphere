@@ -158,37 +158,50 @@ export async function GET(
       console.log('Database not available for room details, using mock data:', dbError)
       
       // Fallback to mock room data if database is not available
+      const mockParticipants = [
+        {
+          id: tokenData.id,
+          username: tokenData.email?.split('@')[0] || 'User',
+          isOnline: true,
+          instruments: ['Guitar'],
+          role: 'creator'
+        },
+        {
+          id: 'user2-id',
+          username: 'user2',
+          isOnline: true,
+          instruments: ['Synthesizer', 'Piano'],
+          role: 'participant'
+        },
+        {
+          id: 'user3-id',
+          username: 'user3',
+          isOnline: Math.random() > 0.3, // Dynamic online status
+          instruments: ['Drums', 'Bass'],
+          role: 'participant'
+        }
+      ];
+
+      // Simulate real-time participant changes
+      if (Math.random() > 0.7) {
+        mockParticipants.push({
+          id: 'new-participant-' + Date.now(),
+          username: 'NewCollaborator',
+          isOnline: true,
+          instruments: ['Vocals'],
+          role: 'participant'
+        });
+      }
+
       const mockRoomData = {
         id: params.id,
-        name: 'Chill Vibes Session',
-        description: 'Relaxing music collaboration',
+        name: 'Real-time Collaboration Demo',
+        description: 'Live music collaboration with dynamic participants',
         genre: 'Electronic',
         isLive: true,
         creator: tokenData.email?.split('@')[0] || 'User',
         createdAt: new Date().toISOString(),
-        participants: [
-          {
-            id: tokenData.id,
-            username: tokenData.email?.split('@')[0] || 'User',
-            isOnline: true,
-            instruments: ['Guitar'],
-            role: 'creator'
-          },
-          {
-            id: 'mock-user-2',
-            username: 'SynthMaster',
-            isOnline: true,
-            instruments: ['Synthesizer', 'Piano'],
-            role: 'participant'
-          },
-          {
-            id: 'mock-user-3',
-            username: 'DrumBot',
-            isOnline: false,
-            instruments: ['Drums'],
-            role: 'participant'
-          }
-        ],
+        participants: mockParticipants,
         currentTrack: {
           id: 'track-1',
           name: 'Midnight Dreams',

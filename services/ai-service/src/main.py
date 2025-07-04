@@ -15,10 +15,10 @@ from pathlib import Path
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-from routers import audio, recommendations, health
-from services import AudioAnalyzer, RecommendationEngine
-from utils.logger import setup_logger
-from database.connection import init_db
+from .routers import audio, recommendations, health
+from .services import AudioAnalyzer, RecommendationEngine
+from .utils.logger import setup_logger
+from .database.connection import init_db
 
 # Setup logging
 logger = setup_logger()

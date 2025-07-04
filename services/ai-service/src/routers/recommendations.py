@@ -8,17 +8,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from services.recommendation_engine import RecommendationEngine
-from models.recommendation_models import RecommendationRequest, RecommendationResponse
-from database.connection import get_db_session
-from database.operations import UserInteractionService, UserPreferencesService, RecommendationCacheService
+from ..services.recommendation_engine import RecommendationEngine
+from ..models.recommendation_models import RecommendationRequest, RecommendationResponse
+from ..database.connection import get_db_session
+from ..database.operations import UserInteractionService, UserPreferencesService, RecommendationCacheService
 
 router = APIRouter()
 
 def get_recommendation_engine():
     """Dependency to get recommendation engine instance"""
-    import main
-    return main.app.state.recommendation_engine
+    # Import here to avoid circular imports
+    import sys
+    import os
+    
+    # Get the main module
+    main_module = sys.modules.get('main')
+    if main_module and hasattr(main_module, 'app') and hasattr(main_module.app, 'state'):
+        return main_module.app.state.recommendation_engine
+    
+    # Fallback: create a new instance
+    from services.recommendation_engine import RecommendationEngine
+    return RecommendationEngine()
 
 @router.post("/rooms", response_model=List[RecommendationResponse])
 async def get_room_recommendations(

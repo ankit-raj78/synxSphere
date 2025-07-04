@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Music, Upload, Users, Brain, Activity, Play, Settings, 
-  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut, Trash2
+  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut, Trash2, ArrowRight, Bell
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import RoomRecommendations, { RoomRecommendationsRef } from '../../components/RoomRecommendations'
@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [userRoomData, setUserRoomData] = useState<any>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [joinRequestCount, setJoinRequestCount] = useState(0)
   const roomRecommendationsRef = useRef<RoomRecommendationsRef>(null)
 
   useEffect(() => {
@@ -120,9 +121,35 @@ export default function DashboardPage() {
         const roomData = await response.json()
         console.log('Loaded user room data:', roomData)
         setUserRoomData(roomData)
+        // Load join requests count after room data is loaded
+        setTimeout(loadJoinRequestsCount, 1000)
       }
     } catch (error) {
       console.error('Error loading user room data:', error)
+    }
+  }
+
+  // Load join requests count for created rooms
+  const loadJoinRequestsCount = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token || !userRoomData?.created_rooms) return
+
+      let totalRequests = 0
+      for (const room of userRoomData.created_rooms) {
+        const response = await fetch(`/api/rooms/${room.id}/join`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          totalRequests += data.requests?.length || 0
+        }
+      }
+      setJoinRequestCount(totalRequests)
+    } catch (error) {
+      console.error('Error loading join requests count:', error)
     }
   }
 
@@ -331,30 +358,47 @@ export default function DashboardPage() {
                     ) : (
                       <div className="space-y-3">
                         {userRoomData.created_rooms.slice(0, 3).map((room: any) => (
-                          <div key={room.id} className="bg-gray-700/50 rounded-lg p-3">
+                          <motion.div 
+                            key={room.id} 
+                            className="bg-gray-700/50 rounded-lg p-3 border border-gray-600/50 hover:border-purple-500/50 transition-all duration-200"
+                            whileHover={{ scale: 1.02 }}
+                          >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
-                                <h4 className="font-medium text-white">{room.name}</h4>
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h4 className="font-medium text-white">{room.name}</h4>
+                                  {room.is_live && (
+                                    <motion.div
+                                      animate={{ opacity: [1, 0.5, 1] }}
+                                      transition={{ duration: 2, repeat: Infinity }}
+                                      className="w-2 h-2 bg-green-400 rounded-full"
+                                    />
+                                  )}
+                                </div>
                                 <div className="flex items-center space-x-2 text-sm text-gray-400">
                                   <span>{room.genre}</span>
                                   <span>•</span>
-                                  <span>{room.participant_count} participants</span>
+                                  <span className="flex items-center space-x-1">
+                                    <Users className="w-3 h-3" />
+                                    <span>{room.participant_count} participants</span>
+                                  </span>
                                   {room.is_live && (
                                     <>
                                       <span>•</span>
-                                      <span className="text-green-400">Live</span>
+                                      <span className="text-green-400 font-medium">Live</span>
                                     </>
                                   )}
                                 </div>
                               </div>
                               <button
                                 onClick={() => window.location.href = `/room/${room.id}`}
-                                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition-colors"
+                                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition-colors flex items-center space-x-1"
                               >
-                                Enter
+                                <span>Enter</span>
+                                <ArrowRight className="w-3 h-3" />
                               </button>
                             </div>
-                          </div>
+                          </motion.div>
                         ))}
                       </div>
                     )}
@@ -382,10 +426,23 @@ export default function DashboardPage() {
                     ) : (
                       <div className="space-y-3">
                         {userRoomData.joined_rooms.slice(0, 3).map((room: any) => (
-                          <div key={room.id} className="bg-gray-700/50 rounded-lg p-3">
+                          <motion.div 
+                            key={room.id} 
+                            className="bg-gray-700/50 rounded-lg p-3 border border-gray-600/50 hover:border-purple-500/50 transition-all duration-200"
+                            whileHover={{ scale: 1.02 }}
+                          >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
-                                <h4 className="font-medium text-white">{room.name}</h4>
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h4 className="font-medium text-white">{room.name}</h4>
+                                  {room.is_live && (
+                                    <motion.div
+                                      animate={{ opacity: [1, 0.5, 1] }}
+                                      transition={{ duration: 2, repeat: Infinity }}
+                                      className="w-2 h-2 bg-green-400 rounded-full"
+                                    />
+                                  )}
+                                </div>
                                 <div className="flex items-center space-x-2 text-sm text-gray-400">
                                   <span>by {room.creator_name}</span>
                                   <span>•</span>
@@ -407,7 +464,7 @@ export default function DashboardPage() {
                                 Enter
                               </button>
                             </div>
-                          </div>
+                          </motion.div>
                         ))}
                       </div>
                     )}
@@ -772,7 +829,46 @@ export default function DashboardPage() {
             </div>
           )}
         </motion.div>
-      </div>
+      </div>        {/* Real-time Activity Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20 rounded-xl p-4 mb-6"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+              <div>
+                <h3 className="text-lg font-semibold text-white">Real-time Collaboration Active</h3>
+                <p className="text-sm text-gray-400">
+                  {userRoomData?.statistics?.created_rooms || 0} rooms created • {userRoomData?.statistics?.joined_rooms || 0} collaborations
+                  {joinRequestCount > 0 && (
+                    <span className="ml-2 text-orange-400 font-medium">
+                      • {joinRequestCount} pending join request{joinRequestCount > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              {joinRequestCount > 0 && (
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="flex items-center space-x-1 px-3 py-1 bg-orange-600/20 border border-orange-500/50 rounded-full"
+                >
+                  <Bell className="w-4 h-4 text-orange-400" />
+                  <span className="text-sm text-orange-400 font-medium">{joinRequestCount}</span>
+                </motion.div>
+              )}
+              <motion.div
+                animate={{ rotate: [0, 360] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full"
+              />
+            </div>
+          </div>
+        </motion.div>
 
       {/* Delete Account Confirmation Modal */}
       <ConfirmationModal

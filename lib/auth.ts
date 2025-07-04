@@ -53,7 +53,19 @@ export function generateToken(userId: string, email: string, created_at: Date): 
 
 export function verifyToken(token: string): { id: string; email: string; created_at: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: string; email: string; created_at: string }
+    const decoded = jwt.verify(token, JWT_SECRET) as any
+    
+    // Handle user service token format (userId, username)
+    if (decoded.userId) {
+      return {
+        id: decoded.userId,
+        email: decoded.email || '', // We'll fetch this from database if needed
+        created_at: new Date().toISOString()
+      }
+    }
+    
+    // Handle old token format (id, email, created_at)
+    return decoded as { id: string; email: string; created_at: string }
   } catch {
     return null
   }

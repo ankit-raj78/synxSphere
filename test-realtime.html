@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Collaboration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a2e;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .room-info {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #4a5568;
+        }
+        .participants {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .participant {
+            background: #2d3748;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #4a5568;
+            transition: all 0.3s ease;
+        }
+        .participant.online {
+            border-color: #48bb78;
+            background: #2d3748;
+        }
+        .participant.offline {
+            opacity: 0.6;
+            border-color: #718096;
+        }
+        .online-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #48bb78;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        .offline-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #718096;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .update-info {
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            background: #805ad5;
+            border-radius: 5px;
+        }
+        .refresh-btn {
+            background: #805ad5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .refresh-btn:hover {
+            background: #6b46c1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Real-time Collaboration Test</h1>
+        
+        <div class="update-info">
+            <p>⚡ Real-time Updates Active</p>
+            <p>Last updated: <span id="lastUpdate">Loading...</span></p>
+            <button class="refresh-btn" onclick="loadRoomData()">Refresh Now</button>
+            <button class="refresh-btn" onclick="toggleAutoRefresh()">Toggle Auto-refresh</button>
+        </div>
+
+        <div class="room-info">
+            <h2 id="roomName">Loading room...</h2>
+            <p id="roomDescription">Loading description...</p>
+            <p>Genre: <span id="roomGenre">-</span> | Participants: <span id="participantCount">0</span></p>
+        </div>
+
+        <div class="participants" id="participants">
+            <p>Loading participants...</p>
+        </div>
+    </div>
+
+    <script>
+        let autoRefresh = true;
+        let refreshInterval;
+
+        async function loadRoomData() {
+            try {
+                // Using demo room that works with mock data
+                const response = await fetch('/api/rooms/demo-room', {
+                    headers: {
+                        'Authorization': 'Bearer mock-token'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load room data');
+                }
+                
+                const roomData = await response.json();
+                updateUI(roomData);
+                
+            } catch (error) {
+                console.error('Error loading room data:', error);
+                document.getElementById('participants').innerHTML = 
+                    '<p style="color: #e53e3e;">Error loading room data. The room API may need authentication.</p>';
+            }
+        }
+
+        function updateUI(roomData) {
+            document.getElementById('roomName').textContent = roomData.name || 'Unknown Room';
+            document.getElementById('roomDescription').textContent = roomData.description || 'No description';
+            document.getElementById('roomGenre').textContent = roomData.genre || 'Unknown';
+            document.getElementById('participantCount').textContent = roomData.participants?.length || 0;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+            const participantsContainer = document.getElementById('participants');
+            
+            if (roomData.participants && roomData.participants.length > 0) {
+                participantsContainer.innerHTML = roomData.participants.map(participant => `
+                    <div class="participant ${participant.isOnline ? 'online' : 'offline'}">
+                        <h3>${participant.username}</h3>
+                        <p>
+                            <span class="${participant.isOnline ? 'online-indicator' : 'offline-indicator'}"></span>
+                            ${participant.isOnline ? 'Online' : 'Offline'}
+                        </p>
+                        <p>Role: ${participant.role}</p>
+                        <p>Instruments: ${participant.instruments ? participant.instruments.join(', ') : 'None'}</p>
+                    </div>
+                `).join('');
+            } else {
+                participantsContainer.innerHTML = '<p>No participants in this room</p>';
+            }
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            const btn = document.querySelector('button[onclick="toggleAutoRefresh()"]');
+            
+            if (autoRefresh) {
+                btn.textContent = 'Disable Auto-refresh';
+                startAutoRefresh();
+            } else {
+                btn.textContent = 'Enable Auto-refresh';
+                stopAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(loadRoomData, 3000); // Refresh every 3 seconds
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+
+        // Initialize
+        loadRoomData();
+        startAutoRefresh();
+    </script>
+</body>
+</html>
