@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     let pathname = url.pathname.replace('/api/studio-assets', '')
     
+    // Log requests for debugging
+    console.log(`Studio assets request: ${pathname || '/'} (original: ${url.pathname})`)
+    
     // Handle legacy font paths - if requesting /fonts/ directly, serve from studio assets
     if (pathname.startsWith('/fonts/')) {
       // This is already the correct path
@@ -17,41 +20,56 @@ export async function GET(request: NextRequest) {
     
     const fullPath = join(process.cwd(), 'public', 'studio', pathname)
     
-    const content = await readFile(fullPath)
+    let content: Buffer
+    let actualPath = pathname
+    
+    try {
+      content = await readFile(fullPath)
+    } catch (error) {
+      // If the file doesn't exist, check if it's a client-side route
+      // For SPA routing, serve the main HTML file for non-asset requests
+      if (!pathname.includes('.') || pathname.endsWith('/')) {
+        actualPath = '/index-iframe.html'
+        const fallbackPath = join(process.cwd(), 'public', 'studio', actualPath)
+        content = await readFile(fallbackPath)
+      } else {
+        throw error
+      }
+    }
     
     // Determine content type
     let contentType = 'text/html'
-    if (pathname.endsWith('.js')) {
+    if (actualPath.endsWith('.js')) {
       contentType = 'application/javascript'
-    } else if (pathname.endsWith('.css')) {
+    } else if (actualPath.endsWith('.css')) {
       contentType = 'text/css'
-    } else if (pathname.endsWith('.png')) {
+    } else if (actualPath.endsWith('.png')) {
       contentType = 'image/png'
-    } else if (pathname.endsWith('.svg')) {
+    } else if (actualPath.endsWith('.svg')) {
       contentType = 'image/svg+xml'
-    } else if (pathname.endsWith('.json')) {
+    } else if (actualPath.endsWith('.json')) {
       contentType = 'application/json'
-    } else if (pathname.endsWith('.woff2')) {
+    } else if (actualPath.endsWith('.woff2')) {
       contentType = 'font/woff2'
-    } else if (pathname.endsWith('.woff')) {
+    } else if (actualPath.endsWith('.woff')) {
       contentType = 'font/woff'
-    } else if (pathname.endsWith('.ttf')) {
+    } else if (actualPath.endsWith('.ttf')) {
       contentType = 'font/ttf'
-    } else if (pathname.endsWith('.otf')) {
+    } else if (actualPath.endsWith('.otf')) {
       contentType = 'font/otf'
-    } else if (pathname.endsWith('.eot')) {
+    } else if (actualPath.endsWith('.eot')) {
       contentType = 'application/vnd.ms-fontobject'
-    } else if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) {
+    } else if (actualPath.endsWith('.jpg') || actualPath.endsWith('.jpeg')) {
       contentType = 'image/jpeg'
-    } else if (pathname.endsWith('.gif')) {
+    } else if (actualPath.endsWith('.gif')) {
       contentType = 'image/gif'
-    } else if (pathname.endsWith('.webp')) {
+    } else if (actualPath.endsWith('.webp')) {
       contentType = 'image/webp'
-    } else if (pathname.endsWith('.mp3')) {
+    } else if (actualPath.endsWith('.mp3')) {
       contentType = 'audio/mpeg'
-    } else if (pathname.endsWith('.wav')) {
+    } else if (actualPath.endsWith('.wav')) {
       contentType = 'audio/wav'
-    } else if (pathname.endsWith('.ogg')) {
+    } else if (actualPath.endsWith('.ogg')) {
       contentType = 'audio/ogg'
     }
     
