@@ -22,9 +22,12 @@ SyncSphere is an innovative platform that connects musicians worldwide through i
 
 ### Local Development
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/synxSphere.git
+# Clone the repository with submodules
+git clone --recursive https://github.com/your-username/synxSphere.git
 cd synxSphere
+
+# If you already cloned without --recursive, initialize submodules
+git submodule update --init --recursive
 
 # Install dependencies
 npm install
@@ -276,6 +279,18 @@ brew services start redis
 
 # Check service logs
 brew services log postgresql
+```
+
+#### Git Submodule Issues
+```bash
+# If openDAW Studio assets are missing
+git submodule update --init --recursive
+
+# If submodules are out of sync
+git submodule update --remote --merge
+
+# Check submodule status
+git submodule status
 ```
 
 ### Documentation
