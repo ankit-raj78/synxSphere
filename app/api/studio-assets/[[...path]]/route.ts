@@ -5,10 +5,10 @@ import { join } from 'path'
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url)
-    const pathname = url.pathname.replace('/api/studio-files', '')
+    const pathname = url.pathname.replace('/api/studio-assets', '')
     
-    // Default to index.html if no path specified
-    const filePath = pathname === '' || pathname === '/' ? '/index.html' : pathname
+    // Default to index-iframe.html if no path specified
+    const filePath = pathname === '' || pathname === '/' ? '/index-iframe.html' : pathname
     
     const fullPath = join(process.cwd(), 'public', 'studio', filePath)
     

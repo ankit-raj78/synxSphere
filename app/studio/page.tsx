@@ -30,6 +30,9 @@ export default function StudioPage() {
       setUserInfo(userData)
       setIsAuthenticated(true)
       setIsLoading(false)
+      
+      // Set up the studio with proper iframe integration
+      setIsLoading(false)
     } catch (error) {
       console.error('Error parsing user data:', error)
       localStorage.removeItem('token')
@@ -128,7 +131,8 @@ export default function StudioPage() {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p>Loading Studio...</p>
+          <p>Launching openDAW Studio...</p>
+          <p className="text-sm text-gray-400 mt-2">Authenticating and loading studio environment</p>
         </div>
       </div>
     )
@@ -176,7 +180,7 @@ export default function StudioPage() {
       {/* openDAW iframe */}
       <iframe
         id="opendaw-iframe"
-        src="/api/studio-files"
+        src="/api/studio-assets"
         className="w-full"
         style={{ height: 'calc(100vh - 60px)' }}
         allow="microphone; camera; midi; encrypted-media; autoplay"
