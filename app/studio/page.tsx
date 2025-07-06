@@ -126,7 +126,7 @@ export default function StudioPage() {
       window.addEventListener('message', handleMessage)
       return () => window.removeEventListener('message', handleMessage)
     }
-  }, [isAuthenticated, userInfo])
+  }, [isAuthenticated, userInfo, handleMessage])
 
   if (isLoading) {
     return (

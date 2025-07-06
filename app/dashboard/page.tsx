@@ -863,7 +863,7 @@ export default function DashboardPage() {
                 <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                   <h4 className="font-semibold mb-2">Quick Start Guide</h4>
                   <div className="text-sm text-gray-400 space-y-1">
-                    <p>• Click "Launch Studio" to open the full production environment</p>
+                    <p>• Click &quot;Launch Studio&quot; to open the full production environment</p>
                     <p>• Your projects will be automatically saved to your SynxSphere account</p>
                     <p>• Use the File menu in the studio to save/load projects</p>
                     <p>• Grant microphone permissions for recording capabilities</p>

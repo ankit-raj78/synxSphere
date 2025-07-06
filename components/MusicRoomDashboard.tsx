@@ -137,7 +137,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       })
       setParticipantActivity(newActivity)
     }
-  }, [room?.participants])
+  }, [room?.participants, participantActivity])
 
   const loadRoomData = async () => {
     try {
