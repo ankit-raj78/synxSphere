@@ -1,0 +1,3 @@
+[submodule "openDAW"]
+	path = openDAW
+	url = https://github.com/ankit-raj78/opendaw-studio.git

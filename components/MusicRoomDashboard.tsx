@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import AudioMixer from './AudioMixer'
 import FileUploadModal from './FileUploadModal'
+import RoomFileUpload from './RoomFileUpload'
+import AudioPlayer from './AudioPlayer'
 
 interface Participant {
   _id: string
@@ -85,11 +87,16 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const [joinRequests, setJoinRequests] = useState<any[]>([])
   const [showJoinRequests, setShowJoinRequests] = useState(false)
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
+  const [selectedTracks, setSelectedTracks] = useState<string[]>([])
+  const [isComposing, setIsComposing] = useState(false)
+  const [compositions, setCompositions] = useState<any[]>([])
+  const [showComposeModal, setShowComposeModal] = useState(false)
 
   useEffect(() => {
     loadRoomData()
     loadTracks()
     loadJoinRequests()
+    loadCompositions()
     
     // Real-time updates - poll for room changes every 5 seconds
     const roomUpdateInterval = setInterval(() => {
@@ -130,7 +137,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       })
       setParticipantActivity(newActivity)
     }
-  }, [room?.participants])
+  }, [room?.participants, participantActivity])
 
   const loadRoomData = async () => {
     try {
@@ -164,10 +171,13 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
 
       if (response.ok) {
         const data = await response.json()
-        setTracks(data.tracks || [])
+        // Only show actual uploaded tracks, not mock data
+        const realTracks = data.tracks?.filter((track: any) => track.filePath && !track.filePath.includes('mock')) || []
+        setTracks(realTracks)
       }
     } catch (error) {
       console.error('Error loading tracks:', error)
+      setTracks([]) // Set empty array instead of showing mock tracks
     }
   }
 
@@ -299,10 +309,93 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       // Refresh tracks from server
       await loadTracks()
       setShowUploadModal(false)
-      
     } catch (error) {
       console.error('Error uploading files:', error)
-      alert('Error uploading files. Please try again.')
+      alert('Failed to upload files. Please try again.')
+    }
+  }
+
+  const handleCompose = async () => {
+    if (selectedTracks.length < 2) {
+      alert('Please select at least 2 tracks to compose')
+      return
+    }
+
+    setIsComposing(true)
+    try {
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch('/api/audio/compose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          roomId,
+          trackIds: selectedTracks,
+          compositionName: `Composition ${new Date().toLocaleString()}`
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        alert('Composition created successfully!')
+        
+        // Refresh compositions
+        loadCompositions()
+        setSelectedTracks([])
+        setShowComposeModal(false)
+      } else {
+        const error = await response.json()
+        alert(`Composition failed: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error creating composition:', error)
+      alert('Failed to create composition')
+    } finally {
+      setIsComposing(false)
+    }
+  }
+
+  const loadCompositions = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/rooms/${roomId}/compositions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCompositions(data.compositions || [])
+      }
+    } catch (error) {
+      console.error('Error loading compositions:', error)
+    }
+  }
+
+  const handleDeleteTrack = async (trackId: string) => {
+    if (!confirm('Are you sure you want to delete this track? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      await fetch(`/api/rooms/${roomId}/tracks?trackId=${trackId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      // Update local state
+      setTracks(prev => prev.filter(track => track.id !== trackId))
+      alert('Track deleted successfully')
+    } catch (error) {
+      console.error('Error deleting track:', error)
+      alert('Failed to delete track')
     }
   }
 
@@ -491,10 +584,18 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               tracks={tracks}
               onTrackUpdate={handleTrackUpdate}
               onAddTrack={() => setShowUploadModal(true)}
-              onRemoveTrack={handleRemoveTrack}
+              onRemoveTrack={handleDeleteTrack}
               onExportMix={handleExportMix}
               isRecording={isRecording}
               onToggleRecording={handleToggleRecording}
+              selectedTracks={selectedTracks}
+              onTrackSelection={setSelectedTracks}
+              onCompose={handleCompose}
+              isComposing={isComposing}
+              compositions={compositions}
+              onDeleteComposition={(id) => {
+                setCompositions(prev => prev.filter(c => c.id !== id))
+              }}
             />
           )}
 

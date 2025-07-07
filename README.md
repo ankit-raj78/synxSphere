@@ -10,6 +10,7 @@ SyncSphere is an innovative platform that connects musicians worldwide through i
 - **🌐 Global Collaboration**: Connect with musicians worldwide in virtual music rooms
 - **📊 Audio Analysis**: Automatic tempo, key, and musical analysis
 - **🎧 High-Quality Processing**: Professional audio tools and effects
+- **🎹 Integrated openDAW Studio**: Full-featured DAW (Digital Audio Workstation) accessible at `/studio`
 - **🔒 Secure Platform**: User authentication and secure file storage
 
 ## 🚀 Quick Start
@@ -21,19 +22,49 @@ SyncSphere is an innovative platform that connects musicians worldwide through i
 
 ### Local Development
 ```bash
+# Clone the repository with submodules
+git clone --recursive https://github.com/your-username/synxSphere.git
+cd synxSphere
+
+# If you already cloned without --recursive, initialize submodules
+git submodule update --init --recursive
+
 # Install dependencies
 npm install
+
+# Install dependencies for services
+cd services/audio-service && npm install && cd ../..
+cd services/session-service && npm install && cd ../..
+cd services/user-service && npm install && cd ../..
 
 # Start local services (PostgreSQL, MongoDB, Redis)
 brew services start postgresql
 brew services start mongodb-community
 brew services start redis
 
-# Start the application
-npm run dev
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your configuration
 
-# Start audio service (separate terminal)
+# Start the Next.js application
+npm run dev
+```
+
+The application will be available at:
+- **Main App**: http://localhost:3000
+- **openDAW Studio**: http://localhost:3000/studio
+- **API Documentation**: http://localhost:3000/api-docs
+
+### Starting Individual Services
+```bash
+# Audio service (separate terminal)
 cd services/audio-service && npm start
+
+# Session service (separate terminal)
+cd services/session-service && npm start
+
+# User service (separate terminal)
+cd services/user-service && npm start
 ```
 
 ### AWS Deployment (macOS)
@@ -63,6 +94,7 @@ open DEPLOY_MACOS.md
 - **Tailwind CSS** for styling
 - **React** components for UI
 - **Real-time WebSocket** connections
+- **Integrated openDAW Studio** - Full-featured DAW accessible at `/studio`
 
 ### Backend Services
 - **Audio Service** (Node.js/Express) - Audio processing and analysis
@@ -79,6 +111,7 @@ open DEPLOY_MACOS.md
 - **FFmpeg** - Audio format conversion
 - **AI Models** - Source separation and analysis
 - **Web Audio API** - Client-side audio manipulation
+- **openDAW Studio** - Integrated DAW with MIDI, audio recording, and mixing capabilities
 
 ## 🛠️ Available Scripts
 
@@ -89,6 +122,12 @@ npm run build        # Build for production
 npm run test         # Run tests
 npm run lint         # Lint code
 ```
+
+### Application URLs
+- **Main Application**: http://localhost:3000
+- **openDAW Studio**: http://localhost:3000/studio  
+- **Dashboard**: http://localhost:3000/dashboard
+- **API Health Check**: http://localhost:3000/api/health
 
 ### macOS Deployment
 ```bash
@@ -110,6 +149,9 @@ npm run lint         # Lint code
 # Health checks
 curl http://localhost:3000/api/health
 curl http://localhost:3002/health
+
+# Access openDAW Studio
+open http://localhost:3000/studio
 ```
 
 ## 📦 Tech Stack
@@ -153,6 +195,15 @@ curl http://localhost:3002/health
 - Real-time effects processing
 - Professional EQ and filters
 - Export capabilities
+
+### Integrated openDAW Studio
+- Full-featured Digital Audio Workstation
+- MIDI sequencing and editing
+- Audio recording and playback
+- Professional mixing and mastering tools
+- Plugin support and effects
+- Project save/load functionality
+- Accessible at `/studio` route
 
 ### Source Separation
 - AI-powered stem isolation
@@ -200,7 +251,47 @@ AWS_REGION=us-east-1
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🆘 Support & Troubleshooting
+
+### Common Issues
+
+#### openDAW Studio Not Loading
+```bash
+# Check if the studio assets are properly served
+curl -I http://localhost:3000/api/studio-assets/become_a_patron_button.png
+
+# Verify the studio page is accessible
+curl -I http://localhost:3000/studio
+
+# Check browser console for CORS or asset loading errors
+# Open http://localhost:3000/studio in Chrome and check Developer Tools
+```
+
+#### Services Not Starting
+```bash
+# Check if required services are running
+brew services list | grep -E "(postgresql|mongodb|redis)"
+
+# Start missing services
+brew services start postgresql
+brew services start mongodb-community  
+brew services start redis
+
+# Check service logs
+brew services log postgresql
+```
+
+#### Git Submodule Issues
+```bash
+# If openDAW Studio assets are missing
+git submodule update --init --recursive
+
+# If submodules are out of sync
+git submodule update --remote --merge
+
+# Check submodule status
+git submodule status
+```
 
 ### Documentation
 - [macOS Deployment Guide](DEPLOY_MACOS.md)

@@ -271,6 +271,7 @@ export default function DashboardPage() {
             { id: 'rooms', label: 'Find Rooms', icon: Users },
             { id: 'my-rooms', label: 'My Rooms', icon: Star },
             { id: 'create-room', label: 'Create Room', icon: Plus },
+            { id: 'studio', label: 'Studio', icon: Headphones },
             { id: 'analysis', label: 'AI Analysis', icon: Brain },
             { id: 'profile', label: 'Profile', icon: Settings }
           ].map((tab) => (
@@ -697,6 +698,57 @@ export default function DashboardPage() {
             <RoomCreation onRoomCreated={handleRoomCreated} />
           )}
 
+          {activeTab === 'studio' && (
+            <div className="space-y-6">
+              <div className="card">
+                <h2 className="text-2xl font-bold mb-6">openDAW Studio</h2>
+                <p className="text-gray-400 mb-8">
+                  Create and edit music with our integrated Digital Audio Workstation.
+                </p>
+                
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Professional Music Production</h3>
+                      <p className="text-gray-400">Full-featured DAW with advanced audio editing capabilities</p>
+                    </div>
+                    <Headphones className="w-8 h-8 text-purple-400" />
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center text-sm text-gray-300">
+                      <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                      Multi-track recording and editing
+                    </div>
+                    <div className="flex items-center text-sm text-gray-300">
+                      <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                      Built-in synthesizers and effects
+                    </div>
+                    <div className="flex items-center text-sm text-gray-300">
+                      <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                      Project save/load functionality
+                    </div>
+                    <div className="flex items-center text-sm text-gray-300">
+                      <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                      MIDI and audio support
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <button
+                      onClick={() => router.push('/studio')}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center justify-center space-x-2"
+                    >
+                      <Headphones className="w-5 h-5" />
+                      <span>Launch Studio</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'analysis' && (
             <div className="space-y-6">
               <div className="card">
@@ -743,6 +795,80 @@ export default function DashboardPage() {
                       ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'studio' && (
+            <div className="card max-w-4xl mx-auto">
+              <h2 className="text-2xl font-bold mb-6 flex items-center space-x-2">
+                <Headphones className="w-8 h-8 text-primary-400" />
+                <span>openDAW Studio</span>
+              </h2>
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-r from-primary-500/20 to-secondary-500/20 rounded-lg border border-primary-500/30">
+                  <h3 className="text-xl font-bold mb-4">Professional Music Production</h3>
+                  <p className="text-gray-300 mb-4">
+                    Access our integrated openDAW Studio for professional music production and composition. 
+                    Create, edit, and mix your tracks with advanced tools and effects.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-primary-500/20 rounded-full flex items-center justify-center">
+                        <Music className="w-4 h-4 text-primary-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">Multi-track Recording</h4>
+                        <p className="text-sm text-gray-400">Record and layer multiple audio tracks</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-secondary-500/20 rounded-full flex items-center justify-center">
+                        <Settings className="w-4 h-4 text-secondary-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">Professional Effects</h4>
+                        <p className="text-sm text-gray-400">Apply filters, reverb, and more</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-accent-500/20 rounded-full flex items-center justify-center">
+                        <Volume2 className="w-4 h-4 text-accent-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">Advanced Mixing</h4>
+                        <p className="text-sm text-gray-400">Professional mixing console</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-primary-500/20 rounded-full flex items-center justify-center">
+                        <Users className="w-4 h-4 text-primary-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">Project Sharing</h4>
+                        <p className="text-sm text-gray-400">Save and share your projects</p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => router.push('/studio')}
+                    className="w-full bg-gradient-to-r from-primary-500 to-secondary-500 text-white py-3 px-6 rounded-lg font-semibold hover:from-primary-600 hover:to-secondary-600 transition-all duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <Headphones className="w-5 h-5" />
+                    <span>Launch Studio</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <h4 className="font-semibold mb-2">Quick Start Guide</h4>
+                  <div className="text-sm text-gray-400 space-y-1">
+                    <p>• Click &quot;Launch Studio&quot; to open the full production environment</p>
+                    <p>• Your projects will be automatically saved to your SynxSphere account</p>
+                    <p>• Use the File menu in the studio to save/load projects</p>
+                    <p>• Grant microphone permissions for recording capabilities</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -52,7 +52,7 @@ export default function HomePage() {
       setCurrentDemo((prev) => (prev + 1) % demoFeatures.length)
     }, 4000)
     return () => clearInterval(interval)
-  }, [])
+  }, [demoFeatures.length])
 
   return (
     <div className="min-h-screen">

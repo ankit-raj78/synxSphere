@@ -58,4 +58,5 @@ class RecommendationEngine {
   }
 }
 
-export default new RecommendationEngine()
+const recommendationEngine = new RecommendationEngine()
+export default recommendationEngine

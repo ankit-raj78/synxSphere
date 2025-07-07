@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Play, Pause, Volume2, VolumeX, RotateCcw, Settings, 
   Sliders, Mic, Headphones, Download, Upload, Plus,
-  Trash2, Eye, EyeOff, Lock, Unlock, Users, Clock, FileAudio
+  Trash2, Eye, EyeOff, Lock, Unlock, Users, Clock, FileAudio, Music
 } from 'lucide-react'
+import AudioPlayer from './AudioPlayer'
 
 interface AudioTrack {
   id: string
@@ -50,6 +51,12 @@ interface AudioMixerProps {
   isRecording?: boolean
   onToggleRecording?: () => void
   isExporting?: boolean
+  selectedTracks?: string[]
+  onTrackSelection?: (tracks: string[]) => void
+  onCompose?: () => void
+  isComposing?: boolean
+  compositions?: any[]
+  onDeleteComposition?: (id: string) => void
 }
 
 const trackColors = [
@@ -73,7 +80,13 @@ export default function AudioMixer({
   onExportMix,
   isRecording = false,
   onToggleRecording,
-  isExporting = false
+  isExporting = false,
+  selectedTracks = [],
+  onTrackSelection,
+  onCompose,
+  isComposing = false,
+  compositions = [],
+  onDeleteComposition
 }: AudioMixerProps) {
   const [masterVolume, setMasterVolume] = useState(75)
   const [masterMuted, setMasterMuted] = useState(false)
@@ -81,7 +94,6 @@ export default function AudioMixer({
   const [currentTime, setCurrentTime] = useState(0)
   const [totalDuration, setTotalDuration] = useState(0)
   const [showEffects, setShowEffects] = useState<{ [key: string]: boolean }>({})
-  const [selectedTracks, setSelectedTracks] = useState<string[]>([])
   const [isLooping, setIsLooping] = useState(false)
   const [tempo, setTempo] = useState(120)
   const [exportProgress, setExportProgress] = useState(0)
@@ -147,6 +159,23 @@ export default function AudioMixer({
           [effect]: value
         }
       })
+    }
+  }
+
+  const toggleTrackSelection = (trackId: string) => {
+    if (onTrackSelection) {
+      const newSelection = selectedTracks.includes(trackId)
+        ? selectedTracks.filter(id => id !== trackId)
+        : [...selectedTracks, trackId]
+      onTrackSelection(newSelection)
+    }
+  }
+
+  const handleCompose = () => {
+    if (onCompose && selectedTracks.length >= 2) {
+      onCompose()
+    } else {
+      alert('Please select at least 2 tracks to compose')
     }
   }
 
@@ -251,6 +280,31 @@ export default function AudioMixer({
               <Upload className="w-4 h-4" />
               <span>Upload Track</span>
             </button>
+
+            {onCompose && (
+              <button
+                onClick={handleCompose}
+                disabled={isComposing || selectedTracks.length < 2}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors text-white font-medium ${
+                  isComposing || selectedTracks.length < 2
+                    ? 'bg-gray-600 cursor-not-allowed' 
+                    : 'bg-purple-600 hover:bg-purple-700 shadow-lg'
+                }`}
+                title={`Compose music from selected tracks (${selectedTracks.length} selected)`}
+              >
+                {isComposing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Composing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Music className="w-4 h-4" />
+                    <span>Compose ({selectedTracks.length})</span>
+                  </>
+                )}
+              </button>
+            )}
             
             <button
               onClick={onExportMix}
@@ -402,7 +456,16 @@ export default function AudioMixer({
                     </div>
 
                     {/* Track Controls */}
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 mb-2">
+                      {/* Selection checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedTracks.includes(track.id)}
+                        onChange={() => toggleTrackSelection(track.id)}
+                        className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
+                        title="Select for composition"
+                      />
+
                       {/* Mute */}
                       <button
                         onClick={() => handleMute(track.id)}
@@ -458,6 +521,11 @@ export default function AudioMixer({
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                    </div>
+
+                    {/* Audio Player */}
+                    <div className="mb-2">
+                      <AudioPlayer fileId={track.id} className="w-full" />
                     </div>
 
                     {/* Effects Panel */}

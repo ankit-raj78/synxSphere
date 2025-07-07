@@ -31,6 +31,7 @@ model User {
   recommendations      RecommendationCache[]
   interactions         UserInteraction[]
   preferences          UserPreferences?
+  studioProjects       StudioProject[]
 }
 
 // --- Room and Participation ---
@@ -327,6 +328,23 @@ model RoomAnalytics {
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@map("room_analytics")
+}
+
+model StudioProject {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  description String?
+  projectData Json    @map("project_data") // Store the openDAW project JSON
+  version   String   @default("1.0")
+  isPublic  Boolean  @default(false) @map("is_public")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("studio_projects")
 }
 
 model AudioFeatures {
