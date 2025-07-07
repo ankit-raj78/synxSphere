@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface UserInfo {
   id: string;
@@ -30,11 +31,6 @@ export default function StudioPage() {
       setUserInfo(userData)
       setIsAuthenticated(true)
       setIsLoading(false)
-      
-      // Redirect directly to the studio for cross-origin isolation
-      setTimeout(() => {
-        window.location.href = '/api/studio-assets'
-      }, 1000)
     } catch (error) {
       console.error('Error parsing user data:', error)
       localStorage.removeItem('token')
@@ -43,98 +39,12 @@ export default function StudioPage() {
     }
   }, [router])
 
-  const handleMessage = (event: MessageEvent) => {
-    // Handle messages from the openDAW iframe
-    if (event.origin !== window.location.origin) return
-
-    switch (event.data.type) {
-      case 'SAVE_PROJECT':
-        handleSaveProject(event.data.projectData)
-        break
-      case 'LOAD_PROJECT':
-        handleLoadProject(event.data.projectId)
-        break
-      case 'GET_USER_INFO':
-        // Send user info to openDAW
-        event.source?.postMessage({
-          type: 'USER_INFO',
-          userInfo: {
-            id: userInfo?.id,
-            email: userInfo?.email,
-            username: userInfo?.username
-          }
-        }, { targetOrigin: event.origin })
-        break
-    }
-  }
-
-  const handleSaveProject = async (projectData: any) => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/studio/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: projectData.name || 'Untitled Project',
-          data: projectData,
-          userId: userInfo?.id
-        })
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        // Send success back to openDAW
-        const iframe = document.getElementById('opendaw-iframe') as HTMLIFrameElement
-        iframe?.contentWindow?.postMessage({
-          type: 'SAVE_SUCCESS',
-          projectId: result.id
-        }, window.location.origin)
-      }
-    } catch (error) {
-      console.error('Save project failed:', error)
-    }
-  }
-
-  const handleLoadProject = async (projectId: string) => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/studio/projects/${projectId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const project = await response.json()
-        // Send project data back to openDAW
-        const iframe = document.getElementById('opendaw-iframe') as HTMLIFrameElement
-        iframe?.contentWindow?.postMessage({
-          type: 'LOAD_SUCCESS',
-          projectData: project.projectData
-        }, window.location.origin)
-      }
-    } catch (error) {
-      console.error('Load project failed:', error)
-    }
-  }
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      window.addEventListener('message', handleMessage)
-      return () => window.removeEventListener('message', handleMessage)
-    }
-  }, [isAuthenticated, userInfo, handleMessage])
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p>Launching openDAW Studio...</p>
-          <p className="text-sm text-gray-400 mt-2">Authenticating and loading studio environment</p>
+          <p>Loading Studio Options...</p>
         </div>
       </div>
     )
@@ -151,24 +61,130 @@ export default function StudioPage() {
     )
   }
 
-  // Redirect to studio assets for cross-origin isolation
-  if (isAuthenticated && !isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p>Launching openDAW Studio...</p>
-          <p className="text-sm text-gray-400 mt-2">You will be redirected to the studio environment</p>
-        </div>
-      </div>
-    )
-  }
-
+  // Show studio options
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-      <div className="text-white text-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto mb-4"></div>
-        <p>Loading...</p>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="container mx-auto px-4 py-8">
+        <header className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-4">Welcome to SyncSphere Studio</h1>
+          <p className="text-xl text-gray-300">Choose your preferred studio environment</p>
+          <p className="text-sm text-gray-400 mt-2">Hello, {userInfo?.username}!</p>
+        </header>
+
+        <div className="max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* OpenDAW Iframe Integration */}
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-purple-500 transition-colors">
+              <div className="text-center mb-6">
+                <div className="bg-purple-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">OpenDAW Studio</h2>
+                <p className="text-gray-300 mb-4">
+                  React-integrated OpenDAW with iframe isolation. Perfect for seamless integration within your workflow.
+                </p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center text-green-400">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Integrated React experience</span>
+                </div>
+                <div className="flex items-center text-green-400">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>No JSX conflicts</span>
+                </div>
+                <div className="flex items-center text-green-400">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Project management integration</span>
+                </div>
+              </div>
+              
+              <Link 
+                href="/studio/opendaw" 
+                className="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors"
+              >
+                Launch OpenDAW Studio
+              </Link>
+            </div>
+
+            {/* Direct OpenDAW Access */}
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-blue-500 transition-colors">
+              <div className="text-center mb-6">
+                <div className="bg-blue-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Direct Studio Access</h2>
+                <p className="text-gray-300 mb-4">
+                  Full-featured OpenDAW experience with cross-origin isolation for maximum performance.
+                </p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center text-green-400">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Maximum performance</span>
+                </div>
+                <div className="flex items-center text-green-400">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Cross-origin isolation</span>
+                </div>
+                <div className="flex items-center text-green-400">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Full OpenDAW features</span>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  window.location.href = '/api/studio-assets'
+                }}
+                className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors"
+              >
+                Launch Direct Studio
+              </button>
+            </div>
+          </div>
+
+          {/* Additional Options */}
+          <div className="mt-12 text-center">
+            <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+            <div className="flex justify-center space-x-4">
+              <Link 
+                href="/dashboard" 
+                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Back to Dashboard
+              </Link>
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('token')
+                  localStorage.removeItem('user')
+                  router.push('/auth/login')
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
