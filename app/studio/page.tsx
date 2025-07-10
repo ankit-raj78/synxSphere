@@ -73,7 +73,7 @@ export default function StudioPage() {
 
         <div className="max-w-4xl mx-auto">
           <div className="grid md:grid-cols-2 gap-8">
-            {/* OpenDAW Iframe Integration */}
+            {/* OpenDAW Iframe Integration - Primary Option */}
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-purple-500 transition-colors">
               <div className="text-center mb-6">
                 <div className="bg-purple-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
@@ -83,7 +83,7 @@ export default function StudioPage() {
                 </div>
                 <h2 className="text-2xl font-bold mb-2">OpenDAW Studio</h2>
                 <p className="text-gray-300 mb-4">
-                  React-integrated OpenDAW with iframe isolation. Perfect for seamless integration within your workflow.
+                  Modern iframe-based integration. Complete isolation between React and OpenDAW with seamless user experience.
                 </p>
               </div>
               
@@ -92,19 +92,19 @@ export default function StudioPage() {
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Integrated React experience</span>
+                  <span>Zero JSX conflicts</span>
                 </div>
                 <div className="flex items-center text-green-400">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>No JSX conflicts</span>
+                  <span>Full OpenDAW features</span>
                 </div>
                 <div className="flex items-center text-green-400">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Project management integration</span>
+                  <span>Clean architecture</span>
                 </div>
               </div>
               
@@ -116,17 +116,17 @@ export default function StudioPage() {
               </Link>
             </div>
 
-            {/* Direct OpenDAW Access */}
+            {/* Direct External Link - For Advanced Users */}
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-blue-500 transition-colors">
               <div className="text-center mb-6">
                 <div className="bg-blue-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Direct Studio Access</h2>
+                <h2 className="text-2xl font-bold mb-2">Direct OpenDAW Access</h2>
                 <p className="text-gray-300 mb-4">
-                  Full-featured OpenDAW experience with cross-origin isolation for maximum performance.
+                  Open OpenDAW in a new tab for full native experience. Advanced users who want maximum control.
                 </p>
               </div>
               
@@ -135,29 +135,29 @@ export default function StudioPage() {
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Maximum performance</span>
+                  <span>Native OpenDAW performance</span>
                 </div>
                 <div className="flex items-center text-green-400">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Cross-origin isolation</span>
+                  <span>Full browser features</span>
                 </div>
                 <div className="flex items-center text-green-400">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Full OpenDAW features</span>
+                  <span>Maximum screen real estate</span>
                 </div>
               </div>
               
               <button 
                 onClick={() => {
-                  window.location.href = '/api/studio-assets'
+                  window.open('https://localhost:8080', '_blank');
                 }}
                 className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors"
               >
-                Launch Direct Studio
+                Open in New Tab
               </button>
             </div>
           </div>

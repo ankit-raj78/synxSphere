@@ -15,39 +15,51 @@ SyncSphere is an innovative platform that connects musicians worldwide through i
 
 ## 🚀 Quick Start
 
-### Prerequisites Check
+**New to SynxSphere?** Choose your preferred startup method:
+
+### 🎯 Super Quick Launch
 ```bash
-./check-prerequisites.sh
+# Interactive setup & startup
+./start.sh
+
+# Or just start everything
+./launch.sh
 ```
 
-### Local Development
+### 📋 Manual Step-by-Step
 ```bash
-# Clone the repository with submodules
-git clone --recursive https://github.com/your-username/synxSphere.git
-cd synxSphere
-
-# If you already cloned without --recursive, initialize submodules
-git submodule update --init --recursive
-
-# Install dependencies
+# One-time setup
 npm install
+cd openDAW && bash cert.sh && cd ..
 
-# Install dependencies for services
-cd services/audio-service && npm install && cd ../..
-cd services/session-service && npm install && cd ../..
-cd services/user-service && npm install && cd ../..
+# Start services
+npm run services:start
 
-# Start local services (PostgreSQL, MongoDB, Redis)
-brew services start postgresql
-brew services start mongodb-community
-brew services start redis
+# Access the app
+open http://localhost:3000
+```
 
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your configuration
+**Need help?** See our [Quick Start Guide](docs/QUICK_START_GUIDE.md) for detailed instructions!
 
-# Start the Next.js application
+### Service Management
+```bash
+# Check service status
+npm run services:status
+
+# Start/stop individual services
+npm run opendaw:start
 npm run dev
+
+# Full service control
+npm run services:start    # Start all
+npm run services:stop     # Stop all
+npm run services:restart  # Restart all
+```
+
+### Access Points
+- **🎵 Main App**: http://localhost:3000
+- **🎧 Studio Integration**: http://localhost:3000/studio/opendaw
+- **🎹 Direct OpenDAW**: https://localhost:8080
 ```
 
 The application will be available at:

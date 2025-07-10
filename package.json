@@ -19,7 +19,11 @@
     "opendaw:restart": "bash scripts/opendaw-server.sh restart",
     "opendaw:status": "bash scripts/opendaw-server.sh status",
     "opendaw:setup": "bash scripts/opendaw-server.sh setup",
-    "dev:full": "npm run opendaw:start && npm run dev"
+    "dev:full": "npm run opendaw:start && npm run dev",
+    "services:status": "bash scripts/check-services.sh status",
+    "services:start": "bash scripts/check-services.sh start",
+    "services:stop": "bash scripts/check-services.sh stop",
+    "services:restart": "bash scripts/check-services.sh restart"
   },
   "dependencies": {
     "@next/font": "14.0.0",
