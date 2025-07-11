@@ -82,6 +82,7 @@
     "@types/node": "^22.15.31",
     "@types/pg": "^8.15.4",
     "@types/winston": "^2.4.4",
+    "@types/ws": "^8.18.1",
     "eslint": "^8",
     "eslint-config-next": "14.0.0",
     "prisma": "^6.10.1",
