@@ -504,6 +504,19 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                 <UserPlus className="w-4 h-4" />
                 <span>Invite</span>
               </button>
+              <button
+                onClick={() => {
+                  const user = JSON.parse(localStorage.getItem('user') || '{}')
+                  const userId = user.username || 'User'
+                  const projectId = `room-${roomId}`
+                  const url = `https://localhost:8080/?projectId=${projectId}&userId=${userId}&collaborative=true&userName=${encodeURIComponent(user.username || 'User')}`
+                  window.open(url, '_blank')
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+              >
+                <Music className="w-4 h-4" />
+                <span>Open Studio</span>
+              </button>
               {room?.creator === (JSON.parse(localStorage.getItem('user') || '{}').username || 'User') && joinRequests.length > 0 && (
                 <button
                   onClick={() => setShowJoinRequests(true)}

@@ -205,4 +205,51 @@ export class DatabaseService {
       return false
     }
   }
+
+  // Project persistence methods
+  async saveProject(projectId: string, projectData: any): Promise<void> {
+    try {
+      // Extract room_id from project_id if it follows the pattern "room-{roomId}"
+      const roomId = projectId.startsWith('room-') ? projectId.substring(5) : null
+      
+      await this.pool.query(
+        `INSERT INTO projects (id, room_id, name, data, updated_at) 
+         VALUES ($1, $2, $3, $4, NOW()) 
+         ON CONFLICT (id) 
+         DO UPDATE SET 
+           data = $4, 
+           updated_at = NOW()`,
+        [projectId, roomId, projectData.name || projectId, JSON.stringify(projectData)]
+      )
+    } catch (error) {
+      console.error('Error saving project:', error)
+      throw error
+    }
+  }
+
+  async loadProject(projectId: string): Promise<any | null> {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM projects WHERE id = $1',
+        [projectId]
+      )
+      
+      if (result.rows.length === 0) {
+        return null
+      }
+      
+      const project = result.rows[0]
+      return {
+        id: project.id,
+        roomId: project.room_id,
+        name: project.name,
+        data: JSON.parse(project.data || '{}'),
+        createdAt: project.created_at,
+        updatedAt: project.updated_at
+      }
+    } catch (error) {
+      console.error('Error loading project:', error)
+      return null
+    }
+  }
 }

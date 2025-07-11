@@ -3,6 +3,8 @@ import { WSServer } from '../src/websocket/WSServer'
 import { DatabaseService } from '../src/database/DatabaseService'
 import express from 'express'
 import cors from 'cors'
+import path from 'path'
+import fs from 'fs'
 
 // Load environment variables
 dotenv.config()
@@ -38,6 +40,17 @@ async function startServer() {
     // Health check endpoint
     app.get('/api/health', (req, res) => {
       res.json({ status: 'ok', timestamp: new Date().toISOString() })
+    })
+    
+    // Serve collaboration CSS
+    app.get('/opendaw-collab-styles.css', (req, res) => {
+      const cssPath = path.join(__dirname, '../../openDAW/studio/src/assets/collaboration/collaboration.css')
+      if (fs.existsSync(cssPath)) {
+        res.setHeader('Content-Type', 'text/css')
+        res.sendFile(cssPath)
+      } else {
+        res.status(404).send('CSS file not found')
+      }
     })
     
     // Box ownership endpoints  
@@ -80,6 +93,33 @@ async function startServer() {
         res.json(ownerships)
       } catch (error) {
         res.status(500).json({ error: 'Failed to get box ownerships' })
+      }
+    })
+
+    // Project persistence endpoints
+    app.put('/api/projects/:projectId', async (req, res) => {
+      try {
+        const { projectId } = req.params
+        const projectData = req.body
+        await db.saveProject(projectId, projectData)
+        res.json({ success: true })
+      } catch (error) {
+        console.error('Failed to save project:', error)
+        res.status(500).json({ error: 'Failed to save project' })
+      }
+    })
+
+    app.get('/api/projects/:projectId', async (req, res) => {
+      try {
+        const project = await db.loadProject(req.params.projectId)
+        if (project) {
+          res.json(project)
+        } else {
+          res.status(404).json({ error: 'Project not found' })
+        }
+      } catch (error) {
+        console.error('Failed to load project:', error)
+        res.status(500).json({ error: 'Failed to load project' })
       }
     })
     

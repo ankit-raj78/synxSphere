@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenDAW Collaboration UI Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .user-links {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .user-link {
+            padding: 10px 15px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .user-link:hover {
+            background: #0056b3;
+        }
+        .instructions {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🤝 OpenDAW Collaboration UI Test</h1>
+    
+    <div class="instructions">
+        <h3>📋 Test Instructions:</h3>
+        <ol>
+            <li>Click on the links below to open OpenDAW instances for different users</li>
+            <li>Each instance should show a collaboration panel in the top-right corner</li>
+            <li>The panel should list all online users with their avatars</li>
+            <li>You should see real-time updates when users join/leave</li>
+            <li>Check the browser console for debug logs</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>👤 User: Alice</h3>
+        <div class="user-links">
+            <a href="https://localhost:8080/?projectId=test-room-123&userId=alice&userName=Alice&collaborative=true" 
+               target="_blank" class="user-link">
+                Open as Alice
+            </a>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>👤 User: Bob</h3>
+        <div class="user-links">
+            <a href="https://localhost:8080/?projectId=test-room-123&userId=bob&userName=Bob&collaborative=true" 
+               target="_blank" class="user-link">
+                Open as Bob
+            </a>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>👤 User: Charlie</h3>
+        <div class="user-links">
+            <a href="https://localhost:8080/?projectId=test-room-123&userId=charlie&userName=Charlie&collaborative=true" 
+               target="_blank" class="user-link">
+                Open as Charlie
+            </a>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 What to Look For:</h3>
+        <ul>
+            <li><strong>Collaboration Panel:</strong> Fixed panel in top-right corner with "Collaborators (X)" title</li>
+            <li><strong>User List:</strong> Each user should have an avatar (colored circle with first letter) and name</li>
+            <li><strong>Connection Status:</strong> Green "Connected" indicator in bottom-right corner</li>
+            <li><strong>Real-time Updates:</strong> User count should update when new users join</li>
+            <li><strong>Console Logs:</strong> Open developer tools to see collaboration debug messages</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🐛 Troubleshooting:</h3>
+        <ul>
+            <li>If SSL warning appears, click "Advanced" → "Proceed to localhost (unsafe)"</li>
+            <li>Check that collaboration server is running on port 3005 (WebSocket) and 3003 (HTTP)</li>
+            <li>Look for collaboration-related errors in browser console</li>
+            <li>Verify that the collaboration panel CSS is loaded</li>
+        </ul>
+    </div>
+
+    <script>
+        // Add some helpful functions for testing
+        console.log('🧪 OpenDAW Collaboration UI Test Page Loaded')
+        console.log('Click the links above to test the collaboration UI')
+        
+        // Function to check collaboration server status
+        async function checkCollaborationServer() {
+            try {
+                const response = await fetch('http://localhost:3003/api/health')
+                const data = await response.json()
+                console.log('✅ Collaboration server is running:', data)
+                return true
+            } catch (error) {
+                console.error('❌ Collaboration server is not accessible:', error)
+                return false
+            }
+        }
+        
+        // Check server status on page load
+        checkCollaborationServer()
+        
+        // Make function available globally for testing
+        window.checkCollaborationServer = checkCollaborationServer
+    </script>
+</body>
+</html>

@@ -103,7 +103,8 @@ export class WSServer {
     // Store in database
     await this.db.createUserSession(sessionId, message.projectId, message.userId)
     
-    console.log(`User ${message.userId} joined project ${message.projectId}`)
+    console.log(`🔥 User ${message.userId} joined project ${message.projectId}`)
+    console.log(`🔥 Total clients for project: ${Array.from(this.clients.values()).filter(c => c.projectId === message.projectId).length}`)
     
     // Send initial sync data
     await this.sendSyncResponse(ws, message.projectId, message.userId)
@@ -138,7 +139,8 @@ export class WSServer {
         .map(client => client.userId)
         .filter((userId, index, arr) => arr.indexOf(userId) === index) // Remove duplicates
       
-      console.log(`📊 Active users for project ${projectId}:`, activeUsers)
+      console.log(`� �📊 Active users for project ${projectId}:`, activeUsers)
+      console.log(`🔥 📊 Sending sync response to user ${userId}`)
       
       const syncResponse = createCollabMessage.syncResponse(projectId, userId, {
         ownership,
