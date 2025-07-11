@@ -132,7 +132,13 @@ export class WSServer {
   private async sendSyncResponse(ws: WebSocket, projectId: string, userId: string): Promise<void> {
     try {
       const ownership = await this.db.getProjectOwnership(projectId)
-      const activeUsers = await this.db.getActiveUsers(projectId)
+      // Get active users from in-memory client list instead of database
+      const activeUsers = Array.from(this.clients.values())
+        .filter(client => client.projectId === projectId)
+        .map(client => client.userId)
+        .filter((userId, index, arr) => arr.indexOf(userId) === index) // Remove duplicates
+      
+      console.log(`📊 Active users for project ${projectId}:`, activeUsers)
       
       const syncResponse = createCollabMessage.syncResponse(projectId, userId, {
         ownership,
@@ -152,7 +158,13 @@ export class WSServer {
       client => client.projectId === message.projectId && client.sessionId !== excludeSessionId
     )
 
+    console.log(`📡 Broadcasting ${message.type} to project ${message.projectId}`)
+    console.log(`📡 Total clients in project: ${Array.from(this.clients.values()).filter(c => c.projectId === message.projectId).length}`)
+    console.log(`📡 Clients to broadcast to: ${projectClients.length} (excluding ${excludeSessionId})`)
+    console.log(`📡 Client details:`, projectClients.map(c => ({ userId: c.userId, sessionId: c.sessionId })))
+
     const broadcastPromises = projectClients.map(client => {
+      console.log(`📤 Sending ${message.type} to user ${client.userId} (session: ${client.sessionId})`)
       return this.sendToClient(client.ws, message)
     })
 
