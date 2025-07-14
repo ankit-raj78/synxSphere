@@ -36,6 +36,31 @@ export async function GET(request: NextRequest) {
         throw error
       }
     }
+
+    // If serving HTML, rewrite asset paths to use the API route
+    if (actualPath.endsWith('.html')) {
+      let htmlContent = content.toString()
+      
+      // Fix asset paths that should go through the API
+      htmlContent = htmlContent.replace(
+        /(?:src|href)="\/(?!api\/studio-assets\/)([^"]*\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|eot|ico))"/g,
+        'src="/api/studio-assets/$1"'
+      )
+      
+      // Fix any remaining relative paths that don't start with /api/studio-assets
+      htmlContent = htmlContent.replace(
+        /(?:src|href)="(?!\/api\/studio-assets|https?:\/\/)([^"]*\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|eot|ico))"/g,
+        'src="/api/studio-assets/$1"'
+      )
+      
+      // Set base tag to ensure all relative URLs resolve correctly
+      htmlContent = htmlContent.replace(
+        '<head>',
+        '<head>\n\t<base href="/api/studio-assets/">'
+      )
+      
+      content = Buffer.from(htmlContent)
+    }
     
     // Determine content type
     let contentType = 'text/html'
