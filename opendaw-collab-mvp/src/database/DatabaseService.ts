@@ -29,9 +29,10 @@ export class DatabaseService {
   constructor(connectionString: string) {
     this.pool = new Pool({
       connectionString,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      max: 20,                          // Increase max connections
+      idleTimeoutMillis: 30000,         // 30 seconds idle timeout
+      connectionTimeoutMillis: 10000,   // 10 seconds connection timeout (was 2 seconds)
+      keepAlive: true,                  // Keep connections alive
     })
   }
 
