@@ -1,0 +1,46 @@
+{
+  "name": "synxsphere-collaboration-installer",
+  "version": "1.0.0",
+  "description": "One-command installer for OpenDAW Collaboration System",
+  "scripts": {
+    "setup": "./setup-opendaw-collaboration.sh",
+    "validate": "./validate-setup.sh",
+    "start": "./start-all.sh",
+    "stop": "./stop-all.sh",
+    "restart": "npm run stop && sleep 2 && npm run start",
+    "test:collab": "./test-collaboration.sh",
+    "test:integration": "node test-final-integration.js",
+    "db:reset": "./reset-database.sh",
+    "dev:collab": "cd opendaw-collab-mvp && npm run server",
+    "dev:synx": "npm run dev",
+    "dev:opendaw": "cd openDAW/studio && npm run dev",
+    "kill-ports": "lsof -ti:3000,3003,3005,8080 | xargs kill -9 || true",
+    "logs:collab": "tail -f opendaw-collab-mvp/logs/server.log || echo 'No log file yet'",
+    "logs:synx": "tail -f logs/synxsphere.log || echo 'No log file yet'",
+    "health": "curl -s http://localhost:3003/api/health && echo",
+    "status": "lsof -i :3000 -i :3003 -i :3005 -i :8080",
+    "install:all": "npm install && cd opendaw-collab-mvp && npm install && cd ../openDAW/studio && npm install",
+    "build:all": "npm run build && cd openDAW/studio && npm run build",
+    "clean": "rm -rf node_modules opendaw-collab-mvp/node_modules openDAW/studio/node_modules",
+    "reset": "npm run clean && npm run install:all && npm run build:all"
+  },
+  "keywords": [
+    "opendaw",
+    "collaboration",
+    "music",
+    "audio",
+    "real-time",
+    "websocket",
+    "daw"
+  ],
+  "author": "SynxSphere Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/synxSphere.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/synxSphere/issues"
+  },
+  "homepage": "https://github.com/your-username/synxSphere#readme"
+}
