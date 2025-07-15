@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare tracks for mixing
-    const trackFiles = tracks.map((track, index) => ({
+    const trackFiles = tracks.map((track: { filePath: string }, index: number) => ({
       file: track.filePath,
       volume: 1.0, // Default volume, could be made configurable
       delay: 0     // Default delay, could be made configurable
@@ -113,8 +113,8 @@ export async function POST(request: NextRequest) {
       }
       
       // Build ffmpeg command for mixing
-      const inputs = tracks.map(track => `-i "${track.filePath}"`).join(' ')
-      const filters = tracks.map((_, index) => `[${index}:0]`).join('')
+      const inputs = tracks.map((track: { filePath: string }) => `-i "${track.filePath}"`).join(' ')
+      const filters = tracks.map((_: any, index: number) => `[${index}:0]`).join('')
       const mixFilter = `${filters}amix=inputs=${tracks.length}:duration=longest:dropout_transition=2`
       
       const ffmpegCommand = `"${ffmpegPath}" ${inputs} -filter_complex "${mixFilter}" -ac 2 -ar ${settings?.sampleRate || 44100} -b:a ${settings?.bitrate || '192k'} "${outputPath}"`
