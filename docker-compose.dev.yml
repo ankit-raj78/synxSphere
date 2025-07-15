@@ -20,11 +20,10 @@ services:
       POSTGRES_PASSWORD: collaboration
       POSTGRES_DB: opendaw_collab
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-      - ./opendaw-collab-mvp/src/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./opendaw-collab-mvp/src/database/02-init-additional-dbs.sh:/docker-entrypoint-initdb.d/02-init-additional-dbs.sh
+      - ./opendaw-collab-mvp/src/database:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U opendaw"]
       interval: 10s
@@ -54,7 +53,7 @@ services:
       - NODE_ENV=development
       - LOG_LEVEL=debug
     ports:
-      - "3003:3003"
+      - "3004:3003"
       - "3005:3005"
       - "9229:9229"  # Debug port
     volumes:
@@ -77,7 +76,7 @@ services:
       - NEXT_PUBLIC_OPENDAW_URL=http://localhost:8080
       - NODE_ENV=development
     ports:
-      - "3000:3000"
+      - "8000:3000"
       - "9230:9230"  # Debug port
     volumes:
       - .:/app
@@ -93,7 +92,7 @@ services:
   opendaw:
     image: node:18-alpine
     container_name: opendaw_studio_dev
-    working_dir: /app
+    working_dir: /app/studio
     environment:
       - VITE_API_URL=http://localhost:3003/api
       - VITE_WS_URL=ws://localhost:3005
@@ -103,7 +102,7 @@ services:
       - "8080:8080"  # Vite dev server
       - "9231:9231"  # Debug port
     volumes:
-      - ./openDAW/studio:/app
+      - ./openDAW:/app
       - /app/node_modules
     depends_on:
       - collaboration
