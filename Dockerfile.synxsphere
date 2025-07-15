@@ -36,6 +36,7 @@ COPY --from=synxsphere-builder /app/.next ./.next
 COPY --from=synxsphere-builder /app/public ./public
 COPY --from=synxsphere-builder /app/package*.json ./
 COPY --from=synxsphere-builder /app/node_modules ./node_modules
+COPY --from=synxsphere-builder /app/prisma ./prisma
 
 EXPOSE 3000
 

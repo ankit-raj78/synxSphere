@@ -87,6 +87,7 @@ services:
       dockerfile: Dockerfile.synxsphere
     container_name: opendaw_synxsphere
     environment:
+      - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
       - NEXT_PUBLIC_API_URL=http://localhost:3003/api
       - NEXT_PUBLIC_WS_URL=ws://localhost:3005
       - NEXT_PUBLIC_OPENDAW_URL=https://localhost:8080
