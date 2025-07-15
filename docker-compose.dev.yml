@@ -1,62 +1,130 @@
-version: '3.8'
+# OpenDAW Collaboration System - Development Setup
+# 
+# This docker-compose file is optimized for development:
+# - Hot reload for all services
+# - Debug ports exposed
+# - Volume mounts for source code
+# - Development tools included
+#
+# Usage:
+#   docker-compose -f docker-compose.dev.yml up -d
+#   docker-compose -f docker-compose.dev.yml logs -f
 
 services:
+  # Database (same as production)
   postgres:
-    image: postgres:15
-    container_name: syncsphere-postgres
+    image: postgres:15-alpine
+    container_name: opendaw_postgres_dev
     environment:
-      POSTGRES_DB: syncsphere
-      POSTGRES_USER: syncsphere
-      POSTGRES_PASSWORD: password
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: opendaw
+      POSTGRES_PASSWORD: collaboration
+      POSTGRES_DB: opendaw_collab
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./opendaw-collab-mvp/src/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./opendaw-collab-mvp/src/database/02-init-additional-dbs.sh:/docker-entrypoint-initdb.d/02-init-additional-dbs.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U syncsphere"]
+      test: ["CMD-SHELL", "pg_isready -U opendaw"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  mongodb:
-    image: mongo:6
-    container_name: syncsphere-mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: syncsphere
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - ./database/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/syncsphere --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+  # Redis (same as production)
   redis:
     image: redis:7-alpine
-    container_name: syncsphere-redis
+    container_name: opendaw_redis_dev
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
     command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    volumes:
+      - redis_dev_data:/data
+
+  # Collaboration Server (development mode)
+  collaboration:
+    image: node:18-alpine
+    container_name: opendaw_collaboration_dev
+    working_dir: /app
+    environment:
+      - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
+      - REDIS_URL=redis://redis:6379
+      - WS_PORT=3005
+      - HTTP_PORT=3003
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+    ports:
+      - "3003:3003"
+      - "3005:3005"
+      - "9229:9229"  # Debug port
+    volumes:
+      - ./opendaw-collab-mvp:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    command: sh -c "npm install && npm run dev"
+    restart: unless-stopped
+
+  # SynxSphere Dashboard (development mode)
+  synxsphere:
+    image: node:18-alpine
+    container_name: opendaw_synxsphere_dev
+    working_dir: /app
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3003/api
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3005
+      - NEXT_PUBLIC_OPENDAW_URL=http://localhost:8080
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+      - "9230:9230"  # Debug port
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/openDAW
+      - /app/opendaw-collab-mvp
+    depends_on:
+      - collaboration
+    command: sh -c "npm install && npm run dev"
+    restart: unless-stopped
+
+  # OpenDAW Studio (development mode - served by Vite)
+  opendaw:
+    image: node:18-alpine
+    container_name: opendaw_studio_dev
+    working_dir: /app
+    environment:
+      - VITE_API_URL=http://localhost:3003/api
+      - VITE_WS_URL=ws://localhost:3005
+      - VITE_SYNXSPHERE_URL=http://localhost:3000
+      - NODE_ENV=development
+    ports:
+      - "8080:8080"  # Vite dev server
+      - "9231:9231"  # Debug port
+    volumes:
+      - ./openDAW/studio:/app
+      - /app/node_modules
+    depends_on:
+      - collaboration
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 8080"
+    restart: unless-stopped
+
+  # Development tools
+  adminer:
+    image: adminer:latest
+    container_name: opendaw_adminer_dev
+    ports:
+      - "8081:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    depends_on:
+      - postgres
 
 volumes:
-  postgres_data:
-  mongodb_data:
-  redis_data:
+  postgres_dev_data:
+  redis_dev_data:
 
 networks:
   default:
-    name: syncsphere-network
+    name: opendaw_dev_network

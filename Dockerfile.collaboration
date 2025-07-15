@@ -1,5 +1,5 @@
 # Build stage for Collaboration Server
-FROM node:18-alpine as collab-builder
+FROM node:18-alpine AS collab-builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY opendaw-collab-mvp/server/ ./server/
 RUN npm run build
 
 # Production stage for Collaboration Server
-FROM node:18-alpine as collab-production
+FROM node:18-alpine AS collab-production
 
 WORKDIR /app
 
