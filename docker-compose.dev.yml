@@ -99,8 +99,8 @@ services:
     environment:
       - NODE_ENV=development
       - NODE_OPTIONS=--experimental-global-webcrypto
-      - VITE_API_URL=http://localhost:3004/api
-      - VITE_WS_URL=ws://localhost:3005
+      - VITE_API_URL=https://localhost:8443/api
+      - VITE_WS_URL=wss://localhost:8443/ws
       - VITE_SYNXSPHERE_URL=http://localhost:8000
       - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
       - REDIS_URL=redis://redis:6379
@@ -116,6 +116,20 @@ services:
     depends_on:
       - collaboration
     command: sh -c "cd /app/studio && /app/start-opendaw-http.sh"
+    restart: unless-stopped
+
+  # HTTPS proxy for collaboration server
+  collaboration-proxy:
+    image: nginx:alpine
+    container_name: opendaw_collaboration_proxy_dev
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./nginx/collaboration-proxy.conf:/etc/nginx/conf.d/default.conf
+      - ./openDAW/localhost.pem:/etc/ssl/certs/localhost.pem
+      - ./openDAW/localhost-key.pem:/etc/ssl/private/localhost-key.pem
+    depends_on:
+      - collaboration
     restart: unless-stopped
 
   # Development tools
