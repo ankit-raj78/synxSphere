@@ -47,7 +47,7 @@ export async function GET(
           { roomId: roomId },
           {
             userId: {
-              in: participants.map(p => p.userId)
+              in: participants.map((p: { userId: string }) => p.userId)
             }
           }
         ]
@@ -76,12 +76,12 @@ export async function GET(
     
     return NextResponse.json({
       room: room,
-      participants: participants.map(p => ({
+      participants: participants.map((p: { userId: string; joinedAt: Date; user: { username: string; email: string } }) => ({
         ...p,
         username: p.user.username,
         email: p.user.email
       })),
-      files: files.map(f => ({
+      files: files.map((f: { id: string; filename: string; originalName: string; fileSize: bigint; mimeType: string; createdAt: Date; user: { username: string } }) => ({
         ...f,
         uploader_name: f.user.username
       })),

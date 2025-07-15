@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // If we have AI recommendations, sort rooms based on AI scores
     if (aiRecommendations.length > 0) {
       const aiScoreMap = new Map(
-        aiRecommendations.map(rec => [rec.room_id, rec])
+        aiRecommendations.map((rec: any) => [rec.room_id, rec])
       )
 
       const sortedRooms = rooms

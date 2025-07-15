@@ -104,7 +104,7 @@ export async function GET(
         }
       });
 
-      const participantList = participants.map((p) => ({
+      const participantList = participants.map((p: { user: { id: string; email: string; username: string } } & { id: string; roomId: string; userId: string; role: string; instruments: any; isOnline: boolean; joinedAt: Date }) => ({
         id: p.user.id,
         username: p.user.username || p.user.email?.split('@')[0] || 'User',
         isOnline: p.isOnline,
@@ -127,7 +127,7 @@ export async function GET(
         orderBy: { uploadedAt: 'asc' }
       });
       
-      const tracks = audioTracks.map((t) => ({
+      const tracks = audioTracks.map((t: any) => ({
         id: t.id,
         name: t.name,
         artist: t.artist,
@@ -137,7 +137,7 @@ export async function GET(
         isCurrentlyPlaying: t.isCurrentlyPlaying
       }));
 
-      const currentTrack = tracks.find((track) => track.isCurrentlyPlaying) || null;
+      const currentTrack = tracks.find((track: any) => track.isCurrentlyPlaying) || null;
 
       const roomData = {
         id: room.id,

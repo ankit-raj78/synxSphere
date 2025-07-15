@@ -24,7 +24,7 @@ export async function DELETE(request: NextRequest) {
 
     try {
       // Use Prisma transaction to ensure all deletions happen atomically
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         // 1. Delete user's audio files records and get filenames for cleanup
         const audioFiles = await tx.audioFile.findMany({
           where: { userId: userId },
@@ -66,7 +66,7 @@ export async function DELETE(request: NextRequest) {
           deletedUser,
           audioFilesDeleted: audioFilesCount.count,
           roomsDeleted: roomsCount.count,
-          audioFilenames: audioFiles.map(f => f.filename)
+          audioFilenames: audioFiles.map((f: { filename: string }) => f.filename)
         };
       });
 

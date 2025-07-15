@@ -65,7 +65,7 @@ export async function GET(
     })
     
     // Format response to match expected structure
-    const formattedFiles = files.map(file => ({
+    const formattedFiles = files.map((file: any) => ({
       ...file,
       uploader_name: file.user.username
     }))

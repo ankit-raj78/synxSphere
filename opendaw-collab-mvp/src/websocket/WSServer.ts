@@ -1,4 +1,4 @@
-import WebSocket from 'ws'
+import WebSocket, { WebSocketServer } from 'ws'
 import { createCollabMessage, CollabMessage, CollabMessageType } from './MessageTypes'
 import { DatabaseService } from '../database/DatabaseService'
 
@@ -11,14 +11,14 @@ interface ConnectedClient {
 }
 
 export class WSServer {
-  private wss: WebSocket.Server
+  private wss: WebSocketServer
   private clients: Map<string, ConnectedClient> = new Map()
   private db: DatabaseService
   private heartbeatInterval: NodeJS.Timeout
 
   constructor(port: number, db: DatabaseService) {
     this.db = db
-    this.wss = new WebSocket.Server({ port })
+    this.wss = new WebSocketServer({ port })
     
     console.log(`WebSocket server started on port ${port}`)
     

@@ -38,7 +38,7 @@ export async function POST(
       const mixData = {
         roomId: params.id,
         mixId: `mix-${Date.now()}`,
-        tracks: tracks.map((track: any) => ({
+        tracks: tracks.map((track: { id: string; filename: string; originalName: string; fileSize: bigint; filePath: string; user: { username: string }; name?: string; volume?: number; pan?: number; effects?: any; isMuted?: boolean }) => ({
           id: track.id,
           name: track.name,
           volume: track.volume,

@@ -47,7 +47,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Use Prisma transaction to ensure atomicity
-    const deletedFile = await prisma.$transaction(async (tx) => {
+    const deletedFile = await prisma.$transaction(async (tx: any) => {
       // Delete from audio_analysis table first (foreign key constraint)
       await tx.audioAnalysis.deleteMany({
         where: { fileId: fileId }

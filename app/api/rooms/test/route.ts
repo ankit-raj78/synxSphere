@@ -37,7 +37,7 @@ export async function DELETE(request: NextRequest) {
       
       // Delete test room participants and rooms using transactions
       for (const room of testRooms) {
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
           // Delete participants first (due to foreign key constraints)
           await tx.roomParticipant.deleteMany({
             where: {

@@ -65,7 +65,7 @@ export async function GET(
     })
     
     // Format response to match expected structure
-    const formattedCompositions = compositions.map(comp => ({
+    const formattedCompositions = compositions.map((comp: { id: string; title: string; filePath: string; fileSize: bigint; isPublic: boolean; createdAt: Date; mixSettings: any; user: { username: string } }) => ({
       ...comp,
       composer_name: comp.user.username
     }))

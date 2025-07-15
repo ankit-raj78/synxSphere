@@ -136,7 +136,7 @@ export async function GET(
         }
       })
 
-      const formattedRequests = requests.map((req: any) => ({
+      const formattedRequests = requests.map((req: { user: { email: string; username: string } } & { id: string; createdAt: Date; userId: string; message: string | null }) => ({
         id: req.id,
         userId: req.userId,
         username: req.user.username || req.user.email?.split('@')[0] || 'User',

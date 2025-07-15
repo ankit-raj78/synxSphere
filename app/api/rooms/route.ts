@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         }
       })
       
-      const roomsData = rooms.map((room) => {
+      const roomsData = rooms.map((room: any) => {
         let settings = { maxParticipants: 10 }
         try {
           if (room.settings) {
