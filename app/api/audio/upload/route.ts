@@ -1,10 +1,18 @@
 // ✅ SECURE Audio Upload API using Prisma ORM - No SQL injection risk
 import { NextRequest, NextResponse } from 'next/server'
+
+// This route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic'
 import { DatabaseService } from '@/lib/prisma'
+
 import { verifyToken } from '@/lib/auth'
+
 import { analyzeAudioFeatures } from '@/lib/audio-analysis'
+
 import { writeFile, mkdir } from 'fs/promises'
+
 import { join } from 'path'
+
 
 export async function POST(request: NextRequest) {
   try {

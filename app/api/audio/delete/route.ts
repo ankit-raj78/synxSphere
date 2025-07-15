@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// This route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/prisma'
+
 import { verifyToken } from '@/lib/auth'
+
 import fs from 'fs/promises'
+
 
 export async function DELETE(request: NextRequest) {
   try {

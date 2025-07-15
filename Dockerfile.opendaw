@@ -3,16 +3,17 @@ FROM node:18-alpine AS opendaw-builder
 
 WORKDIR /app
 
-# Copy package files
-COPY openDAW/studio/package*.json ./
-COPY openDAW/studio/tsconfig.json ./
-COPY openDAW/studio/vite.config.ts ./
+# Copy the entire openDAW structure first
+COPY openDAW/ ./openDAW/
+
+# Change to studio directory
+WORKDIR /app/openDAW/studio
 
 # Install dependencies
 RUN npm ci
 
-# Copy source code
-COPY openDAW/ ../openDAW/
+# Create public directory and build-info.json for vite plugin  
+RUN mkdir -p public && echo '{"date":"'$(date +%s)'000","uuid":"opendaw-production","env":"production"}' > public/build-info.json
 
 # Build the application
 RUN npm run build
@@ -21,13 +22,14 @@ RUN npm run build
 FROM nginx:alpine AS opendaw-production
 
 # Copy built files to nginx
-COPY --from=opendaw-builder /app/dist /usr/share/nginx/html
+COPY --from=opendaw-builder /app/openDAW/studio/dist /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx/opendaw.conf /etc/nginx/conf.d/default.conf
 
 # Create SSL directory and generate self-signed certificates
-RUN mkdir -p /etc/ssl/certs /etc/ssl/private && \
+RUN apk add --no-cache openssl && \
+    mkdir -p /etc/ssl/certs /etc/ssl/private && \
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /etc/ssl/private/nginx.key \
     -out /etc/ssl/certs/nginx.crt \

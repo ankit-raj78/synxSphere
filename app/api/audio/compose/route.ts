@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// This route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/prisma'
+
 import { verifyToken } from '@/lib/auth'
+
 import { v4 as uuidv4 } from 'uuid'
+
 import { join } from 'path'
+
 import fs from 'fs/promises'
+
 
 export async function POST(request: NextRequest) {
   try {

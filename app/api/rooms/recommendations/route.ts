@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { AIService, AIRecommendation } from '@/lib/ai-service'
+import { DatabaseService } from '@/lib/prisma'
+
+// This route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {

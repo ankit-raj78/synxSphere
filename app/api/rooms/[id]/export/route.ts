@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// This route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic'
 import { verifyToken } from '@/lib/auth'
+
 
 // Export mixed audio from room tracks
 export async function POST(

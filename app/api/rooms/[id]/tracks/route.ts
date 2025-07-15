@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// This route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic'
 import { verifyToken } from '@/lib/auth'
+
 import { prisma } from '@/lib/prisma'
+
 import { writeFile, mkdir } from 'fs/promises'
+
 import path from 'path'
+
 
 // GET - Fetch tracks for a room
 export async function GET(

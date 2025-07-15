@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenDAW Studio - Embedded</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .studio-container {
+            text-align: center;
+            max-width: 600px;
+        }
+        .redirect-button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .redirect-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="studio-container">
+        <h1>OpenDAW Studio</h1>
+        <p>The OpenDAW Studio is running as a separate service.</p>
+        <p>Click the button below to access the full studio interface:</p>
+        <button class="redirect-button" onclick="window.open('https://localhost:8080', '_blank')">
+            Open OpenDAW Studio
+        </button>
+        <p><small>Note: The studio runs on HTTPS with a self-signed certificate.</small></p>
+    </div>
+</body>
+</html>

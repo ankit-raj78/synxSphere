@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "buildTime": "2025-07-15T04:00:00.000Z",
+  "environment": "production",
+  "commit": "unknown",
+  "features": {
+    "audio": true,
+    "collaboration": true,
+    "midi": true
+  }
+}

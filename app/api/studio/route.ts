@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 
+// This route serves dynamic content and should not be statically generated
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const fullPath = join(process.cwd(), 'public', 'studio', 'index-iframe.html')
