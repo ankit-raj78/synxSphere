@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { 
   Music, Users, Clock, Share2, 
   MoreHorizontal, UserPlus, Settings, Crown, Mic2, 
@@ -71,6 +72,7 @@ interface MusicRoomDashboardProps {
 }
 
 export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboardProps) {
+  const router = useRouter()
   const [room, setRoom] = useState<MusicRoom | null>(null)
   const [tracks, setTracks] = useState<AudioTrack[]>([])
   const [activeTab, setActiveTab] = useState<'mixer' | 'chat' | 'participants'>('mixer')
@@ -506,11 +508,16 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
               </button>
               <button
                 onClick={() => {
-                  const user = JSON.parse(localStorage.getItem('user') || '{}')
-                  const userId = user.username || 'User'
-                  const projectId = `room-${roomId}`
-                  const url = `https://localhost:8080/?projectId=${projectId}&userId=${userId}&collaborative=true&userName=${encodeURIComponent(user.username || 'User')}`
-                  window.open(url, '_blank')
+                  // In Docker environment, OpenDAW runs on port 8080
+                  // Pass roomId as projectId for collaboration features
+                  const user = JSON.parse(localStorage.getItem('user') || '{}');
+                  const userName = user.username || 'User';
+                  const userId = user.id || 'user-1';
+                  const url = `https://localhost:8080?projectId=room-${roomId}&userId=${userId}&userName=${encodeURIComponent(userName)}&collaborative=true`;
+                  const newWindow = window.open(url, '_blank', 'width=1200,height=800');
+                  if (!newWindow) {
+                    alert('Please allow popups to open OpenDAW Studio');
+                  }
                 }}
                 className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
               >

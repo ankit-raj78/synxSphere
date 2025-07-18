@@ -9,6 +9,8 @@ interface OpenDAWIntegrationProps {
   showLoading?: boolean;
   /** Custom styles for the iframe container */
   className?: string;
+  /** Room ID to load the default audio file from */
+  roomId?: string;
   /** Callback when openDAW is ready */
   onReady?: () => void;
   /** Callback when openDAW encounters an error */
@@ -20,6 +22,7 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
   height = '600px',
   showLoading = true,
   className = '',
+  roomId,
   onReady,
   onError
 }) => {
@@ -27,6 +30,53 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openDAWUrl, setOpenDAWUrl] = useState<string | null>(null);
+  const [roomProjectData, setRoomProjectData] = useState<any>(null);
+  const [isOpenDAWReady, setIsOpenDAWReady] = useState(false);
+
+  // Load room project data if roomId is provided
+  useEffect(() => {
+    if (roomId) {
+      const loadRoomProjectData = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            throw new Error('No authentication token found');
+          }
+
+          const response = await fetch(`/api/rooms/${roomId}/studio-project`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (!response.ok) {
+            // If no project exists yet, that's okay - OpenDAW will start with an empty project
+            console.log('No existing studio project found for room');
+            return;
+          }
+
+          const data = await response.json();
+          setRoomProjectData(data.projectData);
+          
+          // If OpenDAW is already ready, send the project data immediately
+          if (isOpenDAWReady && data.projectData) {
+            console.log('Sending newly loaded project data to OpenDAW:', data.projectData);
+            setTimeout(() => {
+              sendMessageToOpenDAW({
+                type: 'load-project',
+                projectData: data.projectData
+              });
+            }, 500); // Small delay to ensure OpenDAW is fully ready
+          }
+        } catch (err) {
+          console.error('Error loading room project data:', err);
+          // Don't set error state here - OpenDAW can still work without room data
+        }
+      };
+
+      loadRoomProjectData();
+    }
+  }, [roomId, isOpenDAWReady]);
 
   useEffect(() => {
     // Start the openDAW development server
@@ -57,6 +107,16 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
     if (onReady) {
       onReady();
     }
+    
+    // Send room project data to OpenDAW if available
+    if (roomProjectData) {
+      setTimeout(() => {
+        sendMessageToOpenDAW({
+          type: 'load-project',
+          projectData: roomProjectData
+        });
+      }, 1000); // Give OpenDAW time to fully initialize
+    }
   };
 
   const handleIframeError = () => {
@@ -77,7 +137,7 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
 
   // Listen for messages from the iframe
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.origin === 'https://localhost:8080') {
         // Handle messages from openDAW
         console.log('Message from OpenDAW:', event.data);
@@ -86,9 +146,44 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
         switch (event.data.type) {
           case 'opendaw-ready':
             console.log('OpenDAW is ready');
+            setIsOpenDAWReady(true);
+            // Send room project data when OpenDAW is ready
+            if (roomProjectData) {
+              console.log('Sending room project data to OpenDAW:', roomProjectData);
+              sendMessageToOpenDAW({
+                type: 'load-project',
+                projectData: roomProjectData
+              });
+            }
             break;
           case 'opendaw-error':
             console.error('OpenDAW error:', event.data.error);
+            break;
+          case 'save-project':
+            // Save project data back to the room
+            if (roomId && event.data.projectData) {
+              try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/rooms/${roomId}/studio-project`, {
+                  method: 'PUT',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    projectData: event.data.projectData
+                  })
+                });
+                
+                if (response.ok) {
+                  console.log('Project saved successfully');
+                } else {
+                  console.error('Failed to save project');
+                }
+              } catch (err) {
+                console.error('Error saving project:', err);
+              }
+            }
             break;
           // Add more message types as needed
         }
@@ -97,7 +192,7 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [roomId]);
 
   if (error) {
     return (

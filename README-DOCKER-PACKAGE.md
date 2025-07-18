@@ -20,13 +20,13 @@ cd synxSphere
 
 ### Access Your System
 - **🌐 Dashboard:** http://localhost:3000
-- **🎵 OpenDAW:** http://localhost:8080
+- **🎵 OpenDAW:** https://localhost:8080
 - **📡 API:** http://localhost:3003/api/health
 
 ### Test Collaboration
 Open these URLs in different browser tabs:
-- **User 1:** http://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice
-- **User 2:** http://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob
+- **User 1:** https://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice
+- **User 2:** https://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob
 
 ## ✨ Features
 
@@ -192,7 +192,7 @@ After running `./deploy-docker.sh dev up`, you should see:
 ✅ **All services running** - `docker-compose ps` shows all services as "Up"  
 ✅ **API responding** - `curl http://localhost:3003/api/health` returns {"status":"ok"}  
 ✅ **Dashboard accessible** - http://localhost:3000 loads  
-✅ **OpenDAW accessible** - http://localhost:8080 loads  
+✅ **OpenDAW accessible** - https://localhost:8080 loads  
 ✅ **Database working** - Can connect via http://localhost:8081  
 ✅ **Collaboration working** - Multiple users can edit the same project  
 

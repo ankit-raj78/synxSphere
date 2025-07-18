@@ -362,6 +362,44 @@ export class DatabaseService {
     })
   }
 
+  static async createDefaultRoomAudioFile(data: {
+    userId: string
+    roomId: string
+    roomName: string
+  }): Promise<AudioFile> {
+    const filename = `room_${data.roomId}_default.json`
+    const defaultProjectData = {
+      name: `${data.roomName} - Project`,
+      version: "1.0.0",
+      tracks: [],
+      tempo: 120,
+      timeSignature: [4, 4],
+      key: "C",
+      createdAt: new Date().toISOString(),
+      roomId: data.roomId
+    }
+    
+    return prisma.audioFile.create({
+      data: {
+        userId: data.userId,
+        filename,
+        originalName: `${data.roomName} - Default Project`,
+        filePath: `virtual://${filename}`,
+        fileSize: BigInt(JSON.stringify(defaultProjectData).length),
+        mimeType: 'application/json',
+        roomId: data.roomId,
+        format: 'opendaw-project',
+        isPublic: false,
+        metadata: {
+          type: 'default_room_project',
+          projectData: defaultProjectData,
+          isVirtual: true,
+          createdAt: new Date().toISOString()
+        }
+      }
+    })
+  }
+
   static async findAudioFileById(id: string): Promise<AudioFile | null> {
     return prisma.audioFile.findUnique({
       where: { id },
@@ -371,6 +409,30 @@ export class DatabaseService {
         analysis: true
       }
     })
+  }
+
+  // This method is deprecated, use getRoomStudioProject instead
+  static async getRoomDefaultAudioFile(roomId: string): Promise<any | null> {
+    // For backward compatibility, return the studio project data in AudioFile format
+    const studioProject = await this.getRoomStudioProject(roomId)
+    
+    if (!studioProject) {
+      return null
+    }
+
+    // Return in a format compatible with the old API endpoint
+    return {
+      id: studioProject.id,
+      filename: `${studioProject.name}.opendaw`,
+      originalName: `${studioProject.name}.opendaw`,
+      roomId: studioProject.roomId || '',
+      metadata: {
+        type: 'default_room_project',
+        projectData: studioProject.projectData
+      },
+      createdAt: studioProject.createdAt,
+      updatedAt: studioProject.updatedAt
+    }
   }
 
   static async deleteAudioFile(id: string, userId: string): Promise<AudioFile | null> {
@@ -414,6 +476,47 @@ export class DatabaseService {
     })
   }
 
+  // ===== STUDIO PROJECT METHODS =====
+
+  static async createStudioProject(data: {
+    userId: string
+    roomId?: string
+    name: string
+    description?: string
+    projectData?: any
+  }) {
+    return prisma.studioProject.create({
+      data: {
+        userId: data.userId,
+        roomId: data.roomId,
+        name: data.name,
+        description: data.description,
+        projectData: data.projectData || {}
+      }
+    })
+  }
+
+  static async getRoomStudioProject(roomId: string) {
+    return prisma.studioProject.findUnique({
+      where: { roomId }
+    })
+  }
+
+  static async updateStudioProject(id: string, data: {
+    projectData?: any
+    name?: string
+    description?: string
+  }) {
+    return prisma.studioProject.update({
+      where: { id },
+      data: {
+        ...data,
+        updatedAt: new Date()
+      }
+    })
+  }
+
+
   // ===== UTILITY METHODS =====
   
   static async healthCheck(): Promise<{ status: 'ok' | 'error'; timestamp: Date }> {
@@ -423,6 +526,30 @@ export class DatabaseService {
     } catch {
       return { status: 'error', timestamp: new Date() }
     }
+  }
+
+  static async createAudioTrack(data: {
+    roomId: string
+    uploaderId: string
+    name: string
+    filePath: string
+    duration?: string
+    artist?: string
+    waveform?: number[]
+    metadata?: any
+  }) {
+    return prisma.audioTrack.create({
+      data: {
+        roomId: data.roomId,
+        uploaderId: data.uploaderId,
+        name: data.name,
+        filePath: data.filePath,
+        duration: data.duration || "0:00",
+        artist: data.artist || "Unknown",
+        waveform: data.waveform || [],
+        metadata: data.metadata || {}
+      }
+    })
   }
 
   static async disconnect(): Promise<void> {

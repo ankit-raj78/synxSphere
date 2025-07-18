@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { verifyToken } from '@/lib/auth'
 
-import { prisma } from '@/lib/prisma'
+import { prisma, DatabaseService } from '@/lib/prisma'
+import { createDefaultAudioFileForRoom, createDefaultOpenDAWProjectData } from '@/lib/audio-utils'
 
 
 export async function GET(request: NextRequest) {
@@ -165,6 +166,36 @@ export async function POST(request: NextRequest) {
           isOnline: true
         }
       })
+
+      // Create default audio file and studio project for the room
+      try {
+        // Create default audio file for the room
+        const defaultAudioFile = await createDefaultAudioFileForRoom(
+          newRoom.id,
+          tokenData.id,
+          newRoom.name
+        )
+
+        // Create default OpenDAW project data with the audio file
+        const defaultProjectData = createDefaultOpenDAWProjectData(
+          newRoom.name,
+          defaultAudioFile
+        )
+
+        // Create the studio project with the default audio file
+        await DatabaseService.createStudioProject({
+          userId: tokenData.id,
+          roomId: newRoom.id,
+          name: newRoom.name,
+          description: `Studio project for ${newRoom.name}`,
+          projectData: defaultProjectData
+        })
+
+        console.log(`✅ Created default audio file and studio project for room ${newRoom.id}`)
+      } catch (studioError) {
+        console.error('Failed to create studio project and default audio file for room:', studioError)
+        // Don't fail room creation if studio project creation fails
+      }
 
       // Return the created room with participant count
       const responseRoom = {

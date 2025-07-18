@@ -58,6 +58,7 @@ model Room {
   messages     Message[]
   analytics    RoomAnalytics?
   interactions UserInteraction[]
+  studioProject StudioProject?
 }
 
 model RoomParticipant {
@@ -333,6 +334,7 @@ model RoomAnalytics {
 model StudioProject {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
+  roomId    String?  @unique @map("room_id")
   name      String
   description String?
   projectData Json    @map("project_data") // Store the openDAW project JSON
@@ -343,6 +345,7 @@ model StudioProject {
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room? @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@map("studio_projects")
 }
