@@ -51,7 +51,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: 'https://localhost:8080',
+            value: '*', // Allow all origins for development
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -60,6 +60,10 @@ const nextConfig = {
           {
             key: 'Access-Control-Allow-Headers',
             value: 'X-Requested-With, Content-Type, Authorization',
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true',
           },
           {
             key: 'Cache-Control',
@@ -72,7 +76,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: 'https://localhost:8080',
+            value: '*', // Allow all origins for development
           },
           {
             key: 'Access-Control-Allow-Methods',

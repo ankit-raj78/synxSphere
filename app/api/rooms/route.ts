@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
         // Create complete project files (.json, .od, .odsl)
         const projectFiles = createRoomProjectFiles(
           newRoom.id,
-          newRoom.name,
+          `test${newRoom.id}`,
           tokenData.id,
           defaultAudioFile
         )
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
         const studioProject = await DatabaseService.createStudioProject({
           userId: tokenData.id,
           roomId: newRoom.id,
-          name: newRoom.name,
+          name: `test${newRoom.id}`,
           description: `Studio project for ${newRoom.name}`,
           projectData: projectFiles.projectJson,
           projectBinary: projectFiles.projectBinary,
