@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { verifyToken } from '@/lib/auth'
 
-import { prisma } from '@/lib/prisma'
+import { prisma, DatabaseService } from '@/lib/prisma'
+import { createDefaultAudioFileForRoom, createRoomProjectFiles } from '@/lib/audio-utils'
 
 
 export async function GET(request: NextRequest) {
@@ -165,6 +166,53 @@ export async function POST(request: NextRequest) {
           isOnline: true
         }
       })
+
+      // Create default audio file and complete studio project files for the room
+      try {
+        // Create default audio file for the room (optional)
+        const defaultAudioFile = await createDefaultAudioFileForRoom(
+          newRoom.id,
+          tokenData.id,
+          newRoom.name
+        )
+
+        // Create complete project files (.json, .od, .odsl)
+        const projectFiles = createRoomProjectFiles(
+          newRoom.id,
+          newRoom.name,
+          tokenData.id,
+          defaultAudioFile
+        )
+
+        // Create the studio project with all file formats
+        const studioProject = await DatabaseService.createStudioProject({
+          userId: tokenData.id,
+          roomId: newRoom.id,
+          name: newRoom.name,
+          description: `Studio project for ${newRoom.name}`,
+          projectData: projectFiles.projectJson,
+          projectBinary: projectFiles.projectBinary,
+          syncVersion: 0
+        })
+
+        // Create the collaboration log
+        await prisma.collaborationLog.create({
+          data: {
+            roomId: newRoom.id,
+            studioProjectId: studioProject.id,
+            syncLog: projectFiles.syncLog,
+            lastSyncVersion: 0
+          }
+        })
+
+        console.log(`✅ Created complete project files for room ${newRoom.id}:`)
+        console.log(`   - JSON project data: ${JSON.stringify(projectFiles.projectJson).length} bytes`)
+        console.log(`   - Binary .od file: ${projectFiles.projectBinary.length} bytes`)
+        console.log(`   - Sync log .odsl file: ${projectFiles.syncLog.length} bytes`)
+      } catch (studioError) {
+        console.error('Failed to create studio project files for room:', studioError)
+        // Don't fail room creation if studio project creation fails
+      }
 
       // Return the created room with participant count
       const responseRoom = {

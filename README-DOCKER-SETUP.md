@@ -58,7 +58,7 @@ docker-compose -f docker-compose.production.yml exec synxsphere npx prisma db pu
 ### 4. Access the Applications
 - **OpenDAW Studio**: [http://localhost:8000](http://localhost:8000)
 - **SynxSphere Dashboard**: [http://localhost:3000](http://localhost:3000)
-- **Database Admin**: [http://localhost:8080](http://localhost:8080) (optional)
+- **Database Admin**: [https://localhost:8080](https://localhost:8080) (optional)
 
 ### 5. Test User Registration
 ```bash

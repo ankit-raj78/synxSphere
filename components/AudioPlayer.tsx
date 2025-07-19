@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Play, Pause, Volume2, VolumeX, RotateCcw } from 'lucide-react'
 
 interface AudioPlayerProps {
@@ -16,6 +16,17 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+        audioRef.current.load()
+      }
+    }
+  }, [])
 
   const togglePlay = async () => {
     if (!audioRef.current) return

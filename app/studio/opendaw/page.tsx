@@ -1,9 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import OpenDAWIntegration, { useOpenDAWIntegration } from '@/components/OpenDAWIntegration';
 
-const OpenDAWPage: React.FC = () => {
+const OpenDAWContent: React.FC = () => {
+  const searchParams = useSearchParams();
+  const roomId = searchParams?.get('roomId');
   const { isReady, error, handleReady, handleError } = useOpenDAWIntegration();
 
   return (
@@ -15,6 +18,11 @@ const OpenDAWPage: React.FC = () => {
           </h1>
           <p className="text-gray-600">
             Digital Audio Workstation powered by OpenDAW, integrated seamlessly into your React app.
+            {roomId && (
+              <span className="block text-sm text-blue-600 mt-1">
+                Loading room project: {roomId}
+              </span>
+            )}
           </p>
         </header>
 
@@ -76,6 +84,7 @@ const OpenDAWPage: React.FC = () => {
               <OpenDAWIntegration
                 width="100%"
                 height="700px"
+                roomId={roomId || undefined}
                 onReady={handleReady}
                 onError={handleError}
                 className="border-2 border-gray-200"
@@ -128,6 +137,21 @@ const OpenDAWPage: React.FC = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const OpenDAWPage: React.FC = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading OpenDAW Studio...</p>
+        </div>
+      </div>
+    }>
+      <OpenDAWContent />
+    </Suspense>
   );
 };
 

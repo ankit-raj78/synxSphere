@@ -34,6 +34,16 @@ export default function RoomFileUpload({ roomId, onFilesUploaded, onClose }: Roo
 
   useEffect(() => {
     fetchExistingFiles()
+    
+    // Cleanup on unmount
+    return () => {
+      if (audioRef) {
+        audioRef.pause()
+        audioRef.src = ''
+        setAudioRef(null)
+        setPlayingFile(null)
+      }
+    }
   }, [])
 
   const fetchExistingFiles = async () => {
@@ -172,7 +182,7 @@ export default function RoomFileUpload({ roomId, onFilesUploaded, onClose }: Roo
       })
       formData.append('roomId', roomId)
 
-      const response = await fetch('/api/audio/upload', {
+      const response = await fetch(`/api/rooms/${roomId}/audio/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

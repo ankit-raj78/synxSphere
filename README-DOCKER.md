@@ -20,21 +20,21 @@ cd synxSphere
 
 # 3. Start collaborating!
 # Visit: http://localhost:3000 (Dashboard)
-# Visit: http://localhost:8080 (OpenDAW Studio)
+# Visit: https://localhost:8080 (OpenDAW Studio)
 ```
 
 ## 🎯 What You Get
 
 ### 🌐 Access URLs
 - **📊 SynxSphere Dashboard:** http://localhost:3000
-- **🎵 OpenDAW Studio:** http://localhost:8080  
+- **🎵 OpenDAW Studio:** https://localhost:8080  
 - **📡 API Health Check:** http://localhost:3003/api/health
 - **🗄️ Database Admin:** http://localhost:8081
 
 ### 🧪 Test Collaboration
 Open these URLs in different browser tabs to test multi-user collaboration:
-- **User 1:** http://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice
-- **User 2:** http://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob
+- **User 1:** https://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice
+- **User 2:** https://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob
 
 ## 📋 Team Commands
 

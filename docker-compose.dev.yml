@@ -56,6 +56,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - WS_PORT=3005
       - HTTP_PORT=3003
+      - PGPASSWORD=collaboration
     ports:
       - "3004:3003"
       - "3005:3005"
@@ -64,9 +65,11 @@ services:
       - ./opendaw-collab-mvp:/app
       - /app/node_modules
     depends_on:
-      - postgres
-      - redis
-    command: sh -c "npm install && npm run dev"
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: sh -c "apk add --no-cache postgresql-client && chmod +x /app/wait-for-postgres.sh && /app/wait-for-postgres.sh postgres 5432 npm install && npm run dev"
     restart: unless-stopped
 
   # SynxSphere Dashboard (development mode)
@@ -102,6 +105,8 @@ services:
       - VITE_API_URL=https://localhost:8443/api
       - VITE_WS_URL=wss://localhost:8443/ws
       - VITE_SYNXSPHERE_URL=http://localhost:8000
+      - VITE_COLLABORATION_WS_URL=ws://collaboration:3005
+      - VITE_COLLABORATION_HTTP_URL=http://collaboration:3003
       - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
       - REDIS_URL=redis://redis:6379
       - WS_PORT=3005
@@ -111,11 +116,10 @@ services:
       - "9231:9231"  # Debug port
     volumes:
       - ./openDAW:/app
-      - ./start-opendaw-http.sh:/app/start-opendaw-http.sh
       - /app/node_modules
     depends_on:
       - collaboration
-    command: sh -c "cd /app/studio && /app/start-opendaw-http.sh"
+    command: sh -c "ls -la /app/ && chmod +x /app/start-opendaw-http.sh && sh /app/start-opendaw-http.sh"
     restart: unless-stopped
 
   # HTTPS proxy for collaboration server

@@ -120,7 +120,7 @@ HTTP_PORT=3003
 # Frontend URLs
 NEXT_PUBLIC_API_URL=http://localhost:3003/api
 NEXT_PUBLIC_WS_URL=ws://localhost:3005
-NEXT_PUBLIC_OPENDAW_URL=http://localhost:8080
+NEXT_PUBLIC_OPENDAW_URL=https://localhost:8080
 
 # OpenDAW Environment
 VITE_API_URL=http://localhost:3003/api
@@ -185,7 +185,7 @@ case $ACTION in
         echo -e "${CYAN}🔗 Access URLs:${NC}"
         if [[ "$ENVIRONMENT" == "dev" ]]; then
             echo -e "   📊 SynxSphere Dashboard: ${BLUE}http://localhost:3000${NC}"
-            echo -e "   🎵 OpenDAW Studio: ${BLUE}http://localhost:8080${NC}"
+            echo -e "   🎵 OpenDAW Studio: ${BLUE}https://localhost:8080${NC}"
             echo -e "   📡 Collaboration API: ${BLUE}http://localhost:3003/api/health${NC}"
             echo -e "   🗄️  Database Admin: ${BLUE}http://localhost:8081${NC}"
         else
@@ -196,8 +196,8 @@ case $ACTION in
         fi
         echo ""
         echo -e "${CYAN}🧪 Test Collaboration:${NC}"
-        echo -e "   User 1: ${BLUE}http://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice${NC}"
-        echo -e "   User 2: ${BLUE}http://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob${NC}"
+        echo -e "   User 1: ${BLUE}https://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice${NC}"
+        echo -e "   User 2: ${BLUE}https://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob${NC}"
         ;;
         
     "down")

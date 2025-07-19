@@ -181,11 +181,38 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   }
 
   const handleFileUpload = async (files: File[]) => {
-    // Handle file upload logic here
-    console.log('Uploading files:', files)
-    // After successful upload, reload tracks
-    await loadTracks()
-    setShowUploadModal(false)
+    try {
+      const token = localStorage.getItem('token')
+      const formData = new FormData()
+      
+      // Add all files to the same form data
+      files.forEach(file => {
+        formData.append('files', file)
+      })
+
+      const response = await fetch(`/api/rooms/${roomId}/audio/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Successfully uploaded files:', data)
+        
+        // Refresh tracks from server
+        await loadTracks()
+        setShowUploadModal(false)
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload files')
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error)
+      alert('Failed to upload files. Please try again.')
+    }
   }
 
   const togglePlayback = () => {

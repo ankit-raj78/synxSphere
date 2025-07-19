@@ -62,11 +62,16 @@ export default function FileUploadModal({
     // Filter for audio files
     const audioFiles = files.filter(file => {
       const extension = '.' + file.name.split('.').pop()?.toLowerCase()
-      return acceptedFormats.includes(extension)
+      const mimeType = file.type
+      console.log('Checking file:', file.name, 'extension:', extension, 'mimeType:', mimeType)
+      
+      // Check both file extension and MIME type
+      return acceptedFormats.includes(extension) || mimeType.startsWith('audio/')
     })
 
     if (audioFiles.length === 0) {
-      alert('Please select valid audio files')
+      const selectedExtensions = files.map(f => '.' + f.name.split('.').pop()?.toLowerCase()).join(', ')
+      alert(`Please select valid audio files. Selected files have extensions: ${selectedExtensions}. Supported: ${acceptedFormats.join(', ')}`)
       return
     }
 

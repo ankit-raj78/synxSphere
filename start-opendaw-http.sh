@@ -75,6 +75,7 @@ export default defineConfig(({mode, command}) => {
     }
     if (command === "serve") {
         config.server = {
+            host: '0.0.0.0',
             port: 8080,
             strictPort: true,
             https: {

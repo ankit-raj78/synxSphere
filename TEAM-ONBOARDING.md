@@ -20,13 +20,13 @@
 
 ### Verify Installation
 - [ ] Visit dashboard: http://localhost:3000
-- [ ] Visit OpenDAW: http://localhost:8080
+- [ ] Visit OpenDAW: https://localhost:8080
 - [ ] Check API health: http://localhost:3003/api/health
 - [ ] Access database admin: http://localhost:8081
 
 ### Test Collaboration
-- [ ] Open User 1 URL: http://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice
-- [ ] Open User 2 URL in different browser/tab: http://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob
+- [ ] Open User 1 URL: https://localhost:8080/?collaborative=true&projectId=test&userId=user1&userName=Alice
+- [ ] Open User 2 URL in different browser/tab: https://localhost:8080/?collaborative=true&projectId=test&userId=user2&userName=Bob
 - [ ] Create audio tracks in one browser
 - [ ] Verify tracks appear in real-time in other browser
 - [ ] Test auto-save by refreshing and rejoining
