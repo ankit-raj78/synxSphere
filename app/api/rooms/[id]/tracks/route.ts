@@ -29,119 +29,56 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Mock data for now - in production this would fetch from database
-    const mockTracks = [
-      {
-        id: 'track-1',
-        name: 'Arctic Monkeys - Do I Wanna Know - Bass',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_bass.wav',
-        uploadedBy: {
-          id: 'user-1',
-          username: 'musicfan',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.1) * 0.5 + 0.5),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 75,
-        pan: 0,
-        effects: {
-          reverb: 0,
-          delay: 0,
-          lowpass: 0,
-          highpass: 0,
-          distortion: 0
-        },
-        color: '#8B5CF6',
-        uploadedAt: new Date().toISOString()
+    // Fetch actual tracks from database
+    const audioTracks = await prisma.audioTrack.findMany({
+      where: {
+        roomId: params.id
       },
-      {
-        id: 'track-2',
-        name: 'Arctic Monkeys - Do I Wanna Know - Drums',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_drums.wav',
-        uploadedBy: {
-          id: 'user-2',
-          username: 'drummer_pro',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.random() * 0.8 + 0.2),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 80,
-        pan: 0,
-        effects: {
-          reverb: 10,
-          delay: 5,
-          lowpass: 0,
-          highpass: 0,
-          distortion: 0
-        },
-        color: '#EF4444',
-        uploadedAt: new Date().toISOString()
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        }
       },
-      {
-        id: 'track-3',
-        name: 'Arctic Monkeys - Do I Wanna Know - Vocals',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_vocals.wav',
-        uploadedBy: {
-          id: 'user-3',
-          username: 'vocalist',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.05) * 0.7 + 0.3),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 85,
-        pan: 0,
-        effects: {
-          reverb: 25,
-          delay: 15,
-          lowpass: 0,
-          highpass: 10,
-          distortion: 0
-        },
-        color: '#10B981',
-        uploadedAt: new Date().toISOString()
-      },
-      {
-        id: 'track-4',
-        name: 'Arctic Monkeys - Do I Wanna Know - Other',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_other.wav',
-        uploadedBy: {
-          id: 'user-4',
-          username: 'guitarist',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.cos(i * 0.08) * 0.6 + 0.4),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 70,
-        pan: 0,
-        effects: {
-          reverb: 15,
-          delay: 8,
-          lowpass: 0,
-          highpass: 0,
-          distortion: 5
-        },
-        color: '#F59E0B',
-        uploadedAt: new Date().toISOString()
+      orderBy: {
+        uploadedAt: 'desc'
       }
-    ]
+    })
 
-    return NextResponse.json({ tracks: mockTracks })
+    // Convert database tracks to frontend format
+    const tracks = audioTracks.map(track => ({
+      id: track.id,
+      name: track.name,
+      originalName: track.name, // Use name since originalName isn't in schema
+      uploadedBy: {
+        id: track.uploader.id,
+        username: track.uploader.username || track.uploader.email?.split('@')[0] || 'User',
+        avatar: null
+      },
+      duration: typeof track.duration === 'string' ? parseFloat(track.duration) : 0,
+      waveform: Array.isArray(track.waveform) ? track.waveform : Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.1) * 0.5 + 0.5),
+      filePath: track.filePath,
+      isPlaying: false,
+      isMuted: false,
+      isSolo: false,
+      isLocked: false,
+      volume: 75,
+      pan: 0,
+      effects: {
+        reverb: 0,
+        delay: 0,
+        lowpass: 0,
+        highpass: 0,
+        distortion: 0
+      },
+      color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`, // Random color
+      uploadedAt: track.uploadedAt.toISOString()
+    }))
+
+    return NextResponse.json({ tracks })
   } catch (error) {
     console.error('Error fetching room tracks:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

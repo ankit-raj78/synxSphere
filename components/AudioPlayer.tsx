@@ -41,11 +41,22 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           const token = localStorage.getItem('token')
           console.log('Fetching audio stream for fileId:', fileId)
           
-          const response = await fetch(`/api/audio/stream/${fileId}`, {
+          // Try the tracks endpoint first, then fall back to the general audio stream
+          let response = await fetch(`/api/audio/tracks/${fileId}/stream`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
           })
+          
+          // If tracks endpoint fails, try the general audio stream endpoint
+          if (!response.ok) {
+            console.log('Tracks endpoint failed, trying general audio stream')
+            response = await fetch(`/api/audio/stream/${fileId}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+          }
           
           console.log('Audio stream response:', response.status, response.statusText)
           console.log('Response content-type:', response.headers.get('content-type'))
@@ -57,7 +68,7 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
               console.log('Large file detected, using direct streaming')
               
               // Set API URL directly, let browser handle streaming
-              const directUrl = `/api/audio/stream/${fileId}?auth=${encodeURIComponent(token || '')}`
+              const directUrl = `/api/audio/tracks/${fileId}/stream?auth=${encodeURIComponent(token || '')}`
               audioRef.current.src = directUrl
               audioRef.current.load()
               console.log('Audio element loaded with direct URL')

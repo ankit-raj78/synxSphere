@@ -172,10 +172,18 @@ export default function AudioMixer({
   }
 
   const handleCompose = () => {
+    console.log('AudioMixer handleCompose called', { selectedTracks, onCompose: !!onCompose })
     if (onCompose && selectedTracks.length >= 2) {
       onCompose()
     } else {
       alert('Please select at least 2 tracks to compose')
+    }
+  }
+
+  const handleExportMix = () => {
+    console.log('AudioMixer handleExportMix called', { tracks: tracks.length, onExportMix: !!onExportMix })
+    if (onExportMix) {
+      onExportMix()
     }
   }
 
@@ -198,38 +206,6 @@ export default function AudioMixer({
     })
     
     return path
-  }
-
-  const handleExportMix = async () => {
-    try {
-      setExportProgress(0)
-      
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setExportProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return 90
-          }
-          return prev + 10
-        })
-      }, 200)
-
-      // Call the parent's export function
-      await onExportMix()
-
-      clearInterval(progressInterval)
-      setExportProgress(100)
-      
-      setTimeout(() => {
-        setExportProgress(0)
-      }, 2000)
-      
-    } catch (error) {
-      console.error('Error exporting mix:', error)
-      alert('Failed to export mix. Please try again.')
-      setExportProgress(0)
-    }
   }
 
   return (
@@ -307,7 +283,7 @@ export default function AudioMixer({
             )}
             
             <button
-              onClick={onExportMix}
+              onClick={handleExportMix}
               disabled={isExporting || tracks.length === 0}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors text-white font-medium ${
                 isExporting || tracks.length === 0

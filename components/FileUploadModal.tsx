@@ -27,7 +27,7 @@ export default function FileUploadModal({
   onUpload, 
   roomId,
   maxFiles = 10,
-  acceptedFormats = ['.wav', '.mp3', '.flac', '.aac', '.m4a', '.ogg']
+  acceptedFormats = ['.wav', '.mp3', '.flac', '.aac', '.m4a', '.ogg', '.wma', '.opus']
 }: FileUploadModalProps) {
   const [dragActive, setDragActive] = useState(false)
   const [uploads, setUploads] = useState<UploadProgress[]>([])
@@ -59,11 +59,37 @@ export default function FileUploadModal({
   }
 
   const handleFiles = async (files: File[]) => {
+    // Define accepted MIME types
+    const acceptedMimeTypes = [
+      'audio/wav', 'audio/wave', 'audio/x-wav',
+      'audio/mpeg', 'audio/mp3',
+      'audio/flac', 'audio/x-flac',
+      'audio/aac', 'audio/mp4',
+      'audio/m4a', 'audio/x-m4a',
+      'audio/ogg', 'audio/vorbis',
+      'audio/wma', 'audio/x-ms-wma',
+      'audio/opus'
+    ]
+
     // Filter for audio files
     const audioFiles = files.filter(file => {
       const extension = '.' + file.name.split('.').pop()?.toLowerCase()
-      return acceptedFormats.includes(extension)
+      const mimeType = file.type.toLowerCase()
+      
+      console.log(`File: ${file.name}, Extension: ${extension}, MIME: ${mimeType}`)
+      console.log('Accepted formats:', acceptedFormats)
+      console.log('Accepted MIME types:', acceptedMimeTypes)
+      console.log('Extension included:', acceptedFormats.includes(extension))
+      console.log('MIME type included:', acceptedMimeTypes.includes(mimeType))
+      
+      // Check both extension and MIME type
+      const validExtension = acceptedFormats.includes(extension)
+      const validMimeType = acceptedMimeTypes.includes(mimeType) || mimeType.startsWith('audio/')
+      
+      return validExtension || validMimeType
     })
+
+    console.log(`Total files: ${files.length}, Audio files: ${audioFiles.length}`)
 
     if (audioFiles.length === 0) {
       alert('Please select valid audio files')

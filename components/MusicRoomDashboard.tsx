@@ -93,6 +93,9 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const [showComposeModal, setShowComposeModal] = useState(false)
 
   useEffect(() => {
+    const token = localStorage.getItem('token')
+    console.log('MusicRoomDashboard mounted', { roomId, token: token ? 'Present' : 'Missing' })
+    
     loadRoomData()
     loadTracks()
     loadJoinRequests()
@@ -171,9 +174,10 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
 
       if (response.ok) {
         const data = await response.json()
-        // Only show actual uploaded tracks, not mock data
-        const realTracks = data.tracks?.filter((track: any) => track.filePath && !track.filePath.includes('mock')) || []
-        setTracks(realTracks)
+        console.log('Tracks loaded:', data.tracks?.length || 0)
+        setTracks(data.tracks || [])
+      } else {
+        console.error('Failed to load tracks:', response.status)
       }
     } catch (error) {
       console.error('Error loading tracks:', error)
@@ -242,8 +246,10 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   }
 
   const handleExportMix = async () => {
+    console.log('handleExportMix called', { tracks: tracks.length })
     try {
       const token = localStorage.getItem('token')
+      console.log('Token:', token ? 'Present' : 'Missing')
       
       const response = await fetch(`/api/rooms/${roomId}/export`, {
         method: 'POST',
@@ -316,6 +322,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   }
 
   const handleCompose = async () => {
+    console.log('handleCompose called', { selectedTracks, tracks: tracks.length })
     if (selectedTracks.length < 2) {
       alert('Please select at least 2 tracks to compose')
       return
@@ -324,6 +331,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
     setIsComposing(true)
     try {
       const token = localStorage.getItem('token')
+      console.log('Token:', token ? 'Present' : 'Missing')
       
       const response = await fetch('/api/audio/compose', {
         method: 'POST',
