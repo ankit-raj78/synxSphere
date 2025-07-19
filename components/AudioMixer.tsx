@@ -102,22 +102,26 @@ export default function AudioMixer({
   const masterGainRef = useRef<GainNode | null>(null)
 
   useEffect(() => {
-    // Initialize Web Audio API
-    if (typeof window !== 'undefined') {
+    // Initialize Web Audio API once
+    if (typeof window !== 'undefined' && !audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
       masterGainRef.current = audioContextRef.current.createGain()
       masterGainRef.current.connect(audioContextRef.current.destination)
     }
 
-    // Calculate total duration
-    const maxDuration = Math.max(...tracks.map(track => track.duration), 0)
-    setTotalDuration(maxDuration)
-
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close()
+        audioContextRef.current = null
+        masterGainRef.current = null
       }
     }
+  }, []) // Only initialize once
+
+  useEffect(() => {
+    // Calculate total duration when tracks change
+    const maxDuration = Math.max(...tracks.map(track => track.duration), 0)
+    setTotalDuration(maxDuration)
   }, [tracks])
 
   const togglePlayback = () => {

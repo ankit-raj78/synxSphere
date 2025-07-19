@@ -139,7 +139,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
       })
       setParticipantActivity(newActivity)
     }
-  }, [room?.participants, participantActivity])
+  }, [room?.participants])
 
   const loadRoomData = async () => {
     try {
@@ -284,33 +284,32 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
   const handleFileUpload = async (files: File[]) => {
     try {
       const token = localStorage.getItem('token')
-      const uploadPromises = files.map(async (file) => {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('name', file.name.replace(/\.[^/.]+$/, ''))
-
-        const response = await fetch(`/api/rooms/${roomId}/tracks`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          return data.track
-        } else {
-          throw new Error(`Failed to upload ${file.name}`)
-        }
+      const formData = new FormData()
+      
+      // Add all files to the same form data
+      files.forEach(file => {
+        formData.append('files', file)
       })
 
-      const uploadedTracks = await Promise.all(uploadPromises)
-      console.log('Successfully uploaded tracks:', uploadedTracks)
-      
-      // Refresh tracks from server
-      await loadTracks()
-      setShowUploadModal(false)
+      const response = await fetch(`/api/rooms/${roomId}/audio/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Successfully uploaded files:', data)
+        
+        // Refresh tracks from server
+        await loadTracks()
+        setShowUploadModal(false)
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload files')
+      }
     } catch (error) {
       console.error('Error uploading files:', error)
       alert('Failed to upload files. Please try again.')
@@ -510,10 +509,30 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                 onClick={() => {
                   // In Docker environment, OpenDAW runs on port 8080
                   // Pass roomId as projectId for collaboration features
+                  const token = localStorage.getItem('token');
                   const user = JSON.parse(localStorage.getItem('user') || '{}');
                   const userName = user.username || 'User';
                   const userId = user.id || 'user-1';
-                  const url = `https://localhost:8080?projectId=room-${roomId}&userId=${userId}&userName=${encodeURIComponent(userName)}&collaborative=true`;
+                  
+                  // Build URL with token parameter for audio file access
+                  const params = new URLSearchParams({
+                    projectId: `room-${roomId}`,
+                    userId: userId,
+                    userName: encodeURIComponent(userName),
+                    collaborative: 'true'
+                  });
+                  
+                  // Add token if available
+                  if (token) {
+                    params.set('auth_token', btoa(token)); // Base64 encode the token
+                    console.log('🔑 Added token to openDAW URL for room audio access');
+                  } else {
+                    console.warn('⚠️ No token found when opening studio - audio files may not load');
+                  }
+                  
+                  const url = `https://localhost:8080?${params.toString()}`;
+                  console.log('🔗 Opening openDAW with enhanced URL:', url);
+                  
                   const newWindow = window.open(url, '_blank', 'width=1200,height=800');
                   if (!newWindow) {
                     alert('Please allow popups to open OpenDAW Studio');
@@ -906,7 +925,7 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
           onClose={() => setShowUploadModal(false)}
           roomId={roomId}
           maxFiles={5}
-          acceptedFormats={['audio/mpeg', 'audio/wav', 'audio/flac', 'audio/m4a']}
+          acceptedFormats={['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg']}
         />
       )}
 

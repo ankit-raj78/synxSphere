@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { DatabaseService } from '@/lib/prisma'
+import { createDefaultOpenDAWProjectData } from '@/lib/audio-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +38,40 @@ export async function GET(
       return NextResponse.json({ error: 'No studio project found for this room' }, { status: 404 })
     }
 
-    return NextResponse.json(studioProject)
+    // Get all audio files for this room
+    const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
+    
+    // Convert to the format expected by OpenDAW
+    const formattedFiles = audioFiles.map(file => ({
+      id: file.id,
+      filename: file.filename,
+      originalName: file.originalName,
+      filePath: file.filePath,
+      fileSize: Number(file.fileSize),
+      mimeType: file.mimeType,
+      duration: Number(file.duration) || 0,
+      sampleRate: file.sampleRate,
+      channels: file.channels,
+      format: file.format,
+      metadata: file.metadata
+    }))
+
+    // Generate updated project data with all room audio files as tracks
+    const room = await DatabaseService.findRoomById(roomId)
+    const enhancedProjectData = createDefaultOpenDAWProjectData(
+      room?.name || 'Room Project',
+      roomId,
+      undefined, // No default audio file
+      formattedFiles // All room audio files
+    )
+
+    // Return the project with enhanced data including all audio files
+    return NextResponse.json({
+      ...studioProject,
+      projectData: enhancedProjectData,
+      audioFiles: formattedFiles,
+      audioFileCount: formattedFiles.length
+    })
   } catch (error) {
     console.error('Error fetching studio project:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -83,7 +117,18 @@ export async function PUT(
         description: body.description,
         projectData: body.projectData || {}
       })
-      return NextResponse.json(newProject)
+      
+      // Return only essential fields to avoid JSON.stringify size limits
+      return NextResponse.json({
+        id: newProject.id,
+        name: newProject.name,
+        description: newProject.description,
+        roomId: newProject.roomId,
+        userId: newProject.userId,
+        createdAt: newProject.createdAt,
+        updatedAt: newProject.updatedAt,
+        success: true
+      })
     }
 
     // Update the existing project
@@ -93,7 +138,18 @@ export async function PUT(
       description: body.description
     })
 
-    return NextResponse.json(updatedProject)
+    // Return minimal response to avoid any JSON.stringify issues
+    // Avoid accessing any potentially large fields like projectData or projectBundle
+    return NextResponse.json({
+      id: updatedProject.id,
+      name: updatedProject.name,
+      description: updatedProject.description,
+      roomId: updatedProject.roomId,
+      userId: updatedProject.userId,
+      createdAt: updatedProject.createdAt,
+      updatedAt: updatedProject.updatedAt,
+      success: true
+    })
   } catch (error) {
     console.error('Error updating studio project:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

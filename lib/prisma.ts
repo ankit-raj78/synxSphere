@@ -484,6 +484,8 @@ export class DatabaseService {
     name: string
     description?: string
     projectData?: any
+    projectBinary?: Buffer
+    syncVersion?: number
   }) {
     return prisma.studioProject.create({
       data: {
@@ -491,19 +493,38 @@ export class DatabaseService {
         roomId: data.roomId,
         name: data.name,
         description: data.description,
-        projectData: data.projectData || {}
+        projectData: data.projectData || {},
+        projectBinary: data.projectBinary,
+        syncVersion: data.syncVersion || 0
       }
     })
   }
 
   static async getRoomStudioProject(roomId: string) {
     return prisma.studioProject.findUnique({
-      where: { roomId }
+      where: { roomId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        projectData: true,
+        projectBinary: true,
+        projectBundle: true,
+        version: true,
+        syncVersion: true,
+        isPublic: true,
+        createdAt: true,
+        updatedAt: true,
+        userId: true,
+        roomId: true
+      }
     })
   }
 
   static async updateStudioProject(id: string, data: {
     projectData?: any
+    projectBinary?: Buffer
+    projectBundle?: Buffer
     name?: string
     description?: string
   }) {
@@ -512,7 +533,28 @@ export class DatabaseService {
       data: {
         ...data,
         updatedAt: new Date()
+      },
+      // Only select fields that are safe to return (exclude large binary/data fields)
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        roomId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        version: true,
+        syncVersion: true,
+        isPublic: true,
+        // Exclude: projectData, projectBinary, projectBundle
       }
+    })
+  }
+
+  static async getRoomAudioFiles(roomId: string) {
+    return prisma.audioFile.findMany({
+      where: { roomId },
+      orderBy: { createdAt: 'desc' }
     })
   }
 

@@ -31,6 +31,7 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [openDAWUrl, setOpenDAWUrl] = useState<string | null>(null);
   const [roomProjectData, setRoomProjectData] = useState<any>(null);
+  const [roomAudioFiles, setRoomAudioFiles] = useState<any[]>([]);
   const [isOpenDAWReady, setIsOpenDAWReady] = useState(false);
 
   // Load room project data if roomId is provided
@@ -57,14 +58,18 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
 
           const data = await response.json();
           setRoomProjectData(data.projectData);
+          setRoomAudioFiles(data.audioFiles || []);
           
-          // If OpenDAW is already ready, send the project data immediately
+          // If OpenDAW is already ready, send the project data and audio files immediately
           if (isOpenDAWReady && data.projectData) {
             console.log('Sending newly loaded project data to OpenDAW:', data.projectData);
+            console.log('Audio files to import:', data.audioFiles);
             setTimeout(() => {
               sendMessageToOpenDAW({
                 type: 'load-project',
-                projectData: data.projectData
+                projectData: data.projectData,
+                audioFiles: data.audioFiles || [],
+                autoImport: true
               });
             }, 500); // Small delay to ensure OpenDAW is fully ready
           }
@@ -88,7 +93,55 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
           method: 'HEAD'
         });
         
-        setOpenDAWUrl('https://localhost:8080');
+        console.log('🚀 OpenDAW server check completed, building URL...');
+        
+        // Build openDAW URL with room parameters
+        let openDAWUrl = 'https://localhost:8080'
+        
+        if (roomId) {
+          const token = localStorage.getItem('token');
+          const user = localStorage.getItem('user');
+          let userId = '';
+          let userName = 'Unknown User';
+          
+          console.log('🔐 Building openDAW URL - Token available:', !!token);
+          console.log('👤 User data from localStorage:', user);
+          
+          if (user) {
+            try {
+              const userData = JSON.parse(user);
+              userId = userData.id || userData.userId || '';
+              userName = userData.username || userData.name || 'Unknown User';
+              console.log('✅ Parsed user data:', { userId, userName });
+            } catch (e) {
+              console.warn('Failed to parse user data from localStorage');
+            }
+          }
+          
+          // Add room parameters to openDAW URL
+          const params = new URLSearchParams({
+            projectId: `room-${roomId}`,
+            userId: userId,
+            userName: encodeURIComponent(userName),
+            collaborative: 'true'
+          });
+          
+          // Add token as URL parameter (encoded for security)
+          if (token) {
+            const encodedToken = btoa(token);
+            params.set('auth_token', encodedToken);
+            // Also store in sessionStorage as backup
+            sessionStorage.setItem('synxsphere_token', token);
+            console.log('🔑 Added encoded token to URL parameters');
+          } else {
+            console.warn('⚠️ No token found in localStorage!');
+          }
+          
+          openDAWUrl = `https://localhost:8080?${params.toString()}`;
+          console.log('🔗 Opening openDAW with room parameters:', openDAWUrl);
+        }
+        
+        setOpenDAWUrl(openDAWUrl);
       } catch (err) {
         // Server not running, we'll need to start it
         console.log('OpenDAW server not running. Please start it manually.');
@@ -113,7 +166,9 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
       setTimeout(() => {
         sendMessageToOpenDAW({
           type: 'load-project',
-          projectData: roomProjectData
+          projectData: roomProjectData,
+          audioFiles: roomAudioFiles,
+          autoImport: true
         });
       }, 1000); // Give OpenDAW time to fully initialize
     }
@@ -150,9 +205,12 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
             // Send room project data when OpenDAW is ready
             if (roomProjectData) {
               console.log('Sending room project data to OpenDAW:', roomProjectData);
+              console.log('Audio files to auto-import:', roomAudioFiles);
               sendMessageToOpenDAW({
                 type: 'load-project',
-                projectData: roomProjectData
+                projectData: roomProjectData,
+                audioFiles: roomAudioFiles,
+                autoImport: true
               });
             }
             break;

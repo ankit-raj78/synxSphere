@@ -59,6 +59,7 @@ model Room {
   analytics    RoomAnalytics?
   interactions UserInteraction[]
   studioProject StudioProject?
+  collaborationLog CollaborationLog?
 }
 
 model RoomParticipant {
@@ -338,7 +339,10 @@ model StudioProject {
   name      String
   description String?
   projectData Json    @map("project_data") // Store the openDAW project JSON
+  projectBinary Bytes? @map("project_binary") // Store the .od binary file
+  projectBundle Bytes? @map("project_bundle") // Store the .odb bundle file (with samples)
   version   String   @default("1.0")
+  syncVersion Int     @default(0) @map("sync_version")
   isPublic  Boolean  @default(false) @map("is_public")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -346,8 +350,25 @@ model StudioProject {
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   room Room? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  collaborationLog CollaborationLog?
 
   @@map("studio_projects")
+}
+
+model CollaborationLog {
+  id        String   @id @default(uuid())
+  roomId    String   @unique @map("room_id")
+  studioProjectId String @unique @map("studio_project_id")
+  syncLog   Bytes    @map("sync_log") // Store the .odsl sync log file
+  lastSyncVersion Int @default(0) @map("last_sync_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  studioProject StudioProject @relation(fields: [studioProjectId], references: [id], onDelete: Cascade)
+
+  @@map("collaboration_logs")
 }
 
 model AudioFeatures {
