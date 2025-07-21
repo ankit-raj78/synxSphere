@@ -302,40 +302,118 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
+    const roomId = params.id
+    console.log(`🗑️ Starting comprehensive deletion for room ${roomId} by user ${tokenData.id}`)
+
     try {
-      // Check if user is the room creator
+      // Check if room exists and user has permission to delete it
       const room = await prisma.room.findUnique({
-        where: { id: params.id },
-        select: {
-          id: true,
-          creatorId: true
+        where: { id: roomId },
+        select: { 
+          id: true, 
+          name: true, 
+          creatorId: true,
+          createdAt: true 
         }
-      });
-      
+      })
+
       if (!room) {
         return NextResponse.json({ error: 'Room not found' }, { status: 404 })
       }
-      
-      // Check if current user is the creator
+
+      // Only room creator can delete the room
       if (room.creatorId !== tokenData.id) {
-        return NextResponse.json({ error: 'Only room creator can delete the room' }, { status: 403 })
+        return NextResponse.json({ 
+          error: 'Access denied: Only room creator can delete the room' 
+        }, { status: 403 })
       }
+
+      console.log(`✅ Permission verified for room deletion: ${room.name}`)
+
+      // Start comprehensive deletion process
+      let deletionSummary = {
+        roomId: roomId,
+        roomName: room.name,
+        audioFilesDeleted: 0,
+        studioProjectsDeleted: 0,
+        participantsRemoved: 0,
+        collaborationLogsDeleted: 0,
+        compositionsDeleted: 0
+      }
+
+      // 1. Delete all audio files for this room
+      console.log(`🎵 Deleting audio files for room ${roomId}...`)
+      const audioFiles = await prisma.audioFile.findMany({
+        where: { roomId: roomId },
+        select: { id: true, filename: true, filePath: true }
+      })
       
-      // Delete room using transaction (participants will be deleted due to cascade)
+      console.log(`Found ${audioFiles.length} audio files to delete`)
+      
+      // Delete database records for audio files
+      const deletedAudioFiles = await prisma.audioFile.deleteMany({
+        where: { roomId: roomId }
+      })
+      deletionSummary.audioFilesDeleted = deletedAudioFiles.count
+      console.log(`✅ Deleted ${deletedAudioFiles.count} audio file records`)
+
+      // 2. Delete all compositions for this room
+      console.log(`🎼 Deleting compositions for room ${roomId}...`)
+      const deletedCompositions = await prisma.composition.deleteMany({
+        where: { roomId: roomId }
+      })
+      deletionSummary.compositionsDeleted = deletedCompositions.count
+      console.log(`✅ Deleted ${deletedCompositions.count} compositions`)
+
+      // 3. Delete collaboration logs
+      console.log(`📋 Deleting collaboration logs for room ${roomId}...`)
+      const deletedCollabLogs = await prisma.collaborationLog.deleteMany({
+        where: { roomId: roomId }
+      })
+      deletionSummary.collaborationLogsDeleted = deletedCollabLogs.count
+      console.log(`✅ Deleted ${deletedCollabLogs.count} collaboration logs`)
+
+      // 4. Delete studio projects
+      console.log(`🏗️ Deleting studio projects for room ${roomId}...`)
+      const deletedStudioProjects = await prisma.studioProject.deleteMany({
+        where: { roomId: roomId }
+      })
+      deletionSummary.studioProjectsDeleted = deletedStudioProjects.count
+      console.log(`✅ Deleted ${deletedStudioProjects.count} studio projects`)
+
+      // 5. Remove all participants
+      console.log(`👥 Removing participants from room ${roomId}...`)
+      const deletedParticipants = await prisma.roomParticipant.deleteMany({
+        where: { roomId: roomId }
+      })
+      deletionSummary.participantsRemoved = deletedParticipants.count
+      console.log(`✅ Removed ${deletedParticipants.count} participants`)
+
+      // 6. Finally, delete the room itself
+      console.log(`🏠 Deleting room ${roomId}...`)
       await prisma.room.delete({
-        where: { id: params.id }
-      });
-      
-      return NextResponse.json({ message: 'Room deleted successfully' })
+        where: { id: roomId }
+      })
+      console.log(`✅ Room ${roomId} deleted successfully`)
+
+      console.log(`🎉 Room deletion completed successfully:`, deletionSummary)
+
+      return NextResponse.json({
+        success: true,
+        message: `Room "${room.name}" and all associated data have been deleted successfully`,
+        deletionSummary: deletionSummary
+      })
       
     } catch (dbError) {
-      console.log('Database not available for room deletion:', dbError)
-      // For development, just return success
-      return NextResponse.json({ message: 'Room deleted successfully (mock)' })
+      console.error('❌ Database error during room deletion:', dbError)
+      return NextResponse.json({ 
+        error: 'Failed to delete room from database', 
+        details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+      }, { status: 500 })
     }
     
   } catch (error) {
-    console.error('Error deleting room:', error)
+    console.error('❌ Error deleting room:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

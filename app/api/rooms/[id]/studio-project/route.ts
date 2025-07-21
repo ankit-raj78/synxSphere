@@ -11,9 +11,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   console.log('[Studio Project API] GET request received for room:', params.id)
+  console.log('[Studio Project API] Request URL:', request.url)
+  console.log('[Studio Project API] Request method:', request.method)
   
   try {
     const authHeader = request.headers.get('authorization')
+    console.log('[Studio Project API] Auth header present:', !!authHeader)
     const token = authHeader?.replace('Bearer ', '')
     
     if (!token) {
@@ -42,13 +45,22 @@ export async function GET(
 
     // Get the room's studio project
     console.log('[Studio Project API] Fetching studio project...')
-    const studioProject = await DatabaseService.getRoomStudioProject(roomId)
+    let studioProject = await DatabaseService.getRoomStudioProject(roomId)
     
     if (!studioProject) {
-      console.log('[Studio Project API] No studio project found for room:', roomId)
-      return NextResponse.json({ error: 'No studio project found for this room' }, { status: 404 })
+      console.log('[Studio Project API] No studio project found for room:', roomId, '- creating one')
+      // Create a new studio project for this room
+      studioProject = await DatabaseService.createStudioProject({
+        userId: tokenData.id,
+        roomId: roomId,
+        name: `Studio Project for Room ${roomId}`,
+        description: `Auto-created studio project for room collaboration`,
+        projectData: { tempo: 120, timeSignature: { numerator: 4, denominator: 4 } }
+      })
+      console.log('[Studio Project API] Created new studio project:', studioProject.id)
+    } else {
+      console.log('[Studio Project API] Studio project found:', studioProject.id)
     }
-    console.log('[Studio Project API] Studio project found:', studioProject.id)
 
     // Get all audio files for this room
     console.log('[Studio Project API] Fetching audio files...')
@@ -146,8 +158,13 @@ export async function GET(
       })
     }
   } catch (error) {
-    console.error('Error fetching studio project:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[Studio Project API] Error fetching studio project:', error)
+    console.error('[Studio Project API] Error stack:', error.stack)
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error.message,
+      roomId: params.id 
+    }, { status: 500 })
   }
 }
 

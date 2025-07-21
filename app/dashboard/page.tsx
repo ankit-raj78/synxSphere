@@ -13,6 +13,8 @@ import AudioPlayer from '../../components/AudioPlayer'
 import RoomCreation from '../../components/RoomCreation'
 import ConfirmationModal from '../../components/ConfirmationModal'
 import { formatDate, formatDateTime } from '../../lib/date-utils'
+import { deleteRoomWithConfirmation, RoomDeletionSummary } from '../../lib/room-management'
+import { Toaster } from 'react-hot-toast'
 
 interface User {
   _id: string
@@ -55,6 +57,7 @@ export default function DashboardPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [joinRequestCount, setJoinRequestCount] = useState(0)
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
   const roomRecommendationsRef = useRef<RoomRecommendationsRef>(null)
 
   useEffect(() => {
@@ -150,6 +153,38 @@ export default function DashboardPage() {
       setJoinRequestCount(totalRequests)
     } catch (error) {
       console.error('Error loading join requests count:', error)
+    }
+  }
+
+  // Handle room deletion
+  const handleDeleteRoom = async (roomId: string, roomName: string) => {
+    setDeletingRoomId(roomId)
+    
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        console.error('No authentication token found')
+        return
+      }
+
+      const result = await deleteRoomWithConfirmation(
+        roomId,
+        roomName,
+        token,
+        (summary: RoomDeletionSummary) => {
+          console.log('Room deletion completed:', summary)
+          // Refresh room data after successful deletion
+          loadUserRoomData()
+        }
+      )
+
+      if (result) {
+        console.log('Room deletion successful')
+      }
+    } catch (error) {
+      console.error('Error deleting room:', error)
+    } finally {
+      setDeletingRoomId(null)
     }
   }
 
@@ -618,12 +653,31 @@ export default function DashboardPage() {
                               <span>{room.genre}</span>
                               <span>{new Date(room.created_at).toLocaleDateString()}</span>
                             </div>
-                            <button
-                              onClick={() => window.location.href = `/room/${room.id}`}
-                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
-                            >
-                              Enter Room
-                            </button>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => handleDeleteRoom(room.id, room.name)}
+                                disabled={deletingRoomId === room.id}
+                                className={`
+                                  px-3 py-2 rounded transition-colors flex items-center space-x-1
+                                  ${deletingRoomId === room.id 
+                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                                    : 'bg-red-600 hover:bg-red-700 text-white'
+                                  }
+                                `}
+                                title="Delete room and all associated data"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="hidden sm:inline">
+                                  {deletingRoomId === room.id ? 'Deleting...' : 'Delete'}
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => window.location.href = `/room/${room.id}`}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
+                              >
+                                Enter Room
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1007,6 +1061,19 @@ export default function DashboardPage() {
         cancelText="Cancel"
         type="danger"
         isLoading={isDeleting}
+      />
+      
+      {/* Toast notifications */}
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#1f2937',
+            color: '#f3f4f6',
+            border: '1px solid #374151'
+          }
+        }}
       />
     </div>
   )

@@ -79,8 +79,18 @@ export async function GET(
     }
     console.log('Audio file path from DB:', audioFile.filePath)
     
-    // Fix path resolution: prepend /app since container mounts current dir as /app
-    const containerPath = `/app${audioFile.filePath}`
+    // Handle path resolution for room-specific uploads
+    let containerPath: string
+    
+    if (audioFile.filePath.startsWith('/uploads/rooms/')) {
+      // Room-specific uploads: /uploads/rooms/{roomId}/{filename}
+      containerPath = `/app/public${audioFile.filePath}`
+    } else {
+      // Other formats not supported for room audio
+      console.error('Unsupported file path format for room audio:', audioFile.filePath)
+      return NextResponse.json({ error: 'File path format not supported' }, { status: 400 })
+    }
+    
     console.log('Container file path:', containerPath)
 
     try {
@@ -89,19 +99,8 @@ export async function GET(
         fileBuffer = await readFile(containerPath)
         console.log('File read successfully from DB path, size:', fileBuffer.length, 'bytes')
       } catch (pathError) {
-        console.log('File not found at DB path, trying fallback to known working file...')
-        
-        // TEMPORARY: Use a known working file for testing
-        const knownWorkingFile = '/app/uploads/1749766949804_qolr4_Arctic_Monkeys_-_Do_I_Wanna_Know___Official_Video__drums.wav'
-        console.log('Using fallback path:', knownWorkingFile)
-        
-        try {
-          fileBuffer = await readFile(knownWorkingFile)
-          console.log('File read successfully from fallback path, size:', fileBuffer.length, 'bytes')
-        } catch (fallbackError) {
-          console.log('Fallback file also not found:', fallbackError)
-          throw new Error(`File not accessible: ${audioFile.originalName}`)
-        }
+        console.error('File not found at path:', containerPath, pathError)
+        return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
       }
       
       return new NextResponse(fileBuffer, {
