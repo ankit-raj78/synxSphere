@@ -110,7 +110,7 @@ services:
     container_name: opendaw_studio
     environment:
       - OPENDAW_API_URL=http://collaboration:3003/api
-      - OPENDAW_WS_URL=ws://collaboration:3005
+      - OPENDAW_WS_URL=wss://localhost:8443/ws
       - SYNXSPHERE_URL=http://synxsphere:3000
     ports:
       - "8080:443"  # HTTPS

@@ -217,7 +217,26 @@ export async function POST(
       const buffer = Buffer.from(bytes)
       await writeFile(filePath, buffer)
 
-      // Create audio track record with available fields
+      // First create audio file record
+      const audioFile = await prisma.audioFile.create({
+        data: {
+          userId: tokenData.id,
+          filename: fileName,
+          originalName: file.name,
+          filePath: `/uploads/rooms/${params.id}/${fileName}`,
+          fileSize: BigInt(file.size),
+          mimeType: file.type,
+          isProcessed: false,
+          isPublic: false,
+          roomId: params.id,
+          metadata: {
+            uploadedVia: 'room-track-upload',
+            originalFileName: file.name
+          }
+        }
+      })
+
+      // Then create audio track record linking to the audio file
       const audioTrack = await prisma.audioTrack.create({
         data: {
           roomId: params.id,
@@ -226,7 +245,11 @@ export async function POST(
           filePath: `/uploads/rooms/${params.id}/${fileName}`,
           duration: "0:00", // Will be updated after audio analysis
           waveform: [],
-          artist: tokenData.email?.split('@')[0] || 'User'
+          artist: tokenData.email?.split('@')[0] || 'User',
+          metadata: {
+            audioFileId: audioFile.id,
+            originalFileName: file.name
+          }
         }
       })
 
@@ -244,7 +267,7 @@ export async function POST(
       const track = {
         id: audioTrack.id,
         name: audioTrack.name,
-        originalName: file.name, // Use file.name since originalName isn't in schema
+        originalName: audioFile.originalName,
         uploadedBy: {
           id: uploader?.id || tokenData.id,
           username: uploader?.username || uploader?.email?.split('@')[0] || 'User'
@@ -252,8 +275,9 @@ export async function POST(
         duration: audioTrack.duration || "0:00",
         waveform: audioTrack.waveform as number[],
         filePath: audioTrack.filePath,
-        fileSize: file.size, // Use file.size since not in schema
-        mimeType: file.type, // Use file.type since not in schema  
+        fileSize: Number(audioFile.fileSize),
+        mimeType: audioFile.mimeType,
+        audioFileId: audioFile.id, // Include reference to AudioFile record
         volume: 1.0, // Default since not in schema
         pan: 0, // Default since not in schema
         effects: {

@@ -153,7 +153,7 @@ NEXT_PUBLIC_OPENDAW_URL=https://your-domain.com:8080
 
 # OpenDAW Environment
 OPENDAW_API_URL=http://collaboration:3003/api
-OPENDAW_WS_URL=ws://collaboration:3005
+OPENDAW_WS_URL=wss://collaboration:3005
 SYNXSPHERE_URL=http://synxsphere:3000
 EOF
     fi
