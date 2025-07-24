@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPFS Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        button { padding: 10px 15px; margin: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>OPFS and SynxSphere Integration Test</h1>
+
+    <div class="section">
+        <h2>OPFS Support Test</h2>
+        <button onclick="testOPFS()">Test OPFS</button>
+        <div id="opfs-results" class="log"></div>
+    </div>
+
+    <div class="section">
+        <h2>Browser Storage Test</h2>
+        <button onclick="testBrowserStorage()">Test Browser Storage</button>
+        <div id="storage-results" class="log"></div>
+    </div>
+
+    <div class="section">
+        <h2>URL Parameters</h2>
+        <button onclick="testURLParams()">Check URL Parameters</button>
+        <div id="url-results" class="log"></div>
+    </div>
+
+    <div class="section">
+        <h2>Mock Audio File Upload Test</h2>
+        <input type="file" id="audioFile" accept="audio/*" />
+        <button onclick="testAudioUpload()">Test Upload</button>
+        <div id="upload-results" class="log"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            element.innerHTML += `<div class="${className}">[${new Date().toLocaleTimeString()}] ${message}</div>`;
+        }
+
+        async function testOPFS() {
+            const resultsId = 'opfs-results';
+            document.getElementById(resultsId).innerHTML = '';
+            
+            try {
+                // Test if OPFS is supported
+                if (!navigator.storage || !navigator.storage.getDirectory) {
+                    log(resultsId, 'OPFS not supported in this browser', 'error');
+                    return;
+                }
+
+                log(resultsId, 'OPFS is supported!', 'success');
+
+                // Get the root directory
+                const root = await navigator.storage.getDirectory();
+                log(resultsId, 'Got OPFS root directory', 'success');
+
+                // Create a test directory
+                const testDir = await root.getDirectoryHandle('synxsphere-test', { create: true });
+                log(resultsId, 'Created test directory: synxsphere-test', 'success');
+
+                // Create a test file
+                const testFile = await testDir.getFileHandle('test.txt', { create: true });
+                const writable = await testFile.createWritable();
+                await writable.write('Hello OPFS!');
+                await writable.close();
+                log(resultsId, 'Created and wrote to test file', 'success');
+
+                // Read back the file
+                const file = await testFile.getFile();
+                const content = await file.text();
+                log(resultsId, `Read file content: "${content}"`, 'success');
+
+                // List directory contents
+                const entries = [];
+                for await (const [name, handle] of testDir.entries()) {
+                    entries.push(`${name} (${handle.kind})`);
+                }
+                log(resultsId, `Directory contents: ${entries.join(', ')}`, 'success');
+
+            } catch (error) {
+                log(resultsId, `OPFS test failed: ${error.message}`, 'error');
+                console.error('OPFS test error:', error);
+            }
+        }
+
+        function testBrowserStorage() {
+            const resultsId = 'storage-results';
+            document.getElementById(resultsId).innerHTML = '';
+
+            try {
+                // Test localStorage
+                const testKey = 'synxsphere-test';
+                const testValue = 'test-data-' + Date.now();
+                
+                localStorage.setItem(testKey, testValue);
+                const retrieved = localStorage.getItem(testKey);
+                
+                if (retrieved === testValue) {
+                    log(resultsId, 'localStorage working correctly', 'success');
+                } else {
+                    log(resultsId, 'localStorage test failed', 'error');
+                }
+
+                // List all localStorage keys
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    keys.push(localStorage.key(i));
+                }
+                log(resultsId, `localStorage keys: ${keys.join(', ')}`, 'info');
+
+                // Test sessionStorage
+                sessionStorage.setItem(testKey, testValue);
+                const sessionRetrieved = sessionStorage.getItem(testKey);
+                
+                if (sessionRetrieved === testValue) {
+                    log(resultsId, 'sessionStorage working correctly', 'success');
+                } else {
+                    log(resultsId, 'sessionStorage test failed', 'error');
+                }
+
+                // Clean up
+                localStorage.removeItem(testKey);
+                sessionStorage.removeItem(testKey);
+
+            } catch (error) {
+                log(resultsId, `Browser storage test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testURLParams() {
+            const resultsId = 'url-results';
+            document.getElementById(resultsId).innerHTML = '';
+
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const params = {};
+                
+                for (const [key, value] of urlParams) {
+                    params[key] = value;
+                }
+
+                log(resultsId, `Current URL: ${window.location.href}`, 'info');
+                log(resultsId, `URL Parameters: ${JSON.stringify(params, null, 2)}`, 'info');
+                
+                // Check for specific SynxSphere parameters
+                const roomId = urlParams.get('roomId');
+                const userId = urlParams.get('userId');
+                const token = urlParams.get('token');
+                
+                if (roomId) log(resultsId, `Found roomId: ${roomId}`, 'success');
+                if (userId) log(resultsId, `Found userId: ${userId}`, 'success');
+                if (token) log(resultsId, `Found token: ${token}`, 'success');
+                
+                if (!roomId && !userId && !token) {
+                    log(resultsId, 'No SynxSphere parameters found', 'info');
+                }
+
+            } catch (error) {
+                log(resultsId, `URL test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAudioUpload() {
+            const resultsId = 'upload-results';
+            document.getElementById(resultsId).innerHTML = '';
+            
+            const fileInput = document.getElementById('audioFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log(resultsId, 'Please select an audio file first', 'error');
+                return;
+            }
+
+            try {
+                log(resultsId, `Selected file: ${file.name} (${file.size} bytes, ${file.type})`, 'info');
+
+                // Test reading the file
+                const arrayBuffer = await file.arrayBuffer();
+                log(resultsId, `Successfully read file as ArrayBuffer (${arrayBuffer.byteLength} bytes)`, 'success');
+
+                // Test storing in OPFS
+                if (navigator.storage && navigator.storage.getDirectory) {
+                    const root = await navigator.storage.getDirectory();
+                    const audioDir = await root.getDirectoryHandle('audio-files', { create: true });
+                    const audioFile = await audioDir.getFileHandle(file.name, { create: true });
+                    
+                    const writable = await audioFile.createWritable();
+                    await writable.write(arrayBuffer);
+                    await writable.close();
+                    
+                    log(resultsId, `Successfully stored file in OPFS: audio-files/${file.name}`, 'success');
+                    
+                    // Verify the stored file
+                    const storedFile = await audioFile.getFile();
+                    log(resultsId, `Verified stored file: ${storedFile.size} bytes`, 'success');
+                } else {
+                    log(resultsId, 'OPFS not available, cannot test file storage', 'error');
+                }
+
+            } catch (error) {
+                log(resultsId, `Audio upload test failed: ${error.message}`, 'error');
+                console.error('Audio upload test error:', error);
+            }
+        }
+
+        // Auto-run some tests on load
+        window.addEventListener('load', () => {
+            testURLParams();
+            testBrowserStorage();
+        });
+    </script>
+</body>
+</html>

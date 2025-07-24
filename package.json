@@ -50,6 +50,7 @@
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.303.0",
+    "mongodb": "^6.18.0",
     "music-metadata": "^11.7.1",
     "next": "^14.0.4",
     "pg": "^8.16.3",
