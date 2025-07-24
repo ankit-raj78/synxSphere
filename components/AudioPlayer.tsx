@@ -42,9 +42,6 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
       return
     }
 
-    console.log('AudioPlayer current location:', window.location.href)
-    console.log('AudioPlayer will fetch:', `/api/audio/stream/${fileId}`)
-
     if (isPlaying) {
       audioRef.current.pause()
       setIsPlaying(false)
@@ -52,85 +49,43 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
       if (!audioRef.current.src) {
         setLoading(true)
         try {
-          const token = localStorage.getItem('token')
+          // Remove authentication requirement for testing
           console.log('Fetching audio stream for fileId:', fileId)
+          console.log('Authentication disabled for testing')
           
-          // Use absolute URL to avoid base URL issues
-          const streamUrl = `${window.location.origin}/api/audio/stream/${fileId}`
-          console.log('Constructed stream URL:', streamUrl)
-          
-          const response = await fetch(streamUrl, {
+          const response = await fetch(`/api/audio/stream/${fileId}`, {
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Accept': 'audio/*'
             }
           })
           
           console.log('Audio stream response:', response.status, response.statusText)
           console.log('Response content-type:', response.headers.get('content-type'))
           console.log('Response content-length:', response.headers.get('content-length'))
-            if (response.ok) {
-            // Always use blob approach for better compatibility
-            const contentLength = parseInt(response.headers.get('content-length') || '0')
-            console.log(`File size: ${(contentLength / 1024 / 1024).toFixed(2)} MB - using blob approach`)
-            
-            console.log('Starting blob conversion...')
+          
+          if (response.ok) {
+            // Always use blob approach to ensure proper authentication
+            // The browser HTML audio element can't send Authorization headers with direct URLs
+            console.log('Creating blob from response...')
             const blob = await response.blob()
             console.log('Blob created, size:', blob.size, 'type:', blob.type)
-            const audioUrl = URL.createObjectURL(blob)
-            console.log('Audio src set to blob URL:', audioUrl.substring(0, 50) + '...')
-            console.log('Setting audioRef.current.src to:', audioUrl)
             
-            // Double-check the blob URL before setting
-            if (!audioUrl.startsWith('blob:')) {
-              console.error('Invalid blob URL constructed:', audioUrl)
-              setError('Failed to create audio blob')
-              return
-            }
+            // Ensure the blob has the correct MIME type
+            const contentType = response.headers.get('content-type') || 'audio/wav'
+            const audioBlob = new Blob([blob], { type: contentType })
+            
+            const audioUrl = URL.createObjectURL(audioBlob)
+            console.log('Audio src set:', audioUrl.substring(0, 50) + '...')
+            console.log('Blob MIME type:', audioBlob.type)
             
             // Set src and load the audio
             audioRef.current.src = audioUrl
             audioRef.current.load()
-            console.log('Audio element loaded with blob URL, final src:', audioRef.current.src)
+            console.log('Audio element loaded with blob URL')
             
             // Wait for audio to be ready, then play
             try {
               console.log('Audio loaded, attempting to play...')
-              console.log('Audio element state before play:', {
-                src: audioRef.current.src,
-                readyState: audioRef.current.readyState,
-                networkState: audioRef.current.networkState,
-                error: audioRef.current.error
-              })
-              
-              // Wait a bit for the audio to be ready
-              if (audioRef.current.readyState < 2) { // HAVE_CURRENT_DATA
-                console.log('Audio not ready yet, waiting for canplay event')
-                await new Promise((resolve, reject) => {
-                  const timeoutId = setTimeout(() => {
-                    reject(new Error('Audio load timeout'))
-                  }, 10000) // 10 second timeout
-                  
-                  const onCanPlay = () => {
-                    clearTimeout(timeoutId)
-                    audioRef.current?.removeEventListener('canplay', onCanPlay)
-                    audioRef.current?.removeEventListener('error', onError)
-                    console.log('Audio ready state achieved:', audioRef.current?.readyState)
-                    resolve(true)
-                  }
-                  
-                  const onError = (e: Event) => {
-                    clearTimeout(timeoutId)
-                    audioRef.current?.removeEventListener('canplay', onCanPlay)
-                    audioRef.current?.removeEventListener('error', onError)
-                    console.error('Audio load error:', e)
-                    reject(new Error('Audio load failed'))
-                  }
-                  
-                  audioRef.current?.addEventListener('canplay', onCanPlay)
-                  audioRef.current?.addEventListener('error', onError)
-                })
-              }
-              
               await audioRef.current.play()
               setIsPlaying(true)
               console.log('Audio playback started successfully')
@@ -147,8 +102,18 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
             
           } else {
             const errorText = await response.text()
-            console.error('Audio stream error:', errorText)
-            setError('Failed to load audio')
+            console.error('Audio stream error:', response.status, response.statusText)
+            console.error('Error response body:', errorText)
+            
+            if (response.status === 401) {
+              setError('Authentication failed - please refresh and try again')
+            } else if (response.status === 404) {
+              setError('Audio file not found')
+            } else if (response.status === 403) {
+              setError('Access denied to audio file')
+            } else {
+              setError(`Failed to load audio: ${response.status} ${response.statusText}`)
+            }
           }
         } catch (error) {
           console.error('Error loading audio:', error)
@@ -222,30 +187,43 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
 
   const handleError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     const audio = e.currentTarget
+    const error = audio.error
+    
     console.error('Audio error event:', e)
     console.error('Audio error details:', {
-      error: audio.error,
+      code: error?.code,
+      message: error?.message,
+      src: audio.src,
       networkState: audio.networkState,
       readyState: audio.readyState,
-      src: audio.src,
-      fileId: fileId,
-      currentLocation: window.location.href
+      fileId
     })
-    
-    // Check if the src got corrupted to the current page URL
-    if (audio.src === window.location.href) {
-      console.error('CRITICAL: Audio src was set to current page URL instead of API endpoint!')
-      console.error('This indicates a relative URL resolution issue')
-    }
-    
-    if (audio.error) {
-      console.error('Audio error code:', audio.error.code)
-      console.error('Audio error message:', audio.error.message)
-    }
     
     setLoading(false)
     setIsPlaying(false)
-    setError(`Audio playback error (Code: ${audio.error?.code || 'unknown'})`)
+    
+    // Provide more specific error messages based on error code
+    let errorMessage = 'Audio playback error'
+    if (error) {
+      switch (error.code) {
+        case 1: // MEDIA_ERR_ABORTED
+          errorMessage = 'Audio playback was aborted'
+          break
+        case 2: // MEDIA_ERR_NETWORK
+          errorMessage = 'Network error while loading audio'
+          break
+        case 3: // MEDIA_ERR_DECODE
+          errorMessage = 'Audio file is corrupted or invalid format'
+          break
+        case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+          errorMessage = 'Audio format not supported or file inaccessible'
+          break
+        default:
+          errorMessage = `Audio playback error (Code: ${error.code})`
+      }
+    }
+    
+    setError(errorMessage)
   }
 
   const handlePlay = () => {

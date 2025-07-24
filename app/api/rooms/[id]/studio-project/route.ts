@@ -59,6 +59,9 @@ export async function GET(
     }
     console.log('[Studio Project API] User is a member, role:', membership.role)
 
+    // Create base URL for audio streaming (used in both branches)
+    const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+
     // Get the room's studio project
     console.log('[Studio Project API] Fetching studio project...')
     let studioProject = await DatabaseService.getRoomStudioProject(roomId)
@@ -80,7 +83,7 @@ export async function GET(
         id: file.id,
         filename: file.filename,
         originalName: file.originalName,
-        filePath: file.filePath,
+        filePath: `${baseUrl}/api/audio/stream/${file.id}?auth=${encodeURIComponent(token)}`, // Include auth token in URL
         fileSize: Number(file.fileSize),
         mimeType: file.mimeType,
         duration: Number(file.duration) || 0,
@@ -89,7 +92,6 @@ export async function GET(
       
       // Create OpenDAW project data with all audio files as tracks
       console.log('[Studio Project API] Creating OpenDAW project with', formattedAudioFiles.length, 'tracks')
-      const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
       const openDAWProjectData = createDefaultOpenDAWProjectData(
         projectName,
         roomId,
@@ -98,16 +100,16 @@ export async function GET(
         baseUrl // Base URL for audio streaming
       )
       
-      console.log('[Studio Project API] Returning OpenDAW project with tracks:', openDAWProjectData.tracks?.length)
+      console.log('[Studio Project API] Returning room audio files for OpenDAW project creation')
       return NextResponse.json({
         id: `room-${roomId}`,
         name: projectName,
         data: {
-          type: 'opendaw-serialized-project',
+          type: 'room-audio-files',
           roomId: roomId,
           projectName: projectName,
-          projectData: openDAWProjectData,
-          audioFiles: formattedAudioFiles, // Include for reference
+          audioFiles: formattedAudioFiles,
+          createDefaultProject: true, // Tell OpenDAW to create a default project
           authConfig: {
             requiresAuth: true,
             authType: 'bearer',
@@ -135,13 +137,13 @@ export async function GET(
         // Project exists but no valid collaboration data - create OpenDAW project
         console.log('[Studio Project API] Studio project exists but no valid collaboration data, creating OpenDAW project')
         
-        // Get all audio files for this room
+        // Get all audio files for this room  
         const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
         const formattedAudioFiles = audioFiles.map(file => ({
           id: file.id,
           filename: file.filename,
           originalName: file.originalName,
-          filePath: file.filePath,
+          filePath: `${baseUrl}/api/audio/stream/${file.id}?auth=${encodeURIComponent(token)}`, // Include auth token in URL
           fileSize: Number(file.fileSize),
           mimeType: file.mimeType,
           duration: Number(file.duration) || 0,
@@ -149,7 +151,6 @@ export async function GET(
         }))
         
         // Create OpenDAW project data with all audio files as tracks
-        const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
         const openDAWProjectData = createDefaultOpenDAWProjectData(
           studioProject.name,
           roomId,
@@ -162,11 +163,11 @@ export async function GET(
           id: studioProject.id,
           name: studioProject.name,
           data: {
-            type: 'opendaw-serialized-project',
+            type: 'room-audio-files',
             roomId: roomId,
             projectName: studioProject.name,
-            projectData: openDAWProjectData,
             audioFiles: formattedAudioFiles,
+            createDefaultProject: true,
             authConfig: {
               requiresAuth: true,
               authType: 'bearer',
@@ -196,12 +197,12 @@ export async function PUT(
     const token = authHeader?.replace('Bearer ', '')
     
     if (!token) {
-      return NextResponse.json({ error: 'No token provided' }, { status: 401 })
+      return NextResponse.json({ error: 'No token provided' }, { status: 401, headers: corsHeaders })
     }
 
     const tokenData = await verifyToken(token)
     if (!tokenData) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders })
     }
 
     const roomId = params.id
@@ -210,7 +211,7 @@ export async function PUT(
     // Check if user has access to this room
     const membership = await DatabaseService.checkRoomMembership(roomId, tokenData.id)
     if (!membership.isMember) {
-      return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
+      return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403, headers: corsHeaders })
     }
 
     // Get the existing studio project
@@ -218,13 +219,21 @@ export async function PUT(
     
     if (!studioProject) {
       // Create a new studio project if it doesn't exist
-      const newProject = await DatabaseService.createStudioProject({
+      const createData: any = {
         userId: tokenData.id,
         roomId: roomId,
-        name: body.name || `test${roomId}`,
+        name: body.name || `OpenDAW Project`,
         description: body.description,
         projectData: body.projectData || {}
-      })
+      }
+      
+      // Handle binary data if provided
+      if (body.projectBinary && Array.isArray(body.projectBinary)) {
+        createData.projectBinary = Buffer.from(body.projectBinary)
+        console.log('[Studio Project API] Creating project with binary data, size:', createData.projectBinary.length, 'bytes')
+      }
+      
+      const newProject = await DatabaseService.createStudioProject(createData)
       
       // Return only essential fields to avoid JSON.stringify size limits
       return NextResponse.json({
@@ -236,15 +245,23 @@ export async function PUT(
         createdAt: newProject.createdAt,
         updatedAt: newProject.updatedAt,
         success: true
-      })
+      }, { headers: corsHeaders })
     }
 
     // Update the existing project
-    const updatedProject = await DatabaseService.updateStudioProject(studioProject.id, {
+    const updateData: any = {
       projectData: body.projectData,
       name: body.name,
       description: body.description
-    })
+    }
+    
+    // Handle binary data if provided
+    if (body.projectBinary && Array.isArray(body.projectBinary)) {
+      updateData.projectBinary = Buffer.from(body.projectBinary)
+      console.log('[Studio Project API] Saving project with binary data, size:', updateData.projectBinary.length, 'bytes')
+    }
+    
+    const updatedProject = await DatabaseService.updateStudioProject(studioProject.id, updateData)
 
     // Return minimal response to avoid any JSON.stringify issues
     // Avoid accessing any potentially large fields like projectData or projectBundle
@@ -257,9 +274,9 @@ export async function PUT(
       createdAt: updatedProject.createdAt,
       updatedAt: updatedProject.updatedAt,
       success: true
-    })
+    }, { headers: corsHeaders })
   } catch (error) {
     console.error('Error updating studio project:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders })
   }
 }
