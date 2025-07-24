@@ -134,7 +134,11 @@ export async function GET(
           filePath: file.filePath,
           fileSize: file.fileSize,
           mimeType: file.mimeType,
-          duration: file.duration
+          duration: file.duration,
+          sampleRate: null,
+          channels: null,
+          format: null,
+          metadata: {}
           // Remove metadata, sampleRate, channels, format to reduce size
         }))
       }
@@ -159,12 +163,11 @@ export async function GET(
     }
   } catch (error) {
     console.error('[Studio Project API] Error fetching studio project:', error)
-    console.error('[Studio Project API] Error stack:', error.stack)
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error.message,
-      roomId: params.id 
-    }, { status: 500 })
+    console.error('[Studio Project API] Error stack:', (error as Error)?.stack);
+    return NextResponse.json({
+      error: 'Failed to retrieve studio project data',
+      details: (error as Error)?.message,
+    }, { status: 500 });
   }
 }
 
