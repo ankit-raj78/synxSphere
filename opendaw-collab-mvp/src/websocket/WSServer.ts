@@ -104,7 +104,9 @@ export class WSServer {
     await this.db.createUserSession(sessionId, message.projectId, message.userId)
     
     console.log(`🔥 User ${message.userId} joined project ${message.projectId}`)
+    console.log(`🔥 Session ID: ${sessionId}`)
     console.log(`🔥 Total clients for project: ${Array.from(this.clients.values()).filter(c => c.projectId === message.projectId).length}`)
+    console.log(`🔥 All clients: ${Array.from(this.clients.values()).map(c => `${c.userId}@${c.projectId}`).join(', ')}`)
     
     // Send initial sync data
     await this.sendSyncResponse(ws, message.projectId, message.userId)

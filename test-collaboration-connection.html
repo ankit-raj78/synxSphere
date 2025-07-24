@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenDAW Collaboration Test</title>
+</head>
+<body>
+    <h1>OpenDAW Collaboration Test</h1>
+    <div id="status">Loading...</div>
+    <div id="params"></div>
+    <div id="connection-status"></div>
+
+    <script>
+        // Test collaboration parameter parsing
+        const urlParams = new URLSearchParams(window.location.search)
+        const projectId = urlParams.get('projectId')
+        const userId = urlParams.get('userId')
+        const userName = urlParams.get('username') || urlParams.get('userName') || userId
+        const isCollaborative = urlParams.get('collaborative') === 'true'
+        const wsUrl = urlParams.get('wsUrl') || 'ws://localhost:3004'
+        const dbUrl = urlParams.get('dbUrl') || 'http://localhost:3003'
+
+        console.log('🔍 Collaboration Test Parameters:', {
+            projectId,
+            userId,
+            userName,
+            isCollaborative,
+            wsUrl,
+            dbUrl
+        })
+
+        document.getElementById('params').innerHTML = `
+            <h3>URL Parameters:</h3>
+            <ul>
+                <li><strong>projectId:</strong> ${projectId}</li>
+                <li><strong>userId:</strong> ${userId}</li>
+                <li><strong>userName:</strong> ${userName}</li>
+                <li><strong>collaborative:</strong> ${isCollaborative}</li>
+                <li><strong>wsUrl:</strong> ${wsUrl}</li>
+                <li><strong>dbUrl:</strong> ${dbUrl}</li>
+            </ul>
+        `
+
+        if (isCollaborative && projectId && userId) {
+            document.getElementById('status').innerHTML = '<span style="color: green;">✅ Collaboration should initialize</span>'
+            
+            // Test WebSocket connection
+            try {
+                const ws = new WebSocket(wsUrl)
+                
+                ws.onopen = () => {
+                    console.log('✅ WebSocket connected successfully')
+                    document.getElementById('connection-status').innerHTML = '<span style="color: green;">✅ WebSocket connected</span>'
+                    
+                    // Send a test message
+                    ws.send(JSON.stringify({
+                        type: 'USER_JOIN',
+                        projectId: projectId,
+                        userId: userId,
+                        timestamp: Date.now(),
+                        data: {
+                            username: userName,
+                            avatar: undefined
+                        }
+                    }))
+                }
+                
+                ws.onerror = (error) => {
+                    console.error('❌ WebSocket error:', error)
+                    document.getElementById('connection-status').innerHTML = '<span style="color: red;">❌ WebSocket connection failed</span>'
+                }
+                
+                ws.onclose = (event) => {
+                    console.log('🔌 WebSocket closed:', event.code, event.reason)
+                    document.getElementById('connection-status').innerHTML = '<span style="color: orange;">🔌 WebSocket closed</span>'
+                }
+                
+                ws.onmessage = (event) => {
+                    console.log('📨 WebSocket message:', event.data)
+                    const message = JSON.parse(event.data)
+                    console.log('📨 Parsed message:', message)
+                }
+                
+            } catch (error) {
+                console.error('❌ WebSocket creation failed:', error)
+                document.getElementById('connection-status').innerHTML = '<span style="color: red;">❌ WebSocket creation failed</span>'
+            }
+            
+        } else {
+            document.getElementById('status').innerHTML = '<span style="color: red;">❌ Collaboration will NOT initialize - missing parameters</span>'
+        }
+    </script>
+</body>
+</html>
