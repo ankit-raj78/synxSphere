@@ -28,5 +28,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "aws-cdk-simple", "aws-cdk", "cdk.out", "services", "openDAW", "opendaw-collab-mvp"]
+  "exclude": ["node_modules", "aws-cdk-simple", "aws-cdk", "cdk.out", "services", "openDAW", "opendaw-collab-mvp", "src", "scripts"]
 }

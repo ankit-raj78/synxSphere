@@ -5,6 +5,22 @@ import { createDefaultOpenDAWProjectData } from '@/lib/audio-utils'
 
 export const dynamic = 'force-dynamic'
 
+// CORS headers for OpenDAW Studio integration
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://localhost:8080',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true',
+}
+
+// Handle preflight OPTIONS request
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
+  })
+}
+
 // GET the studio project for a room
 export async function GET(
   request: NextRequest,
@@ -21,14 +37,14 @@ export async function GET(
     
     if (!token) {
       console.log('[Studio Project API] No token provided')
-      return NextResponse.json({ error: 'No token provided' }, { status: 401 })
+      return NextResponse.json({ error: 'No token provided' }, { status: 401, headers: corsHeaders })
     }
 
     console.log('[Studio Project API] Verifying token...')
     const tokenData = await verifyToken(token)
     if (!tokenData) {
       console.log('[Studio Project API] Invalid token')
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders })
     }
     console.log('[Studio Project API] Token verified for user:', tokenData.id)
 
@@ -39,7 +55,7 @@ export async function GET(
     const membership = await DatabaseService.checkRoomMembership(roomId, tokenData.id)
     if (!membership.isMember) {
       console.log('[Studio Project API] User is not a member of room:', roomId)
-      return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403 })
+      return NextResponse.json({ error: 'Access denied: Not a member of this room' }, { status: 403, headers: corsHeaders })
     }
     console.log('[Studio Project API] User is a member, role:', membership.role)
 
@@ -47,119 +63,83 @@ export async function GET(
     console.log('[Studio Project API] Fetching studio project...')
     let studioProject = await DatabaseService.getRoomStudioProject(roomId)
     
+    // Get room details for project naming
+    const room = await DatabaseService.findRoomById(roomId)
+    const projectName = room?.name || `Room ${roomId} Project`
+    
     if (!studioProject) {
-      console.log('[Studio Project API] No studio project found for room:', roomId, '- creating one')
-      // Create a new studio project for this room
-      studioProject = await DatabaseService.createStudioProject({
-        userId: tokenData.id,
-        roomId: roomId,
-        name: `Studio Project for Room ${roomId}`,
-        description: `Auto-created studio project for room collaboration`,
-        projectData: { tempo: 120, timeSignature: { numerator: 4, denominator: 4 } }
-      })
-      console.log('[Studio Project API] Created new studio project:', studioProject.id)
+      console.log('[Studio Project API] No studio project found for room:', roomId, '- returning room info for client-side project creation')
+      
+      // Get all audio files for this room
+      console.log('[Studio Project API] Fetching audio files for client-side project creation...')
+      const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
+      console.log('[Studio Project API] Found', audioFiles.length, 'audio files')
+      
+      // Convert audio files to a format that can be used by the client
+      const formattedAudioFiles = audioFiles.map(file => ({
+        id: file.id,
+        filename: file.filename,
+        originalName: file.originalName,
+        filePath: file.filePath,
+        fileSize: Number(file.fileSize),
+        mimeType: file.mimeType,
+        duration: Number(file.duration) || 0,
+        metadata: file.metadata || {}
+      }))
+      
+      console.log('[Studio Project API] Returning room audio files for client-side project creation')
+      // Return information for the client to create a default project
+      return NextResponse.json({
+        id: `room-${roomId}`,
+        name: projectName,
+        data: {
+          type: 'room-audio-files',
+          roomId: roomId,
+          projectName: projectName,
+          audioFiles: formattedAudioFiles,
+          createDefaultProject: true
+        }
+      }, { headers: corsHeaders })
     } else {
       console.log('[Studio Project API] Studio project found:', studioProject.id)
-    }
-
-    // Get all audio files for this room
-    console.log('[Studio Project API] Fetching audio files...')
-    const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
-    console.log('[Studio Project API] Found', audioFiles.length, 'audio files')
-    
-    // Convert to the format expected by OpenDAW
-    const formattedFiles = audioFiles.map(file => ({
-      id: file.id,
-      filename: file.filename,
-      originalName: file.originalName,
-      filePath: file.filePath,
-      fileSize: Number(file.fileSize),
-      mimeType: file.mimeType,
-      duration: Number(file.duration) || 0,
-      sampleRate: file.sampleRate,
-      channels: file.channels,
-      format: file.format,
-      metadata: file.metadata
-    }))
-
-    // Generate basic project data without heavy content
-    console.log('[Studio Project API] Fetching room details...')
-    const room = await DatabaseService.findRoomById(roomId)
-    console.log('[Studio Project API] Room name:', room?.name)
-    
-    console.log('[Studio Project API] Creating lightweight project data...')
-    // Create minimal project data instead of full OpenDAW project
-    const basicProjectData = {
-      name: room?.name || `test${roomId}`,
-      roomId: roomId,
-      tempo: 120,
-      timeSignature: { numerator: 4, denominator: 4 },
-      tracks: formattedFiles.map(file => ({
-        name: file.originalName,
-        filePath: file.filePath,
-        audioFileId: file.id,
-        originalName: file.originalName
-      }))
-    }
-    console.log('[Studio Project API] Basic project data created with', basicProjectData.tracks.length, 'tracks')
-
-    // Return simplified response to avoid JSON size issues
-    const response = {
-      id: studioProject.id,
-      name: studioProject.name,
-      description: studioProject.description,
-      projectData: basicProjectData,
-      audioFiles: formattedFiles,
-      audioFileCount: formattedFiles.length,
-      roomId: studioProject.roomId,
-      userId: studioProject.userId,
-      createdAt: studioProject.createdAt,
-      updatedAt: studioProject.updatedAt
-    }
-    
-    console.log('[Studio Project API] Sending response with', response.audioFileCount, 'audio files')
-    
-    // Try to JSON.stringify to check for size issues before sending response
-    try {
-      const responseSize = JSON.stringify(response).length
-      console.log('[Studio Project API] Response size:', responseSize, 'characters')
       
-      if (responseSize > 1000000) { // 1MB limit
-        console.warn('[Studio Project API] Response size is large, truncating audio file metadata')
-        // Remove potentially large metadata fields
-        response.audioFiles = response.audioFiles.map(file => ({
+      // Check if the project has serialized OpenDAW data
+      if (studioProject.projectData && typeof studioProject.projectData === 'object') {
+        // Return the collaboration format expected by CollaborativeOpfsAgent
+        return NextResponse.json({
+          id: studioProject.id,
+          name: studioProject.name,
+          data: studioProject.projectData
+        }, { headers: corsHeaders })
+      } else {
+        // Project exists but no valid data - treat as new project
+        console.log('[Studio Project API] Studio project exists but no valid data, treating as new')
+        
+        // Get all audio files for this room
+        const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
+        const formattedAudioFiles = audioFiles.map(file => ({
           id: file.id,
           filename: file.filename,
           originalName: file.originalName,
           filePath: file.filePath,
-          fileSize: file.fileSize,
+          fileSize: Number(file.fileSize),
           mimeType: file.mimeType,
-          duration: file.duration,
-          sampleRate: null,
-          channels: null,
-          format: null,
-          metadata: {}
-          // Remove metadata, sampleRate, channels, format to reduce size
+          duration: Number(file.duration) || 0,
+          metadata: file.metadata || {}
         }))
+        
+        return NextResponse.json({
+          id: studioProject.id,
+          name: studioProject.name,
+          data: {
+            type: 'room-audio-files',
+            roomId: roomId,
+            projectName: studioProject.name,
+            audioFiles: formattedAudioFiles,
+            createDefaultProject: true
+          }
+        }, { headers: corsHeaders })
       }
-      
-      return NextResponse.json(response)
-    } catch (stringifyError) {
-      console.error('[Studio Project API] JSON stringify failed:', stringifyError)
-      
-      // Return minimal response if JSON fails
-      return NextResponse.json({
-        id: studioProject.id,
-        name: studioProject.name,
-        audioFiles: formattedFiles.map(f => ({
-          id: f.id,
-          originalName: f.originalName,
-          filePath: f.filePath
-        })),
-        audioFileCount: formattedFiles.length,
-        roomId: studioProject.roomId,
-        error: 'Response too large, truncated'
-      })
     }
   } catch (error) {
     console.error('[Studio Project API] Error fetching studio project:', error)
@@ -167,7 +147,7 @@ export async function GET(
     return NextResponse.json({
       error: 'Failed to retrieve studio project data',
       details: (error as Error)?.message,
-    }, { status: 500 });
+    }, { status: 500, headers: corsHeaders });
   }
 }
 
