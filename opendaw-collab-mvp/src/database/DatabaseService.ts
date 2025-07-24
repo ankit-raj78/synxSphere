@@ -147,7 +147,7 @@ export class DatabaseService {
   async createUserSession(sessionId: string, projectId: string, userId: string): Promise<void> {
     try {
       await this.pool.query(
-        `INSERT INTO user_sessions (id, project_id, user_id) 
+        `INSERT INTO collaboration_user_sessions (id, project_id, user_id) 
          VALUES ($1, $2, $3) 
          ON CONFLICT (id) 
          DO UPDATE SET last_seen = NOW()`,
@@ -161,7 +161,7 @@ export class DatabaseService {
 
   async removeUserSession(sessionId: string): Promise<void> {
     try {
-      await this.pool.query('DELETE FROM user_sessions WHERE id = $1', [sessionId])
+      await this.pool.query('DELETE FROM collaboration_user_sessions WHERE id = $1', [sessionId])
     } catch (error) {
       console.error('Error removing user session:', error)
       throw error
@@ -172,7 +172,7 @@ export class DatabaseService {
     try {
       // Consider users active if they were seen in the last 5 minutes
       const result = await this.pool.query(
-        'SELECT DISTINCT user_id FROM user_sessions WHERE project_id = $1 AND last_seen > NOW() - INTERVAL \'5 minutes\'',
+        'SELECT DISTINCT user_id FROM collaboration_user_sessions WHERE project_id = $1 AND last_seen > NOW() - INTERVAL \'5 minutes\'',
         [projectId]
       )
       return result.rows.map(row => row.user_id)
@@ -214,7 +214,7 @@ export class DatabaseService {
       const roomId = projectId.startsWith('room-') ? projectId.substring(5) : null
       
       await this.pool.query(
-        `INSERT INTO projects (id, room_id, name, data, updated_at) 
+        `INSERT INTO collaboration_projects (id, room_id, name, data, updated_at) 
          VALUES ($1, $2, $3, $4, NOW()) 
          ON CONFLICT (id) 
          DO UPDATE SET 
@@ -231,7 +231,7 @@ export class DatabaseService {
   async loadProject(projectId: string): Promise<any | null> {
     try {
       const result = await this.pool.query(
-        'SELECT * FROM projects WHERE id = $1',
+        'SELECT * FROM collaboration_projects WHERE id = $1',
         [projectId]
       )
       

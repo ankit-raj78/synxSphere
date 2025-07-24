@@ -11,7 +11,7 @@ dotenv.config()
 
 const WS_PORT = parseInt(process.env.WS_PORT || '3004')
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || '3003')
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://localhost:5432/opendaw_collab'
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:root@localhost:5432/syncsphere'
 
 async function startServer() {
   try {
