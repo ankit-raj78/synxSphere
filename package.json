@@ -22,6 +22,16 @@
     "validate": "./validate-setup.sh",
     "health": "curl -s http://localhost:3000/api/health && curl -s https://localhost:8080/build-info.json",
     "kill-ports": "lsof -ti:3000,8080 | xargs kill -9 2>/dev/null || true",
+    "stack:start": "./start-all-services.sh",
+    "stack:stop": "./stop-all-services.sh",
+    "db:start": "cd opendaw-collab-mvp && docker-compose up -d postgres redis adminer",
+    "db:stop": "cd opendaw-collab-mvp && docker-compose stop postgres redis adminer",
+    "db:down": "cd opendaw-collab-mvp && docker-compose down",
+    "db:logs": "cd opendaw-collab-mvp && docker-compose logs -f",
+    "adminer": "open http://localhost:8081",
+    "collab:docker": "cd opendaw-collab-mvp && docker-compose --profile docker up -d collaboration-server",
+    "collab:native": "cd opendaw-collab-mvp && npm run dev",
+    "stack:docker": "cd opendaw-collab-mvp && docker-compose --profile docker up -d",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenDAW Collaboration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+        }
+        .user-link {
+            display: block;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #0066cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .user-link:hover {
+            background-color: #0052a3;
+        }
+        .user-link.user1 {
+            background-color: #28a745;
+        }
+        .user-link.user1:hover {
+            background-color: #218838;
+        }
+        .user-link.user2 {
+            background-color: #dc3545;
+        }
+        .user-link.user2:hover {
+            background-color: #c82333;
+        }
+        .instructions {
+            background-color: #ffc107;
+            color: #000;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .websocket-info {
+            background-color: #17a2b8;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 OpenDAW Collaboration Test</h1>
+        
+        <div class="instructions">
+            <h3>📋 Test Instructions:</h3>
+            <ol>
+                <li>Open <strong>User 1</strong> link in one browser window/tab</li>
+                <li>Open <strong>User 2</strong> link in another browser window/tab (or different browser)</li>
+                <li>Both users should see each other's status in the OpenDAW dashboard</li>
+                <li>Try creating/editing elements to see real-time collaboration</li>
+            </ol>
+        </div>
+
+        <div class="websocket-info">
+            <h3>🔌 WebSocket Server Status:</h3>
+            <p>Collaboration Server: <strong>ws://localhost:3004</strong></p>
+            <p>HTTP API: <strong>http://localhost:3003</strong></p>
+            <p>OpenDAW Studio: <strong>https://localhost:8080</strong></p>
+        </div>
+
+        <div class="test-section">
+            <h2>👥 Test Users</h2>
+            <p>Click on the links below to open OpenDAW with different user identities in the same collaborative project:</p>
+            
+            <a href="https://localhost:8080?projectId=test-room-123&userId=user1&username=Alice&collaborative=true" 
+               class="user-link user1" target="_blank">
+                🟢 User 1: Alice (test-room-123)
+            </a>
+            
+            <a href="https://localhost:8080?projectId=test-room-123&userId=user2&username=Bob&collaborative=true" 
+               class="user-link user2" target="_blank">
+                🔴 User 2: Bob (test-room-123)
+            </a>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Additional Test Scenarios</h2>
+            
+            <h3>Different Rooms:</h3>
+            <a href="https://localhost:8080?projectId=room-456&userId=user3&username=Charlie&collaborative=true" 
+               class="user-link" target="_blank">
+                User 3: Charlie (room-456)
+            </a>
+            
+            <h3>Non-Collaborative Mode:</h3>
+            <a href="https://localhost:8080?projectId=solo-project&userId=user4&username=David" 
+               class="user-link" target="_blank">
+                User 4: David (solo mode)
+            </a>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Expected Behavior</h2>
+            <ul>
+                <li>✅ Both users in the same room should see each other in the user list</li>
+                <li>✅ Real-time cursor/selection synchronization</li>
+                <li>✅ Live collaborative editing of audio elements</li>
+                <li>✅ Chat functionality between users</li>
+                <li>✅ Playback synchronization</li>
+                <li>❌ Users in different rooms should NOT see each other</li>
+                <li>❌ Solo mode users should not see collaboration features</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Troubleshooting</h2>
+            <p>If collaboration doesn't work:</p>
+            <ol>
+                <li>Check browser console for WebSocket connection errors</li>
+                <li>Verify OpenDAW collaboration server is running on port 3004</li>
+                <li>Make sure both browser windows have the same <code>projectId</code></li>
+                <li>Check that <code>collaborative=true</code> parameter is present</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Test WebSocket connection
+        function testWebSocketConnection() {
+            const ws = new WebSocket('ws://localhost:3004');
+            
+            ws.onopen = function() {
+                console.log('✅ WebSocket connection established');
+                document.body.style.borderTop = '5px solid #28a745';
+            };
+            
+            ws.onerror = function(error) {
+                console.error('❌ WebSocket connection failed:', error);
+                document.body.style.borderTop = '5px solid #dc3545';
+            };
+            
+            ws.onclose = function() {
+                console.log('🔌 WebSocket connection closed');
+            };
+        }
+
+        // Test connection when page loads
+        testWebSocketConnection();
+    </script>
+</body>
+</html>

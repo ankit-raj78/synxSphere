@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: synxsphere_postgres_dev
+    environment:
+      POSTGRES_USER: opendaw
+      POSTGRES_PASSWORD: collaboration
+      POSTGRES_DB: opendaw_collab
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./opendaw-collab-mvp/src/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/02-main-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - synxsphere-dev
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: synxsphere_redis_dev
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - synxsphere-dev
+
+  # Collaboration Server (development mode with hot reload)
+  collaboration-server:
+    build:
+      context: ./opendaw-collab-mvp
+      dockerfile: ../docker/Dockerfile.collaboration.dev
+    container_name: synxsphere_collaboration_dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
+      - WS_PORT=3004
+      - HTTP_PORT=3003
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3003:3003"
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./opendaw-collab-mvp:/app
+      - /app/node_modules
+    networks:
+      - synxsphere-dev
+    command: npm run dev
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  synxsphere-dev:
+    driver: bridge

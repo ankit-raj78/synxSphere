@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for collaboration
+  postgres:
+    image: postgres:15
+    container_name: synxsphere_collab_postgres
+    environment:
+      POSTGRES_USER: opendaw
+      POSTGRES_PASSWORD: collaboration
+      POSTGRES_DB: opendaw_collab
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_collab_data:/var/lib/postgresql/data
+      - ./opendaw-collab-mvp/src/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - synxsphere-collab-network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: synxsphere_collab_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_collab_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - synxsphere-collab-network
+
+volumes:
+  postgres_collab_data:
+    driver: local
+  redis_collab_data:
+    driver: local
+
+networks:
+  synxsphere-collab-network:
+    driver: bridge

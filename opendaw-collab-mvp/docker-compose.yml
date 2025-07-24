@@ -27,6 +27,49 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Database Administration Interface
+  adminer:
+    image: adminer:4.8.1
+    container_name: opendaw_collab_adminer
+    ports:
+      - "8081:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=opendaw_collab_db
+      - ADMINER_DESIGN=hydra
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Collaboration Server (optional Docker build)
+  collaboration-server:
+    build: .
+    container_name: opendaw_collab_server
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
+      - WS_PORT=3004
+      - HTTP_PORT=3003
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3003:3003"
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    profiles:
+      - docker  # Only start with --profile docker
 
 volumes:
   postgres_data:
