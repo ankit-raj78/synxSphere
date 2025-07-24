@@ -1,6 +1,9 @@
 import WebSocket, { WebSocketServer } from 'ws'
 import { createCollabMessage, CollabMessage, CollabMessageType } from './MessageTypes'
 import { DatabaseService } from '../database/DatabaseService'
+import https from 'https'
+import fs from 'fs'
+import path from 'path'
 
 interface ConnectedClient {
   ws: WebSocket
@@ -18,9 +21,32 @@ export class WSServer {
 
   constructor(port: number, db: DatabaseService) {
     this.db = db
-    this.wss = new WebSocketServer({ port })
     
-    console.log(`WebSocket server started on port ${port}`)
+    // Check if SSL certificates exist for secure WebSocket
+    const certPath = path.join(__dirname, '../../../localhost.pem')
+    const keyPath = path.join(__dirname, '../../../localhost-key.pem')
+    
+    if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+      console.log('Using SSL certificates for secure WebSocket (WSS)')
+      
+      // Create HTTPS server with SSL certificates
+      const server = https.createServer({
+        cert: fs.readFileSync(certPath),
+        key: fs.readFileSync(keyPath)
+      })
+      
+      // Create WebSocket server with HTTPS server
+      this.wss = new WebSocketServer({ server })
+      
+      // Listen on the specified port
+      server.listen(port, () => {
+        console.log(`Secure WebSocket server (WSS) started on port ${port}`)
+      })
+    } else {
+      console.log('SSL certificates not found, using non-secure WebSocket (WS)')
+      this.wss = new WebSocketServer({ port })
+      console.log(`WebSocket server started on port ${port}`)
+    }
     
     this.wss.on('connection', (ws: WebSocket, req) => {
       this.handleConnection(ws, req)

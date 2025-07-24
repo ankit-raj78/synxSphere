@@ -103,17 +103,22 @@ export async function GET(
     } else {
       console.log('[Studio Project API] Studio project found:', studioProject.id)
       
-      // Check if the project has serialized OpenDAW data
-      if (studioProject.projectData && typeof studioProject.projectData === 'object') {
+      // Check if the project has serialized OpenDAW data in the correct format
+      if (studioProject.projectData && 
+          typeof studioProject.projectData === 'object' && 
+          !Array.isArray(studioProject.projectData) &&
+          ((studioProject.projectData as any).type === 'opendaw-serialized-project' || 
+           (studioProject.projectData as any).type === 'room-audio-files')) {
         // Return the collaboration format expected by CollaborativeOpfsAgent
+        console.log('[Studio Project API] Returning existing project with valid collaboration data')
         return NextResponse.json({
           id: studioProject.id,
           name: studioProject.name,
           data: studioProject.projectData
         }, { headers: corsHeaders })
       } else {
-        // Project exists but no valid data - treat as new project
-        console.log('[Studio Project API] Studio project exists but no valid data, treating as new')
+        // Project exists but no valid collaboration data - treat as new project
+        console.log('[Studio Project API] Studio project exists but no valid collaboration data, creating room project')
         
         // Get all audio files for this room
         const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)

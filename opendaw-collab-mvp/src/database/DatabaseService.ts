@@ -144,8 +144,38 @@ export class DatabaseService {
     }
   }
 
+  async ensureProjectExists(projectId: string): Promise<void> {
+    try {
+      // Check if project exists
+      const result = await this.pool.query(
+        'SELECT id FROM collaboration_projects WHERE id = $1',
+        [projectId]
+      )
+      
+      if (result.rows.length === 0) {
+        // Project doesn't exist, create it
+        const roomId = projectId.startsWith('room-') ? projectId.substring(5) : null
+        const projectName = projectId.startsWith('room-') ? `Room ${roomId} Project` : projectId
+        
+        await this.pool.query(
+          `INSERT INTO collaboration_projects (id, room_id, name, data, updated_at) 
+           VALUES ($1, $2, $3, $4, NOW())`,
+          [projectId, roomId, projectName, JSON.stringify({})]
+        )
+        
+        console.log(`Created collaboration project record for: ${projectId}`)
+      }
+    } catch (error) {
+      console.error('Error ensuring project exists:', error)
+      throw error
+    }
+  }
+
   async createUserSession(sessionId: string, projectId: string, userId: string): Promise<void> {
     try {
+      // Ensure the project exists before creating the session
+      await this.ensureProjectExists(projectId)
+      
       await this.pool.query(
         `INSERT INTO collaboration_user_sessions (id, project_id, user_id) 
          VALUES ($1, $2, $3) 
