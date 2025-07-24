@@ -38,6 +38,7 @@ interface AudioTrack {
   }
   color: string
   uploadedAt: string
+  audioFileId?: string // Add audioFileId field
 }
 
 interface AudioMixerProps {
@@ -529,7 +530,7 @@ export default function AudioMixer({
 
                     {/* Audio Player */}
                     <div className="mb-2">
-                      <AudioPlayer fileId={track.id} className="w-full" />
+                      <AudioPlayer fileId={(track as any).audioFileId || track.id} className="w-full" />
                     </div>
 
                     {/* Effects Panel */}

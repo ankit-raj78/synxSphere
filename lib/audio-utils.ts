@@ -140,7 +140,8 @@ export function createDefaultOpenDAWProjectData(
   roomName: string,
   roomId: string,
   defaultAudioFile?: DefaultAudioFile,
-  additionalAudioFiles?: DefaultAudioFile[]
+  additionalAudioFiles?: DefaultAudioFile[],
+  baseUrl?: string
 ): any {
   const tracks = []
   
@@ -152,6 +153,7 @@ export function createDefaultOpenDAWProjectData(
       type: "audio",
       audioFileId: defaultAudioFile.id,
       filePath: defaultAudioFile.filePath,
+      url: baseUrl ? `${baseUrl}/api/audio/stream/${defaultAudioFile.id}` : `/api/audio/stream/${defaultAudioFile.id}`,
       volume: 0.8,
       pan: 0,
       muted: false,
@@ -181,6 +183,7 @@ export function createDefaultOpenDAWProjectData(
         type: "audio",
         audioFileId: audioFile.id,
         filePath: audioFile.filePath,
+        url: baseUrl ? `${baseUrl}/api/audio/stream/${audioFile.id}` : `/api/audio/stream/${audioFile.id}`,
         volume: 0.8,
         pan: 0,
         muted: false,

@@ -42,6 +42,9 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
       return
     }
 
+    console.log('AudioPlayer current location:', window.location.href)
+    console.log('AudioPlayer will fetch:', `/api/audio/stream/${fileId}`)
+
     if (isPlaying) {
       audioRef.current.pause()
       setIsPlaying(false)
@@ -52,7 +55,11 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           const token = localStorage.getItem('token')
           console.log('Fetching audio stream for fileId:', fileId)
           
-          const response = await fetch(`/api/audio/stream/${fileId}`, {
+          // Use absolute URL to avoid base URL issues
+          const streamUrl = `${window.location.origin}/api/audio/stream/${fileId}`
+          console.log('Constructed stream URL:', streamUrl)
+          
+          const response = await fetch(streamUrl, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -62,32 +69,68 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
           console.log('Response content-type:', response.headers.get('content-type'))
           console.log('Response content-length:', response.headers.get('content-length'))
             if (response.ok) {
-            // For large files, use response URL directly instead of converting to Blob
+            // Always use blob approach for better compatibility
             const contentLength = parseInt(response.headers.get('content-length') || '0')
-            if (contentLength > 20 * 1024 * 1024) { // Use direct URL for files above 20MB
-              console.log('Large file detected, using direct streaming')
-              
-              // Set API URL directly, let browser handle streaming
-              const directUrl = `/api/audio/stream/${fileId}?auth=${encodeURIComponent(token || '')}`
-              audioRef.current.src = directUrl
-              audioRef.current.load()
-              console.log('Audio element loaded with direct URL')
-            } else {
-              console.log('Starting blob conversion...')
-              const blob = await response.blob()
-              console.log('Blob created, size:', blob.size, 'type:', blob.type)
-              const audioUrl = URL.createObjectURL(blob)
-              console.log('Audio src set:', audioUrl.substring(0, 50) + '...')
-              
-              // Set src and load the audio
-              audioRef.current.src = audioUrl
-              audioRef.current.load()
-              console.log('Audio element loaded with blob URL')
+            console.log(`File size: ${(contentLength / 1024 / 1024).toFixed(2)} MB - using blob approach`)
+            
+            console.log('Starting blob conversion...')
+            const blob = await response.blob()
+            console.log('Blob created, size:', blob.size, 'type:', blob.type)
+            const audioUrl = URL.createObjectURL(blob)
+            console.log('Audio src set to blob URL:', audioUrl.substring(0, 50) + '...')
+            console.log('Setting audioRef.current.src to:', audioUrl)
+            
+            // Double-check the blob URL before setting
+            if (!audioUrl.startsWith('blob:')) {
+              console.error('Invalid blob URL constructed:', audioUrl)
+              setError('Failed to create audio blob')
+              return
             }
+            
+            // Set src and load the audio
+            audioRef.current.src = audioUrl
+            audioRef.current.load()
+            console.log('Audio element loaded with blob URL, final src:', audioRef.current.src)
             
             // Wait for audio to be ready, then play
             try {
               console.log('Audio loaded, attempting to play...')
+              console.log('Audio element state before play:', {
+                src: audioRef.current.src,
+                readyState: audioRef.current.readyState,
+                networkState: audioRef.current.networkState,
+                error: audioRef.current.error
+              })
+              
+              // Wait a bit for the audio to be ready
+              if (audioRef.current.readyState < 2) { // HAVE_CURRENT_DATA
+                console.log('Audio not ready yet, waiting for canplay event')
+                await new Promise((resolve, reject) => {
+                  const timeoutId = setTimeout(() => {
+                    reject(new Error('Audio load timeout'))
+                  }, 10000) // 10 second timeout
+                  
+                  const onCanPlay = () => {
+                    clearTimeout(timeoutId)
+                    audioRef.current?.removeEventListener('canplay', onCanPlay)
+                    audioRef.current?.removeEventListener('error', onError)
+                    console.log('Audio ready state achieved:', audioRef.current?.readyState)
+                    resolve(true)
+                  }
+                  
+                  const onError = (e: Event) => {
+                    clearTimeout(timeoutId)
+                    audioRef.current?.removeEventListener('canplay', onCanPlay)
+                    audioRef.current?.removeEventListener('error', onError)
+                    console.error('Audio load error:', e)
+                    reject(new Error('Audio load failed'))
+                  }
+                  
+                  audioRef.current?.addEventListener('canplay', onCanPlay)
+                  audioRef.current?.addEventListener('error', onError)
+                })
+              }
+              
               await audioRef.current.play()
               setIsPlaying(true)
               console.log('Audio playback started successfully')
@@ -178,10 +221,31 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
   }
 
   const handleError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    const audio = e.currentTarget
     console.error('Audio error event:', e)
+    console.error('Audio error details:', {
+      error: audio.error,
+      networkState: audio.networkState,
+      readyState: audio.readyState,
+      src: audio.src,
+      fileId: fileId,
+      currentLocation: window.location.href
+    })
+    
+    // Check if the src got corrupted to the current page URL
+    if (audio.src === window.location.href) {
+      console.error('CRITICAL: Audio src was set to current page URL instead of API endpoint!')
+      console.error('This indicates a relative URL resolution issue')
+    }
+    
+    if (audio.error) {
+      console.error('Audio error code:', audio.error.code)
+      console.error('Audio error message:', audio.error.message)
+    }
+    
     setLoading(false)
     setIsPlaying(false)
-    setError('Audio playback error')
+    setError(`Audio playback error (Code: ${audio.error?.code || 'unknown'})`)
   }
 
   const handlePlay = () => {

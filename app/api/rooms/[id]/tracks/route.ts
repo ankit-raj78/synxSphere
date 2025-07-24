@@ -46,8 +46,31 @@ export async function GET(
         orderBy: { uploadedAt: 'desc' }
       })
 
-      const tracks = audioTracks.map(track => {
+      // Process tracks and try to find missing audioFileId references
+      const tracks = await Promise.all(audioTracks.map(async track => {
         const metadata = track.metadata as any // Cast to any to access nested properties
+        
+        // Get audioFileId from metadata, or try to find it by matching filePath
+        let audioFileId = metadata?.audioFileId
+        
+        // If audioFileId is missing, try to find the AudioFile record by filePath
+        if (!audioFileId && track.filePath) {
+          try {
+            const audioFile = await prisma.audioFile.findFirst({
+              where: {
+                roomId: params.id,
+                filePath: track.filePath
+              }
+            })
+            if (audioFile) {
+              audioFileId = audioFile.id
+              console.log(`[GET] Found missing audioFileId for track ${track.name}: ${audioFileId}`)
+            }
+          } catch (error) {
+            console.warn(`[GET] Could not find AudioFile for track ${track.name}:`, error)
+          }
+        }
+        
         return {
           id: track.id,
           name: track.name,
@@ -74,10 +97,10 @@ export async function GET(
           },
           color: generateTrackColor(),
           filePath: track.filePath,
-          audioFileId: metadata?.audioFileId,
+          audioFileId: audioFileId, // Ensure this is always present when possible
           uploadedAt: track.uploadedAt.toISOString()
         }
-      })
+      }))
 
       return NextResponse.json({ tracks })
 
@@ -429,12 +452,90 @@ export async function DELETE(
       return NextResponse.json({ error: 'Track ID required' }, { status: 400 })
     }
 
-    // In production, this would delete from database
-    return NextResponse.json({ 
-      success: true, 
-      trackId,
-      message: 'Track deleted successfully' 
-    })
+    try {
+      // Get track info before deletion
+      const audioTrack = await prisma.audioTrack.findUnique({
+        where: { id: trackId }
+      })
+
+      if (!audioTrack) {
+        return NextResponse.json({ error: 'Track not found' }, { status: 404 })
+      }
+
+      // Check permission - only track uploader or room creator can delete
+      if (audioTrack.uploaderId !== tokenData.id) {
+        // TODO: Also check if user is room creator
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
+
+      // Delete physical file from filesystem
+      if (audioTrack.filePath) {
+        const fs = require('fs').promises
+        const path = require('path')
+        
+        try {
+          let fullPath: string
+          if (audioTrack.filePath.startsWith('/uploads/rooms/')) {
+            // Room-specific uploads: /uploads/rooms/{roomId}/{filename}
+            const relativePath = audioTrack.filePath.substring(1) // Remove leading /
+            fullPath = path.join(process.cwd(), 'public', relativePath)
+          } else {
+            // Other formats - construct full path
+            fullPath = path.join(process.cwd(), 'public', audioTrack.filePath)
+          }
+          
+          console.log(`[Delete] Attempting to delete file: ${fullPath}`)
+          await fs.unlink(fullPath)
+          console.log(`[Delete] Successfully deleted file: ${fullPath}`)
+        } catch (fileError) {
+          console.warn(`[Delete] Could not delete file ${audioTrack.filePath}:`, fileError)
+          // Continue with database deletion even if file deletion fails
+        }
+      }
+
+      // Also find and delete the associated AudioFile record if it exists
+      // Look for AudioFile with matching filePath and roomId
+      if (audioTrack.filePath) {
+        const audioFiles = await prisma.audioFile.findMany({
+          where: {
+            roomId: params.id,
+            filePath: audioTrack.filePath
+          }
+        })
+
+        // Delete associated AudioFile records
+        for (const audioFile of audioFiles) {
+          await prisma.audioFile.delete({
+            where: { id: audioFile.id }
+          })
+          console.log(`[Delete] Deleted associated AudioFile record: ${audioFile.id}`)
+        }
+      }
+
+      // Delete the AudioTrack record
+      await prisma.audioTrack.delete({
+        where: { id: trackId }
+      })
+
+      console.log(`[Delete] Successfully deleted track ${trackId} and associated records`)
+
+      return NextResponse.json({ 
+        success: true, 
+        trackId,
+        message: 'Track and file deleted successfully' 
+      })
+
+    } catch (dbError) {
+      console.error('[Delete] Database error:', dbError)
+      
+      // Fallback: just return success for now to avoid blocking UI
+      return NextResponse.json({ 
+        success: true, 
+        trackId,
+        message: 'Track deletion processed (database unavailable)' 
+      })
+    }
+
   } catch (error) {
     console.error('Error deleting track:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

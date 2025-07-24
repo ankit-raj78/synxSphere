@@ -68,14 +68,14 @@ export async function GET(
     const projectName = room?.name || `Room ${roomId} Project`
     
     if (!studioProject) {
-      console.log('[Studio Project API] No studio project found for room:', roomId, '- returning room info for client-side project creation')
+      console.log('[Studio Project API] No studio project found for room:', roomId, '- creating default OpenDAW project')
       
       // Get all audio files for this room
-      console.log('[Studio Project API] Fetching audio files for client-side project creation...')
+      console.log('[Studio Project API] Fetching audio files for OpenDAW project creation...')
       const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
       console.log('[Studio Project API] Found', audioFiles.length, 'audio files')
       
-      // Convert audio files to a format that can be used by the client
+      // Convert audio files to the format expected by createDefaultOpenDAWProjectData
       const formattedAudioFiles = audioFiles.map(file => ({
         id: file.id,
         filename: file.filename,
@@ -87,17 +87,32 @@ export async function GET(
         metadata: file.metadata || {}
       }))
       
-      console.log('[Studio Project API] Returning room audio files for client-side project creation')
-      // Return information for the client to create a default project
+      // Create OpenDAW project data with all audio files as tracks
+      console.log('[Studio Project API] Creating OpenDAW project with', formattedAudioFiles.length, 'tracks')
+      const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+      const openDAWProjectData = createDefaultOpenDAWProjectData(
+        projectName,
+        roomId,
+        undefined, // No single default file
+        formattedAudioFiles, // All files as tracks
+        baseUrl // Base URL for audio streaming
+      )
+      
+      console.log('[Studio Project API] Returning OpenDAW project with tracks:', openDAWProjectData.tracks?.length)
       return NextResponse.json({
         id: `room-${roomId}`,
         name: projectName,
         data: {
-          type: 'room-audio-files',
+          type: 'opendaw-serialized-project',
           roomId: roomId,
           projectName: projectName,
-          audioFiles: formattedAudioFiles,
-          createDefaultProject: true
+          projectData: openDAWProjectData,
+          audioFiles: formattedAudioFiles, // Include for reference
+          authConfig: {
+            requiresAuth: true,
+            authType: 'bearer',
+            authEndpoint: `${baseUrl}/api/auth/verify`
+          }
         }
       }, { headers: corsHeaders })
     } else {
@@ -117,8 +132,8 @@ export async function GET(
           data: studioProject.projectData
         }, { headers: corsHeaders })
       } else {
-        // Project exists but no valid collaboration data - treat as new project
-        console.log('[Studio Project API] Studio project exists but no valid collaboration data, creating room project')
+        // Project exists but no valid collaboration data - create OpenDAW project
+        console.log('[Studio Project API] Studio project exists but no valid collaboration data, creating OpenDAW project')
         
         // Get all audio files for this room
         const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
@@ -133,15 +148,30 @@ export async function GET(
           metadata: file.metadata || {}
         }))
         
+        // Create OpenDAW project data with all audio files as tracks
+        const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+        const openDAWProjectData = createDefaultOpenDAWProjectData(
+          studioProject.name,
+          roomId,
+          undefined, // No single default file
+          formattedAudioFiles, // All files as tracks
+          baseUrl // Base URL for audio streaming
+        )
+        
         return NextResponse.json({
           id: studioProject.id,
           name: studioProject.name,
           data: {
-            type: 'room-audio-files',
+            type: 'opendaw-serialized-project',
             roomId: roomId,
             projectName: studioProject.name,
+            projectData: openDAWProjectData,
             audioFiles: formattedAudioFiles,
-            createDefaultProject: true
+            authConfig: {
+              requiresAuth: true,
+              authType: 'bearer',
+              authEndpoint: `${baseUrl}/api/auth/verify`
+            }
           }
         }, { headers: corsHeaders })
       }

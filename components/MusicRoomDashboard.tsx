@@ -52,6 +52,7 @@ interface AudioTrack {
   }
   color: string
   uploadedAt: string
+  audioFileId?: string // Add audioFileId field
 }
 
 interface MusicRoom {

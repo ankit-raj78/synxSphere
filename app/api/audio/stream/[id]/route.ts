@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 
 import { readFile } from 'fs/promises'
+import path from 'path'
 
 // Handle CORS preflight requests
 export async function OPTIONS(request: NextRequest) {
@@ -44,9 +45,14 @@ export async function GET(
     const token = authHeader?.replace('Bearer ', '') || 
                   new URL(request.url).searchParams.get('auth') // Support token in URL parameters
     
-    // TEMPORARY: Skip authentication for testing - will enable once file access works
-    console.log('Skipping authentication for debugging...')
-    const user = { id: '300c375d-561d-4cfa-8ec7-641a83d7bcb9' } // Hardcode test user ID for now
+    if (!token) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 })
+    }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    }
     
     console.log('User authenticated:', user.id, 'requesting file:', params.id)
 
@@ -80,26 +86,28 @@ export async function GET(
     console.log('Audio file path from DB:', audioFile.filePath)
     
     // Handle path resolution for room-specific uploads
-    let containerPath: string
+    let filePath: string
     
     if (audioFile.filePath.startsWith('/uploads/rooms/')) {
       // Room-specific uploads: /uploads/rooms/{roomId}/{filename}
-      containerPath = `/app/public${audioFile.filePath}`
+      // Remove leading slash and use process.cwd() to get correct absolute path
+      const relativePath = audioFile.filePath.substring(1) // Remove leading /
+      filePath = path.join(process.cwd(), 'public', relativePath)
     } else {
       // Other formats not supported for room audio
       console.error('Unsupported file path format for room audio:', audioFile.filePath)
       return NextResponse.json({ error: 'File path format not supported' }, { status: 400 })
     }
     
-    console.log('Container file path:', containerPath)
+    console.log('Resolved file path:', filePath)
 
     try {
       let fileBuffer: Buffer
       try {
-        fileBuffer = await readFile(containerPath)
+        fileBuffer = await readFile(filePath)
         console.log('File read successfully from DB path, size:', fileBuffer.length, 'bytes')
       } catch (pathError) {
-        console.error('File not found at path:', containerPath, pathError)
+        console.error('File not found at path:', filePath, pathError)
         return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
       }
       
