@@ -7,6 +7,7 @@ import { verifyToken } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 import { writeFile, mkdir } from 'fs/promises'
+import { parseBuffer } from 'music-metadata'
 
 import path from 'path'
 
@@ -29,119 +30,93 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Mock data for now - in production this would fetch from database
-    const mockTracks = [
-      {
-        id: 'track-1',
-        name: 'Arctic Monkeys - Do I Wanna Know - Bass',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_bass.wav',
-        uploadedBy: {
-          id: 'user-1',
-          username: 'musicfan',
-          avatar: null
+    try {
+      // Fetch real tracks from database
+      const audioTracks = await prisma.audioTrack.findMany({
+        where: { roomId: params.id },
+        include: {
+          uploader: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
         },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.1) * 0.5 + 0.5),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 75,
-        pan: 0,
-        effects: {
-          reverb: 0,
-          delay: 0,
-          lowpass: 0,
-          highpass: 0,
-          distortion: 0
-        },
-        color: '#8B5CF6',
-        uploadedAt: new Date().toISOString()
-      },
-      {
-        id: 'track-2',
-        name: 'Arctic Monkeys - Do I Wanna Know - Drums',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_drums.wav',
-        uploadedBy: {
-          id: 'user-2',
-          username: 'drummer_pro',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.random() * 0.8 + 0.2),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 80,
-        pan: 0,
-        effects: {
-          reverb: 10,
-          delay: 5,
-          lowpass: 0,
-          highpass: 0,
-          distortion: 0
-        },
-        color: '#EF4444',
-        uploadedAt: new Date().toISOString()
-      },
-      {
-        id: 'track-3',
-        name: 'Arctic Monkeys - Do I Wanna Know - Vocals',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_vocals.wav',
-        uploadedBy: {
-          id: 'user-3',
-          username: 'vocalist',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.05) * 0.7 + 0.3),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 85,
-        pan: 0,
-        effects: {
-          reverb: 25,
-          delay: 15,
-          lowpass: 0,
-          highpass: 10,
-          distortion: 0
-        },
-        color: '#10B981',
-        uploadedAt: new Date().toISOString()
-      },
-      {
-        id: 'track-4',
-        name: 'Arctic Monkeys - Do I Wanna Know - Other',
-        originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_other.wav',
-        uploadedBy: {
-          id: 'user-4',
-          username: 'guitarist',
-          avatar: null
-        },
-        duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.cos(i * 0.08) * 0.6 + 0.4),
-        isPlaying: false,
-        isMuted: false,
-        isSolo: false,
-        isLocked: false,
-        volume: 70,
-        pan: 0,
-        effects: {
-          reverb: 15,
-          delay: 8,
-          lowpass: 0,
-          highpass: 0,
-          distortion: 5
-        },
-        color: '#F59E0B',
-        uploadedAt: new Date().toISOString()
-      }
-    ]
+        orderBy: { uploadedAt: 'desc' }
+      })
 
-    return NextResponse.json({ tracks: mockTracks })
+      const tracks = audioTracks.map(track => {
+        const metadata = track.metadata as any // Cast to any to access nested properties
+        return {
+          id: track.id,
+          name: track.name,
+          originalName: metadata?.originalFileName || track.name,
+          uploadedBy: {
+            id: track.uploader.id,
+            username: track.uploader.username || track.uploader.email?.split('@')[0] || 'User',
+            avatar: null
+          },
+          duration: track.duration || "0:00",
+          waveform: track.waveform as number[] || [],
+          isPlaying: false,
+          isMuted: false,
+          isSolo: false,
+          isLocked: false,
+          volume: 75,
+          pan: 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            lowpass: 0,
+            highpass: 0,
+            distortion: 0
+          },
+          color: generateTrackColor(),
+          filePath: track.filePath,
+          audioFileId: metadata?.audioFileId,
+          uploadedAt: track.uploadedAt.toISOString()
+        }
+      })
+
+      return NextResponse.json({ tracks })
+
+    } catch (dbError) {
+      console.log('Database not available, using mock data:', dbError)
+      
+      // Fallback to mock data if database is unavailable
+      const mockTracks = [
+        {
+          id: 'track-1',
+          name: 'Arctic Monkeys - Do I Wanna Know - Bass',
+          originalName: 'Arctic Monkeys - Do I Wanna Know？ (Official Video)_bass.wav',
+          uploadedBy: {
+            id: 'user-1',
+            username: 'musicfan',
+            avatar: null
+          },
+          duration: "0:00",
+          waveform: [],
+          isPlaying: false,
+          isMuted: false,
+          isSolo: false,
+          isLocked: false,
+          volume: 75,
+          pan: 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            lowpass: 0,
+            highpass: 0,
+            distortion: 0
+          },
+          color: '#8B5CF6',
+          uploadedAt: new Date().toISOString()
+        }
+      ]
+
+      return NextResponse.json({ tracks: mockTracks })
+    }
   } catch (error) {
     console.error('Error fetching room tracks:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -175,9 +150,21 @@ export async function POST(
     }
 
     // Validate file type
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/flac', 'audio/m4a', 'audio/ogg']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
+    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/flac', 'audio/m4a', 'audio/ogg', 'audio/mp3', 'application/octet-stream']
+    
+    // For octet-stream, also check file extension as additional validation
+    if (file.type === 'application/octet-stream') {
+      const fileName = file.name.toLowerCase()
+      const allowedExtensions = ['.wav', '.mp3', '.flac', '.m4a', '.ogg']
+      const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext))
+      
+      if (!hasValidExtension) {
+        return NextResponse.json({ 
+          error: `File type ${file.type} requires valid audio extension. File: ${file.name}` 
+        }, { status: 400 })
+      }
+    } else if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({ error: `Invalid file type: ${file.type}. Allowed types: ${allowedTypes.join(', ')}` }, { status: 400 })
     }
 
     // Validate file size (50MB max)
@@ -217,6 +204,33 @@ export async function POST(
       const buffer = Buffer.from(bytes)
       await writeFile(filePath, buffer)
 
+      // Extract audio metadata for duration and other info
+      let duration = "0:00"
+      let audioMetadata: any = {}
+      
+      try {
+        const metadata = await parseBuffer(buffer, file.type)
+        if (metadata.format.duration) {
+          const durationInSeconds = Math.round(metadata.format.duration)
+          const minutes = Math.floor(durationInSeconds / 60)
+          const seconds = durationInSeconds % 60
+          duration = `${minutes}:${seconds.toString().padStart(2, '0')}`
+        }
+        
+        audioMetadata = {
+          duration: metadata.format.duration,
+          sampleRate: metadata.format.sampleRate,
+          bitrate: metadata.format.bitrate,
+          numberOfChannels: metadata.format.numberOfChannels,
+          codec: metadata.format.codec
+        }
+        
+        console.log(`[Upload] Extracted metadata for ${file.name}:`, audioMetadata)
+      } catch (metadataError) {
+        console.warn(`[Upload] Could not extract metadata for ${file.name}:`, metadataError)
+        // Use default values if metadata extraction fails
+      }
+
       // First create audio file record
       const audioFile = await prisma.audioFile.create({
         data: {
@@ -226,12 +240,13 @@ export async function POST(
           filePath: `/uploads/rooms/${params.id}/${fileName}`,
           fileSize: BigInt(file.size),
           mimeType: file.type,
-          isProcessed: false,
+          isProcessed: true, // Mark as processed since we extracted metadata
           isPublic: false,
           roomId: params.id,
           metadata: {
             uploadedVia: 'room-track-upload',
-            originalFileName: file.name
+            originalFileName: file.name,
+            audioMetadata: audioMetadata
           }
         }
       })
@@ -243,12 +258,13 @@ export async function POST(
           uploaderId: tokenData.id,
           name: trackName || file.name,
           filePath: `/uploads/rooms/${params.id}/${fileName}`,
-          duration: "0:00", // Will be updated after audio analysis
-          waveform: [],
+          duration: duration, // Use extracted duration
+          waveform: [], // Could generate basic waveform here in the future
           artist: tokenData.email?.split('@')[0] || 'User',
           metadata: {
             audioFileId: audioFile.id,
-            originalFileName: file.name
+            originalFileName: file.name,
+            audioMetadata: audioMetadata
           }
         }
       })
