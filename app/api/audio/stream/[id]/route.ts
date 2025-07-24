@@ -8,16 +8,19 @@ import { verifyToken } from '@/lib/auth'
 
 import { readFile } from 'fs/promises'
 
+// CORS headers for OpenDAW Studio integration
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://localhost:8080',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true',
+}
+
 // Handle CORS preflight requests
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Max-Age': '86400'
-    }
+    headers: corsHeaders
   })
 }
 
@@ -37,7 +40,10 @@ export async function GET(
     // Validate ID parameter
     if (!params.id || params.id === 'undefined') {
       console.error('Invalid ID parameter:', params.id)
-      return NextResponse.json({ error: 'Invalid file ID' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid file ID' }, { 
+        status: 400,
+        headers: corsHeaders 
+      })
     }
     
     const authHeader = request.headers.get('authorization')
@@ -60,7 +66,10 @@ export async function GET(
     console.log('Database query result:', audioFile ? 'File found' : 'File not found')
     
     if (!audioFile) {
-      return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 })
+      return NextResponse.json({ error: 'File not found or access denied' }, { 
+        status: 404,
+        headers: corsHeaders 
+      })
     }
     console.log('Audio file path from DB:', audioFile.filePath)
     
@@ -74,7 +83,10 @@ export async function GET(
     } else {
       // Other formats not supported for room audio
       console.error('Unsupported file path format for room audio:', audioFile.filePath)
-      return NextResponse.json({ error: 'File path format not supported' }, { status: 400 })
+      return NextResponse.json({ error: 'File path format not supported' }, { 
+        status: 400,
+        headers: corsHeaders 
+      })
     }
     
     console.log('Container file path:', containerPath)
@@ -86,7 +98,10 @@ export async function GET(
         console.log('File read successfully from DB path, size:', fileBuffer.length, 'bytes')
       } catch (pathError) {
         console.error('File not found at path:', containerPath, pathError)
-        return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
+        return NextResponse.json({ error: 'File not accessible' }, { 
+          status: 404,
+          headers: corsHeaders 
+        })
       }
       
       return new NextResponse(fileBuffer, {
@@ -95,17 +110,21 @@ export async function GET(
           'Content-Length': fileBuffer.length.toString(),
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'public, max-age=3600',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type'
+          ...corsHeaders
         }
       })
     } catch (error) {
       console.error('Error reading audio file:', error)
-      return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
+      return NextResponse.json({ error: 'File not accessible' }, { 
+        status: 404,
+        headers: corsHeaders 
+      })
     }
   } catch (error) {
     console.error('Error streaming audio:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { 
+      status: 500,
+      headers: corsHeaders 
+    })
   }
 }
