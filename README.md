@@ -1,53 +1,75 @@
-# 🎵 SyncSphere - AI-Powered Music Collaboration Platform
+# 🎵 SynxSphere - Music Collaboration Platform
 
-SyncSphere is an innovative platform that connects musicians worldwide through intelligent AI matching and collaborative music creation. Create, share, and mix music together in real-time with advanced audio processing capabilities.
+SynxSphere is a modern music collaboration platform built with Clean Architecture principles, featuring AI-powered musician matching, real-time collaboration, and professional audio mixing capabilities.
 
 ## ✨ Features
 
-- **🤖 AI-Powered Matching**: Find perfect musical collaborators based on style, genre, and compatibility
-- **🎚️ Real-time Audio Mixing**: Professional-grade mixing interface with individual track controls
-- **🎵 Audio Separation**: AI-powered source separation for stems (bass, drums, vocals, other)
-- **🌐 Global Collaboration**: Connect with musicians worldwide in virtual music rooms
-- **📊 Audio Analysis**: Automatic tempo, key, and musical analysis
-- **🎧 High-Quality Processing**: Professional audio tools and effects
-- **🎹 Integrated openDAW Studio**: Full-featured DAW (Digital Audio Workstation) accessible at `/studio`
-- **🔒 Secure Platform**: User authentication and secure file storage
+- **🤖 AI-Powered Matching**: Connect with compatible musicians using intelligent algorithms
+- **�️ Real-time Audio Collaboration**: Professional-grade mixing with live WebSocket synchronization
+- **� AI Source Separation**: Advanced stem isolation (bass, drums, vocals, other)
+- **� Integrated openDAW Studio**: Full-featured Digital Audio Workstation accessible at `/studio`
+- **💬 Live Chat & Collaboration**: Event-driven real-time communication
+- **🔒 Secure Authentication**: JWT-based authentication with refresh tokens
+- **📱 Cross-platform**: Responsive design for all devices
+
+## 🏗️ Clean Architecture Overview
+
+SynxSphere implements Clean Architecture with clear separation of concerns:
+
+### Domain Layer (`src/domain/`)
+- **Entities**: Core business objects (User, Room, AudioFile, Collaboration)
+- **Value Objects**: Immutable types (UserId, Email, AudioMetadata)
+- **Domain Events**: Business events (UserRegistered, RoomCreated, AudioUploaded)
+- **Repository Interfaces**: Data access contracts
+
+### Application Layer (`src/application/`)
+- **Use Cases**: Business logic operations (CreateUser, JoinRoom, UploadAudio)
+- **DTOs**: Data transfer objects for external communication
+- **Services**: Application-specific logic and orchestration
+
+### Infrastructure Layer (`src/infrastructure/`)
+- **Database**: Prisma ORM with PostgreSQL integration
+- **WebSocket**: Real-time communication with Socket.IO
+- **Event Bus**: Domain event handling and broadcasting
+- **External Services**: Third-party integrations
+
+### Presentation Layer (`src/presentation/`)
+- **HTTP Controllers**: RESTful API endpoints with error handling
+- **Middleware**: Authentication, validation, and request processing
+- **WebSocket Handlers**: Real-time event management
 
 ## 🚀 Quick Start
 
-**New to SynxSphere?** Choose your preferred startup method:
+### Prerequisites
+- Node.js 18+ 
+- PostgreSQL
+- npm or yarn
 
-### 🎯 Super Quick Launch
+### Setup & Installation
 ```bash
-# Interactive setup & startup
-./start.sh
-
-# Or just start everything
-./launch.sh
-```
-
-### 📋 Manual Step-by-Step
-```bash
-# One-time setup
+# Clone and install dependencies
+git clone <repository-url>
+cd synxSphere
 npm install
-cd openDAW && bash cert.sh && cd ..
 
-# Start services
-npm run services:start
+# Configure environment
+cp .env.example .env
+# Edit .env with your database URL and other settings
 
-# Access the app
-open http://localhost:3000
+# Setup database
+npx prisma generate
+npx prisma db push
+
+# Start development server
+npm run dev
 ```
 
-**Need help?** See our [Quick Start Guide](docs/QUICK_START_GUIDE.md) for detailed instructions!
+### Access the Application
+- **Main App**: http://localhost:3000
+- **Studio**: http://localhost:3000/studio
+- **API Docs**: http://localhost:3000/api
 
-### Service Management
-```bash
-# Check service status
-npm run services:status
-
-# Start/stop individual services
-npm run opendaw:start
+## 🔧 Development
 npm run dev
 
 # Full service control
@@ -101,38 +123,90 @@ open DEPLOY_MACOS.md
 
 ## 🏗️ Architecture
 
-### Frontend
-- **Next.js 14** with TypeScript
-- **Tailwind CSS** for styling
-- **React** components for UI
-- **Real-time WebSocket** connections
+### Clean Architecture Implementation
+SynxSphere follows Clean Architecture principles with clear separation of concerns:
+
+#### Domain Layer (`src/domain/`)
+- **Entities**: Core business objects (User, Room, AudioFile, Collaboration)
+- **Value Objects**: Immutable types (UserId, Email, AudioMetadata) 
+- **Domain Events**: Business events (UserRegistered, RoomCreated, AudioUploaded)
+- **Repository Interfaces**: Data access contracts
+
+#### Application Layer (`src/application/`)
+- **Use Cases**: Business logic (CreateUser, JoinRoom, UploadAudio)
+- **DTOs**: Data transfer objects for API communication
+- **Services**: Application-specific logic and orchestration
+
+#### Infrastructure Layer (`src/infrastructure/`)
+- **Database**: Prisma ORM with PostgreSQL
+- **WebSocket**: Real-time communication with Socket.IO
+- **Event Bus**: Domain event handling system
+- **External Integrations**: Third-party service connections
+
+#### Presentation Layer (`src/presentation/`)
+- **Controllers**: RESTful API endpoints with clean error handling
+- **Middleware**: Authentication, validation, request processing
+- **WebSocket Handlers**: Real-time event management
+
+### Technology Stack
+- **Next.js 14** with TypeScript and App Router
+- **Prisma ORM** with PostgreSQL database
+- **Socket.IO** for real-time WebSocket communication
+- **Tailwind CSS** for responsive styling
+- **JWT Authentication** with refresh token support
+- **Inversify** for dependency injection
+- **Jest** for comprehensive testing
+- **Zod** for runtime type validation
 - **Integrated openDAW Studio** - Full-featured DAW accessible at `/studio`
 
-### Backend Services
-- **Audio Service** (Node.js/Express) - Audio processing and analysis
-- **User Service** (Node.js/Express) - Authentication and user management
-- **Recommendation Service** (Python/FastAPI) - AI matching algorithms
-- **Session Service** (Node.js/Express) - Real-time collaboration
-
-### Databases
-- **PostgreSQL** - User data, rooms, audio metadata
-- **MongoDB** - Recommendations and analytics
-- **Redis** - Sessions and caching
-
-### Audio Processing
-- **FFmpeg** - Audio format conversion
-- **AI Models** - Source separation and analysis
-- **Web Audio API** - Client-side audio manipulation
-- **openDAW Studio** - Integrated DAW with MIDI, audio recording, and mixing capabilities
+### Event-Driven Architecture
+- Domain events trigger side effects (notifications, analytics)
+- WebSocket integration for real-time updates
+- Loose coupling between components via EventBus
+- Scalable event handling with proper error boundaries
 
 ## 🛠️ Available Scripts
 
-### Development
+### Development Commands
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run test         # Run tests
-npm run lint         # Lint code
+# Development server
+npm run dev                 # Start Next.js development server
+
+# Database operations  
+npx prisma generate        # Generate Prisma client
+npx prisma db push         # Push schema changes to database
+npx prisma studio          # Open Prisma Studio GUI
+
+# Testing
+npm run test               # Run Jest tests
+npm run test:watch         # Run tests in watch mode
+
+# Build & Production
+npm run build             # Build for production
+npm run start             # Start production server
+npm run lint              # Run ESLint for code quality
+```
+
+### API Testing with curl
+```bash
+# User Registration
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","email":"test@example.com","password":"password123"}'
+
+# User Login  
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+
+# Create Room (with auth token)
+curl -X POST http://localhost:3000/api/rooms \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"name":"My Music Room","description":"Let'\''s make music!"}'
+
+# Health Check
+curl http://localhost:3000/api/health
 ```
 
 ### Application URLs
@@ -141,123 +215,160 @@ npm run lint         # Lint code
 - **Dashboard**: http://localhost:3000/dashboard
 - **API Health Check**: http://localhost:3000/api/health
 
-### macOS Deployment
-```bash
-./check-prerequisites.sh    # Check system requirements
-./build-and-test.sh        # Build and test application
-./deploy-aws.sh            # Deploy to AWS
-./setup-aws-database.sh    # Setup RDS PostgreSQL
-./validate-aws-deployment.sh # Validate deployment
-```
+### WebSocket Events
+Real-time features support these events:
+- `join-room`: Join a collaboration room
+- `audio-upload`: Share audio files in real-time
+- `playback-sync`: Synchronize audio playback
+- `chat-message`: Send messages to room participants
 
-### Service Management
-```bash
-# Start all services locally
-./start-dev.sh
+## 🔐 Authentication & Security
 
-# Test complete workflow
-./test-complete-mixing-workflow.js
+### JWT Authentication Flow
+1. User registers/logs in via `/api/auth/register` or `/api/auth/login`
+2. Server returns access token (15min) and refresh token (7 days)
+3. Client includes access token in Authorization header
+4. Use refresh token at `/api/auth/refresh` to get new access token
 
-# Health checks
-curl http://localhost:3000/api/health
-curl http://localhost:3002/health
-
-# Access openDAW Studio
-open http://localhost:3000/studio
-```
+### Security Features
+- Password hashing with bcrypt
+- JWT token validation middleware
+- CORS protection
+- Input validation with Zod schemas
+- SQL injection prevention with Prisma
 
 ## 📦 Tech Stack
 
-### Frontend
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- React Hook Form
-- Framer Motion
+### Core Technologies
+- **Next.js 14**: React framework with App Router
+- **TypeScript**: Type-safe development
+- **Prisma ORM**: Database management with PostgreSQL  
+- **Socket.IO**: Real-time WebSocket communication
+- **Tailwind CSS**: Utility-first styling
 
-### Backend
-- Node.js / Express
-- Python / FastAPI
-- PostgreSQL
-- MongoDB
-- Redis
+### Architecture Patterns
+- **Clean Architecture**: Separation of concerns with dependency inversion
+- **Domain-Driven Design**: Rich domain models and bounded contexts
+- **Event-Driven Architecture**: Loose coupling with domain events
+- **Repository Pattern**: Data access abstraction
+- **Use Case Pattern**: Business logic encapsulation
 
-### Audio Processing
-- FFmpeg
-- Web Audio API
-- AI/ML Models for source separation
-
-### Infrastructure
-- AWS ECS Fargate
-- AWS RDS PostgreSQL
-- AWS ECR
-- AWS Secrets Manager
-- Docker containerization
+### Quality Assurance
+- **Jest**: Unit and integration testing
+- **Zod**: Runtime type validation
+- **ESLint + Prettier**: Code quality and formatting
+- **Inversify**: Dependency injection container
 
 ## 🌟 Key Features Deep Dive
 
 ### AI-Powered Matching
-- Musical style analysis
-- Genre compatibility scoring
+- Musical style analysis and compatibility scoring
 - Collaboration history tracking
 - Real-time availability matching
+- Genre-based musician discovery
 
-### Audio Mixing Interface
+### Real-time Audio Collaboration  
+- Live WebSocket synchronization
+- Multi-user audio mixing interface
 - Individual track volume controls
-- Real-time effects processing
-- Professional EQ and filters
-- Export capabilities
+- Professional EQ and effects processing
 
 ### Integrated openDAW Studio
 - Full-featured Digital Audio Workstation
-- MIDI sequencing and editing
-- Audio recording and playback
+- MIDI sequencing and editing capabilities
+- Multi-track audio recording and playback
 - Professional mixing and mastering tools
-- Plugin support and effects
+- Plugin support and built-in effects
 - Project save/load functionality
 - Accessible at `/studio` route
 
-### Source Separation
-- AI-powered stem isolation
-- Bass, drums, vocals, other separation
-- High-quality audio processing
-- Real-time preview
+### Event-Driven Architecture
+- Domain events for loose coupling
+- Real-time notifications via WebSocket
+- Scalable event handling system
+- Comprehensive error boundaries
 
 ## 🔧 Environment Setup
 
 ### Required Environment Variables
 ```bash
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=syncsphere
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password
+# Database Configuration
+DATABASE_URL="postgresql://username:password@localhost:5432/synxsphere"
 
-# Services
-AUDIO_SERVICE_URL=http://localhost:3002
-USER_SERVICE_URL=http://localhost:3001
-RECOMMENDATION_SERVICE_URL=http://localhost:8000
+# JWT Configuration  
+JWT_SECRET="your-super-secret-jwt-key"
+JWT_REFRESH_SECRET="your-refresh-token-secret"
 
-# Optional: Cloud Storage
-S3_BUCKET_NAME=your-bucket
-AWS_REGION=us-east-1
+# Application Configuration
+NODE_ENV="development"
+PORT=3000
+
+# Optional: File Upload Configuration
+MAX_FILE_SIZE=50000000  # 50MB
+UPLOAD_DIR="./uploads"
 ```
 
-## 📊 Performance
+### Development Setup
+```bash
+# Install dependencies
+npm install
 
-- **Audio Processing**: Real-time source separation
-- **Collaboration**: Low-latency WebSocket connections
+# Setup environment
+cp .env.example .env
+# Edit .env with your configuration
+
+# Generate Prisma client and setup database
+npx prisma generate
+npx prisma db push
+
+# Start development server
+npm run dev
+```
+
+## 📊 Performance & Scalability
+
+### Clean Architecture Benefits
+- **Maintainability**: Clear separation of concerns
+- **Testability**: Isolated business logic for comprehensive testing
+- **Scalability**: Event-driven architecture for horizontal scaling
+- **Flexibility**: Easy to swap implementations (database, external services)
+
+### Real-time Features
+- **WebSocket Communication**: Low-latency bi-directional communication
+- **Event-Driven Updates**: Efficient real-time synchronization
+- **Connection Management**: Robust connection handling with reconnection
+- **Room-based Broadcasting**: Targeted message delivery
+
+### Database Optimization
+- **Prisma ORM**: Type-safe queries with connection pooling
+- **PostgreSQL**: ACID compliance for data integrity
+- **Efficient Queries**: Optimized for collaboration workflows
+- **Migration Support**: Version-controlled schema changes
 - **Scalability**: Containerized microservices architecture
 - **Storage**: Efficient audio file compression and streaming
 
 ## 🤝 Contributing
 
+### Development Workflow
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Follow Clean Architecture principles:
+   - Add entities to `src/domain/entities/`
+   - Create use cases in `src/application/use-cases/`
+   - Implement repositories in `src/infrastructure/database/`
+   - Add controllers to `src/presentation/http/controllers/`
+4. Write tests for your changes (`npm run test`)
+5. Ensure TypeScript compilation passes (`npx tsc --noEmit`)
+6. Commit your changes (`git commit -m 'Add some amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+### Code Style Guidelines
+- Follow TypeScript best practices
+- Use dependency injection with Inversify
+- Implement proper error handling
+- Add comprehensive tests
+- Document public APIs
 
 ## 📄 License
 
@@ -267,55 +378,88 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Common Issues
 
+#### Database Connection Issues
+```bash
+# Check if PostgreSQL is running
+brew services list | grep postgresql
+
+# Start PostgreSQL if needed
+brew services start postgresql
+
+# Test database connection
+npx prisma db push
+
+# Check Prisma client generation
+npx prisma generate
+```
+
+#### Development Server Issues
+```bash
+# Check if port 3000 is available
+lsof -ti:3000
+
+# Kill process using port 3000 if needed
+kill -9 $(lsof -ti:3000)
+
+# Clear Next.js cache
+rm -rf .next
+npm run dev
+
+# Check environment variables
+cat .env | grep -v '^#'
+```
+
 #### openDAW Studio Not Loading
 ```bash
-# Check if the studio assets are properly served
-curl -I http://localhost:3000/api/studio-assets/become_a_patron_button.png
-
-# Verify the studio page is accessible
+# Verify studio page is accessible
 curl -I http://localhost:3000/studio
 
-# Check browser console for CORS or asset loading errors
-# Open http://localhost:3000/studio in Chrome and check Developer Tools
+# Check for console errors in browser
+# Open http://localhost:3000/studio and check Developer Tools
+
+# Verify static assets are served
+curl -I http://localhost:3000/_next/static/
 ```
 
-#### Services Not Starting
+#### TypeScript Compilation Errors
 ```bash
-# Check if required services are running
-brew services list | grep -E "(postgresql|mongodb|redis)"
+# Regenerate Prisma client
+npx prisma generate
 
-# Start missing services
-brew services start postgresql
-brew services start mongodb-community  
-brew services start redis
+# Check TypeScript configuration
+npx tsc --noEmit
 
-# Check service logs
-brew services log postgresql
+# Clear and rebuild
+rm -rf .next node_modules
+npm install
+npm run dev
 ```
 
-#### Git Submodule Issues
+### API Testing
 ```bash
-# If openDAW Studio assets are missing
-git submodule update --init --recursive
+# Test health endpoint
+curl http://localhost:3000/api/health
 
-# If submodules are out of sync
-git submodule update --remote --merge
+# Test user registration
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","email":"test@example.com","password":"password123"}'
 
-# Check submodule status
-git submodule status
+# Check server logs
+tail -f .next/trace
 ```
 
 ### Documentation
-- [macOS Deployment Guide](DEPLOY_MACOS.md)
-- [Development Setup](DEVELOPMENT_GUIDE.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
+- [Clean Architecture Guide](docs/CLEAN_ARCHITECTURE.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [WebSocket Events](docs/WEBSOCKET_EVENTS.md)
 
 ### Getting Help
-1. Check the documentation above
-2. Run `./check-prerequisites.sh` for system requirements
-3. Run `./validate-aws-deployment.sh` for deployment issues
-4. Check the [Issues](https://github.com/your-username/synxSphere/issues) page
+1. Check the troubleshooting steps above
+2. Verify environment setup with `npm run dev`
+3. Test API endpoints with provided curl commands
+4. Check the [Issues](https://github.com/your-username/synxSphere/issues) page for known problems
 
 ---
 
-**Built with ❤️ for the global music community**
+**Built with ❤️ for the global music community using Clean Architecture principles**
