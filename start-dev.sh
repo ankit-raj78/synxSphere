@@ -1,48 +1,67 @@
 #!/bin/bash
 
-# OpenDAW Development Setup Script
-echo "🚀 Starting OpenDAW Collaboration System (Development Mode)"
-echo "==========================================================="
+# SynxSphere Development Startup Script
+# Clean Architecture - Quick development environment setup
 
-# Check if Docker is running
-if ! docker info > /dev/null 2>&1; then
-    echo "❌ Docker is not running. Please start Docker and try again."
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${CYAN}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║            🚀 SynxSphere Development Environment              ║"
+echo "║                    Clean Architecture                          ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
+echo ""
+
+echo -e "${BLUE}Starting development environment...${NC}"
+echo ""
+
+# Check if PostgreSQL is running
+echo -e "${YELLOW}🗄️  Checking database connection...${NC}"
+if npx prisma db push > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ Database connected and synchronized${NC}"
+else
+    echo -e "${RED}❌ Database connection failed${NC}"
+    echo "Please ensure PostgreSQL is running and configured correctly."
     exit 1
 fi
 
-# Stop any existing containers
-echo "🛑 Stopping existing containers..."
-docker-compose -f docker-compose.dev.yml down
+# Start OpenDAW server in background
+echo -e "${YELLOW}🎵 Starting OpenDAW server...${NC}"
+if npm run opendaw:start > /dev/null 2>&1 &then
+    echo -e "${GREEN}✅ OpenDAW server starting in background${NC}"
+    OPENDAW_PID=$!
+else
+    echo -e "${YELLOW}⚠️  OpenDAW server may already be running${NC}"
+fi
 
-# Start the development environment
-echo "🔨 Starting development services..."
-docker-compose -f docker-compose.dev.yml --env-file .env.docker.dev up -d
+# Wait for OpenDAW to initialize
+sleep 3
 
-# Wait for services to be ready
-echo "⏳ Waiting for services to start..."
-sleep 10
-
-# Check service status
-echo "📊 Service Status:"
-echo "=================="
-docker-compose -f docker-compose.dev.yml ps
-
+# Start Next.js development server
+echo -e "${YELLOW}⚡ Starting Next.js development server...${NC}"
+echo -e "${CYAN}   This will run in the foreground. Press Ctrl+C to stop.${NC}"
 echo ""
-echo "🌐 Development URLs:"
-echo "==================="
-echo "📱 SynxSphere Dashboard: http://localhost:8000"
-echo "🎵 OpenDAW Studio:       https://localhost:8080"
-echo "🔧 Adminer (DB Tool):    http://localhost:8081"
-echo "📊 Collaboration API:    http://localhost:3004"
-echo "🔌 WebSocket Server:     ws://localhost:3005"
-echo ""
-echo "💾 Database Access:"
-echo "=================="
-echo "Host: localhost"
-echo "Port: 5434"
-echo "Database: opendaw_collab"
-echo "Username: opendaw"
-echo "Password: collaboration"
-echo ""
-echo "✅ Development environment is ready!"
-echo "📋 Check logs with: docker-compose -f docker-compose.dev.yml logs -f"
+
+# Set up cleanup trap
+cleanup() {
+    echo ""
+    echo -e "${YELLOW}🛑 Shutting down services...${NC}"
+    if [ ! -z "$OPENDAW_PID" ]; then
+        kill $OPENDAW_PID 2>/dev/null || true
+    fi
+    npm run opendaw:stop > /dev/null 2>&1 || true
+    echo -e "${GREEN}✅ Cleanup completed${NC}"
+}
+
+trap cleanup EXIT
+
+# Start the main development server
+npm run dev

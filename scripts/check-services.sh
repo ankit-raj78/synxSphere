@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 print_header() {
-    echo -e "${BLUE}=== SynxSphere Service Manager ===${NC}"
+    echo -e "${BLUE}=== SynxSphere Service Manager (Clean Architecture) ===${NC}"
     echo ""
 }
 
@@ -47,9 +47,9 @@ check_process() {
 }
 
 start_react_app() {
-    echo -e "${YELLOW}Starting React/Next.js app...${NC}"
+    echo -e "${YELLOW}Starting Next.js application (Clean Architecture)...${NC}"
     npm run dev > /dev/null 2>&1 &
-    echo -e "${GREEN}✓ React app started in background${NC}"
+    echo -e "${GREEN}✓ Next.js app started in background${NC}"
     echo "  URL: http://localhost:3000"
 }
 
@@ -81,9 +81,9 @@ show_status() {
     echo -e "${BLUE}Service Status:${NC}"
     echo ""
     
-    # Check React app
-    check_service "React/Next.js App" "http://localhost:3000"
-    check_process "React App" "3000"
+    # Check Next.js app
+    check_service "Next.js Application (Clean Architecture)" "http://localhost:3000"
+    check_process "Next.js App" "3000"
     echo ""
     
     # Check openDAW server
@@ -91,10 +91,10 @@ show_status() {
     check_process "openDAW Server" "8080"
     echo ""
     
-    echo -e "${BLUE}Integration URLs:${NC}"
-    echo "  React App: http://localhost:3000"
-    echo "  Studio Page: http://localhost:3000/studio"
-    echo "  openDAW Integration: http://localhost:3000/studio/opendaw"
+    echo -e "${BLUE}Application URLs:${NC}"
+    echo "  Main App: http://localhost:3000"
+    echo "  Dashboard: http://localhost:3000/dashboard"
+    echo "  Studio: http://localhost:3000/studio"
     echo "  Direct openDAW: https://localhost:8080"
     echo ""
 }
@@ -147,7 +147,7 @@ case "${1:-status}" in
         start_react_app
         sleep 2
         echo ""
-        check_service "React/Next.js App" "http://localhost:3000"
+        check_service "Next.js Application (Clean Architecture)" "http://localhost:3000"
         ;;
     "opendaw")
         print_header

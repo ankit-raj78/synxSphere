@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # ============================================================================
-# OpenDAW Collaboration - Docker Deployment Script
+# SynxSphere - Docker Deployment Script (Clean Architecture)
 # ============================================================================
 # 
-# This script sets up and deploys the entire OpenDAW collaboration system
-# using Docker containers for easy team sharing and deployment.
+# This script sets up and deploys the SynxSphere application using Docker
+# containers with the new Clean Architecture implementation.
 #
 # Usage:
 #   ./deploy-docker.sh [dev|prod] [up|down|restart|logs]
@@ -32,7 +32,7 @@ ENVIRONMENT=${1:-dev}
 ACTION=${2:-up}
 
 echo -e "${CYAN}============================================================================${NC}"
-echo -e "${CYAN}🐳 OpenDAW Collaboration - Docker Deployment${NC}"
+echo -e "${CYAN}🐳 SynxSphere - Docker Deployment (Clean Architecture)${NC}"
 echo -e "${CYAN}============================================================================${NC}"
 echo ""
 echo -e "${BLUE}Environment: ${YELLOW}$ENVIRONMENT${NC}"
