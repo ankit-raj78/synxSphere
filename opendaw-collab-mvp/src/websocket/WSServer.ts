@@ -176,7 +176,8 @@ export class WSServer {
         activeUsers
       })
       
-      this.sendToClient(ws, syncResponse)
+      await this.sendToClient(ws, syncResponse)
+      console.log(`✅ Sync response sent to user ${userId}`)
     } catch (error) {
       console.error('Error sending sync response:', error)
       this.sendError(ws, 'Failed to sync state', error)
@@ -203,17 +204,35 @@ export class WSServer {
 
   private sendToClient(ws: WebSocket, message: CollabMessage): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message), (error) => {
+      // Check if WebSocket is still open
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.warn(`⚠️ Skipping message to closed WebSocket (state: ${ws.readyState}, type: ${message.type})`)
+        
+        // Clean up the client if it's in a closed/closing state
+        if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          this.handleDisconnection(ws)
+        }
+        
+        // Resolve (don't reject) to avoid breaking the message flow
+        resolve()
+        return
+      }
+
+      try {
+        const messageStr = JSON.stringify(message)
+        ws.send(messageStr, (error) => {
           if (error) {
-            console.error('Error sending message:', error)
-            reject(error)
+            console.error('🚨 Error sending WebSocket message:', error)
+            // Clean up on send error
+            this.handleDisconnection(ws)
+            resolve() // Still resolve to avoid breaking the flow
           } else {
             resolve()
           }
         })
-      } else {
-        reject(new Error('WebSocket not open'))
+      } catch (error) {
+        console.error('🚨 Error serializing WebSocket message:', error)
+        resolve() // Resolve even on serialization error
       }
     })
   }
