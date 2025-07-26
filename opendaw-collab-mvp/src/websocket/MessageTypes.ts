@@ -16,6 +16,7 @@ export type CollabMessageType =
   | 'BOX_OWNERSHIP_RELEASED'
   | 'BOX_LOCKED'
   | 'BOX_UNLOCKED'
+  | 'AUDIO_REGION_CREATED'
   | 'PROJECT_SAVED'
   | 'PROJECT_LOADED'
   | 'SYNC_REQUEST'
@@ -232,6 +233,14 @@ export const createCollabMessage = {
 
   crdtRegionDeleted: (projectId: string, userId: string, data: any): CollabMessage => ({
     type: 'CRDT_REGION_DELETED',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  audioRegionCreated: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'AUDIO_REGION_CREATED',
     projectId,
     userId,
     timestamp: Date.now(),

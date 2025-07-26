@@ -101,7 +101,13 @@ export class WSServer {
       case 'BOX_OWNERSHIP_RELEASED':
       case 'BOX_LOCKED':
       case 'BOX_UNLOCKED':
+      case 'AUDIO_REGION_CREATED':
         await this.broadcastToProject(message)
+        break
+      
+      case 'PROJECT_SAVED':
+        // Handle project save notification (optional broadcast)
+        console.log(`Project ${message.projectId} saved by ${message.userId}`)
         break
       
       case 'SYNC_REQUEST':
