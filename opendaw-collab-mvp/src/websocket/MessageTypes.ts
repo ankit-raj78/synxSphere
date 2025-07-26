@@ -21,6 +21,13 @@ export type CollabMessageType =
   | 'SYNC_REQUEST'
   | 'SYNC_RESPONSE'
   | 'ERROR'
+  // CRDT message types
+  | 'CRDT_DELTA'
+  | 'CRDT_SYNC_REQUEST'
+  | 'CRDT_SYNC_RESPONSE'
+  | 'CRDT_REGION_ADDED'
+  | 'CRDT_REGION_UPDATED'
+  | 'CRDT_REGION_DELETED'
 
 export interface UserJoinData {
   username?: string
@@ -176,6 +183,55 @@ export const createCollabMessage = {
 
   error: (projectId: string, userId: string, data: ErrorData): CollabMessage => ({
     type: 'ERROR',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  // CRDT message creators
+  crdtDelta: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'CRDT_DELTA',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  crdtSyncRequest: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'CRDT_SYNC_REQUEST',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  crdtSyncResponse: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'CRDT_SYNC_RESPONSE',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  crdtRegionAdded: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'CRDT_REGION_ADDED',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  crdtRegionUpdated: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'CRDT_REGION_UPDATED',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  crdtRegionDeleted: (projectId: string, userId: string, data: any): CollabMessage => ({
+    type: 'CRDT_REGION_DELETED',
     projectId,
     userId,
     timestamp: Date.now(),
