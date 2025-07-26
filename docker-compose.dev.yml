@@ -116,6 +116,7 @@ services:
       - "9231:9231"  # Debug port
     volumes:
       - ./openDAW:/app
+      - ./opendaw-collab-mvp:/app/opendaw-collab-mvp
       - /app/node_modules
     depends_on:
       - collaboration

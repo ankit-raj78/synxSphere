@@ -16,11 +16,24 @@ export type CollabMessageType =
   | 'BOX_OWNERSHIP_RELEASED'
   | 'BOX_LOCKED'
   | 'BOX_UNLOCKED'
+  | 'DRAG_TRACK'
+  | 'UPDATE_TRACK'
+  | 'SAMPLE_SYNC'
   | 'PROJECT_SAVED'
   | 'PROJECT_LOADED'
   | 'SYNC_REQUEST'
   | 'SYNC_RESPONSE'
   | 'ERROR'
+  // Timeline-specific operations
+  | 'CLIP_CREATED'
+  | 'CLIP_DELETED'
+  | 'CLIP_MOVED'
+  | 'CLIP_RESIZED'
+  | 'REGION_CREATED'
+  | 'REGION_DELETED'
+  | 'REGION_MOVED'
+  | 'REGION_RESIZED'
+  | 'TIMELINE_CHANGE'
 
 export interface UserJoinData {
   username?: string
@@ -59,6 +72,20 @@ export interface BoxLockData {
   expiresAt?: number
 }
 
+// Realtime track collaboration
+export interface DragTrackData {
+  trackId: string
+  newIndex: number
+}
+
+export interface UpdateTrackData {
+  track: any // Replace with proper TrackDTO when available
+}
+
+export interface SampleSyncData {
+  sampleCount: number
+}
+
 export interface ProjectSavedData {
   projectData: Uint8Array
   version: number
@@ -76,12 +103,76 @@ export interface SyncResponseData {
   ownership: Record<string, string>  // boxUuid -> ownerId
   locks: Record<string, string>      // boxUuid -> lockedBy
   activeUsers: string[]
+  events?: CollabMessage[]           // optional event list for delta sync
 }
 
 export interface ErrorData {
   message: string
   code?: string
   details?: any
+}
+
+// Timeline-specific data interfaces
+export interface ClipCreatedData {
+  clipId: string
+  trackId: string
+  startTime: number
+  duration: number
+  sampleId?: string
+}
+
+export interface ClipDeletedData {
+  clipId: string
+  trackId: string
+}
+
+export interface ClipMovedData {
+  clipId: string
+  trackId: string
+  newTrackId?: string
+  startTime: number
+}
+
+export interface ClipResizedData {
+  clipId: string
+  trackId: string
+  startTime: number
+  duration: number
+}
+
+export interface RegionCreatedData {
+  regionId: string
+  trackId: string
+  startTime: number
+  duration: number
+  sampleId?: string
+}
+
+export interface RegionDeletedData {
+  regionId: string
+  trackId: string
+}
+
+export interface RegionMovedData {
+  regionId: string
+  trackId: string
+  newTrackId?: string
+  startTime: number
+}
+
+export interface RegionResizedData {
+  regionId: string
+  trackId: string
+  startTime: number
+  duration: number
+}
+
+export interface TimelineChangeData {
+  changeType: 'parameter' | 'property' | 'state'
+  targetId: string
+  targetType: 'clip' | 'region' | 'track'
+  property: string
+  value: any
 }
 
 // Type-safe message creators
@@ -152,6 +243,30 @@ export const createCollabMessage = {
 
   boxUnlocked: (projectId: string, userId: string, data: BoxLockData): CollabMessage => ({
     type: 'BOX_UNLOCKED',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  dragTrack: (projectId: string, userId: string, data: DragTrackData): CollabMessage => ({
+    type: 'DRAG_TRACK',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  updateTrack: (projectId: string, userId: string, data: UpdateTrackData): CollabMessage => ({
+    type: 'UPDATE_TRACK',
+    projectId,
+    userId,
+    timestamp: Date.now(),
+    data
+  }),
+
+  sampleSync: (projectId: string, userId: string, data: SampleSyncData): CollabMessage => ({
+    type: 'SAMPLE_SYNC',
     projectId,
     userId,
     timestamp: Date.now(),

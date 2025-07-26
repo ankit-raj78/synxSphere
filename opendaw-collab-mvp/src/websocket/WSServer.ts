@@ -75,6 +75,21 @@ export class WSServer {
       case 'BOX_OWNERSHIP_RELEASED':
       case 'BOX_LOCKED':
       case 'BOX_UNLOCKED':
+      case 'DRAG_TRACK':
+      case 'UPDATE_TRACK':
+      case 'SAMPLE_SYNC':
+      case 'PROJECT_SAVED':
+      case 'PROJECT_LOADED':
+      case 'REGION_CREATED':
+      case 'REGION_DELETED':
+      case 'REGION_MOVED':
+      case 'REGION_RESIZED':
+      case 'CLIP_CREATED':
+      case 'CLIP_DELETED':
+      case 'CLIP_MOVED':
+      case 'CLIP_RESIZED':
+        // Persist event
+        try { await this.db.saveEvent(message) } catch {}
         await this.broadcastToProject(message)
         break
       

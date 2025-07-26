@@ -23,6 +23,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     );
     
     INSERT INTO info (message) VALUES ('Default database for opendaw user - prevents connection errors');
+    
+    -- Switch to collaboration DB and create collaboration tables
+    \c opendaw_collab;
+    \i /app/opendaw-collab-mvp/src/database/03-collaboration.sql;
 EOSQL
 
 echo "✅ Additional databases and permissions configured"
