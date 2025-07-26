@@ -120,6 +120,26 @@ export class WSServer {
   }
 
   private async handleUserJoin(ws: WebSocket, message: CollabMessage): Promise<void> {
+    // Check for existing sessions for this user in this project
+    const existingSessions = Array.from(this.clients.values()).filter(
+      client => client.userId === message.userId && client.projectId === message.projectId
+    )
+
+    // Close existing sessions for this user in this project
+    for (const existingClient of existingSessions) {
+      console.log(`🧹 Cleaning up existing session ${existingClient.sessionId} for user ${message.userId}`)
+      await this.db.removeUserSession(existingClient.sessionId)
+      this.clients.delete(existingClient.sessionId)
+      
+      // Only close WebSocket if it's a different connection than the current one
+      if (existingClient.ws !== ws && existingClient.ws.readyState === WebSocket.OPEN) {
+        console.log(`🔌 Closing old WebSocket connection for session ${existingClient.sessionId}`)
+        existingClient.ws.close(1000, 'New session created')
+      } else {
+        console.log(`🔄 Reusing existing WebSocket connection for user ${message.userId}`)
+      }
+    }
+
     const sessionId = this.generateSessionId()
     const client: ConnectedClient = {
       ws,
