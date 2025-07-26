@@ -10,10 +10,10 @@ import { readFile } from 'fs/promises'
 
 // CORS headers for OpenDAW Studio integration
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://localhost:8080',
+  'Access-Control-Allow-Origin': '*', // Consistent with studio-project route
   'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Credentials': 'false', // Must be false when origin is '*'
 }
 
 // Handle CORS preflight requests

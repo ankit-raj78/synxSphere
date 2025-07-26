@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic'
 
 // CORS headers for OpenDAW Studio integration
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://localhost:8080',
+  'Access-Control-Allow-Origin': '*', // More permissive for development
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Credentials': 'false', // Changed to false for '*' origin
 }
 
 // Handle preflight OPTIONS request
