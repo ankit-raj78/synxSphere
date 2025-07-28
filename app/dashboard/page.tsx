@@ -94,8 +94,11 @@ export default function DashboardPage() {
       })
 
       if (response.ok) {
-        const files = await response.json()
-        console.log('Loaded audio files:', files) // Debug log
+        const data = await response.json()
+        console.log('Loaded audio files:', data) // Debug log
+        
+        // Handle the API response structure: { success: true, files: [...], totalFiles: number }
+        const files = data.files || []
         files.forEach((file: AudioFile, index: number) => {
           console.log(`File ${index}:`, {
             id: file.id,

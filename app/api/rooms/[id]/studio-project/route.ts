@@ -143,8 +143,11 @@ export async function GET(
           filePath: file.filePath,
           fileSize: file.fileSize,
           mimeType: file.mimeType,
-          duration: file.duration
-          // Remove metadata, sampleRate, channels, format to reduce size
+          duration: file.duration,
+          sampleRate: file.sampleRate,
+          channels: file.channels,
+          format: file.format,
+          metadata: null // Set to null to reduce size instead of removing the property
         }))
       }
       
@@ -168,10 +171,12 @@ export async function GET(
     }
   } catch (error) {
     console.error('[Studio Project API] Error fetching studio project:', error)
-    console.error('[Studio Project API] Error stack:', error.stack)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    console.error('[Studio Project API] Error stack:', errorStack)
     return NextResponse.json({ 
       error: 'Internal server error', 
-      details: error.message,
+      details: errorMessage,
       roomId: params.id 
     }, { status: 500 })
   }

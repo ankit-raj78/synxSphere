@@ -7,6 +7,33 @@ import { join } from 'path'
 
 export const dynamic = 'force-dynamic'
 
+// Helper function to broadcast file upload events
+async function broadcastFileUploaded(roomId: string, fileData: any) {
+  try {
+    // Simple HTTP post to the collaboration server's webhook endpoint
+    const response = await fetch('http://localhost:3005/webhook/file-uploaded', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'FILE_UPLOADED',
+        projectId: roomId,
+        data: fileData,
+        timestamp: Date.now()
+      })
+    })
+
+    if (!response.ok) {
+      console.error('Failed to broadcast file upload:', response.status, response.statusText)
+    } else {
+      console.log('Successfully broadcasted file upload to collaboration server')
+    }
+  } catch (error) {
+    console.error('Error broadcasting file upload:', error)
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -99,6 +126,23 @@ export async function POST(
           size: file.size,
           type: file.type
         })
+
+        // Broadcast FILE_UPLOADED message
+        try {
+          await broadcastFileUploaded(roomId, {
+            fileId: audioFile.id,
+            fileName: audioFile.filename,
+            originalName: audioFile.originalName,
+            filePath: audioFile.filePath,
+            fileSize: Number(audioFile.fileSize),
+            mimeType: audioFile.mimeType,
+            roomId: roomId,
+            metadata: audioFile.metadata
+          })
+        } catch (broadcastError) {
+          console.error('Failed to broadcast file upload:', broadcastError)
+          // Don't fail the upload if broadcast fails
+        }
 
       } catch (error) {
         console.error(`Error processing file ${file.name}:`, error)

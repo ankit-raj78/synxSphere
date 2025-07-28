@@ -109,8 +109,9 @@ export async function deleteRoomWithConfirmation(
 
   } catch (error) {
     // Show error toast
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     toast.error(
-      `Failed to delete room "${roomName}": ${error.message}`,
+      `Failed to delete room "${roomName}": ${errorMessage}`,
       { 
         duration: 8000,
         id: loadingToast 
