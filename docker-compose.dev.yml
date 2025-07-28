@@ -116,8 +116,8 @@ services:
       - "9231:9231"  # Debug port
     volumes:
       - ./openDAW:/app
-      - ./opendaw-collab-mvp:/app/opendaw-collab-mvp
       - /app/node_modules
+      - ./opendaw-collab-mvp:/app/opendaw-collab-mvp
     depends_on:
       - collaboration
     command: sh -c "ls -la /app/ && chmod +x /app/start-opendaw-http.sh && sh /app/start-opendaw-http.sh"

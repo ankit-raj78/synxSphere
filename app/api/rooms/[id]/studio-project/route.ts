@@ -103,12 +103,21 @@ export async function GET(
     }
     console.log('[Studio Project API] Basic project data created with', basicProjectData.tracks.length, 'tracks')
 
+    // Include projectBundle if it exists
+    let boxGraphData = null
+    if (studioProject.projectBundle) {
+      // Convert Buffer to array for JSON transmission
+      boxGraphData = Array.from(studioProject.projectBundle)
+      console.log('[Studio Project API] Including projectBundle:', boxGraphData.length, 'bytes')
+    }
+
     // Return simplified response to avoid JSON size issues
     const response = {
       id: studioProject.id,
       name: studioProject.name,
       description: studioProject.description,
       projectData: basicProjectData,
+      boxGraphData: boxGraphData, // Include the project bundle
       audioFiles: formattedFiles,
       audioFileCount: formattedFiles.length,
       roomId: studioProject.roomId,
@@ -198,6 +207,13 @@ export async function PUT(
     // Get the existing studio project
     const studioProject = await DatabaseService.getRoomStudioProject(roomId)
     
+    // Convert boxGraphData array back to Buffer if provided
+    let projectBundle = undefined
+    if (body.boxGraphData && Array.isArray(body.boxGraphData)) {
+      projectBundle = Buffer.from(body.boxGraphData)
+      console.log('[Studio Project API] Received boxGraphData:', projectBundle.length, 'bytes')
+    }
+    
     if (!studioProject) {
       // Create a new studio project if it doesn't exist
       const newProject = await DatabaseService.createStudioProject({
@@ -205,7 +221,8 @@ export async function PUT(
         roomId: roomId,
         name: body.name || `test${roomId}`,
         description: body.description,
-        projectData: body.projectData || {}
+        projectData: body.projectData || {},
+        projectBundle: projectBundle
       })
       
       // Return only essential fields to avoid JSON.stringify size limits
@@ -222,11 +239,18 @@ export async function PUT(
     }
 
     // Update the existing project
-    const updatedProject = await DatabaseService.updateStudioProject(studioProject.id, {
+    const updateData: any = {
       projectData: body.projectData,
       name: body.name,
       description: body.description
-    })
+    }
+    
+    // Include projectBundle if provided
+    if (projectBundle) {
+      updateData.projectBundle = projectBundle
+    }
+    
+    const updatedProject = await DatabaseService.updateStudioProject(studioProject.id, updateData)
 
     // Return minimal response to avoid any JSON.stringify issues
     // Avoid accessing any potentially large fields like projectData or projectBundle

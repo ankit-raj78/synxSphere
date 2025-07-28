@@ -330,7 +330,14 @@ export async function generateOpenDAWBundle(
   // 3. 添加版本信息
   zip.file('version', '1')
   
-  // 4. 添加音频文件
+  // 4. 添加 UUID 文件（项目唯一标识符）
+  const { v4: uuidv4 } = await import('uuid')
+  const projectUuid = uuidv4()
+  // 将 UUID 转换为字节数组格式
+  const uuidBytes = projectUuid.replace(/-/g, '').match(/.{2}/g)?.map(byte => parseInt(byte, 16)) || []
+  zip.file('uuid', Buffer.from(uuidBytes))
+  
+  // 5. 添加音频文件
   const samplesFolder = zip.folder('samples')
   if (samplesFolder) {
     for (const audioFile of audioFiles) {
@@ -355,7 +362,7 @@ export async function generateOpenDAWBundle(
     }
   }
   
-  // 5. 生成 ZIP 文件
+  // 6. 生成 ZIP 文件
   const bundleBuffer = await zip.generateAsync({ type: 'nodebuffer' })
   return bundleBuffer
 }
@@ -380,23 +387,15 @@ export async function createCompleteRoomProjectFiles(
   // 1. 创建基本项目文件
   const basicFiles = createRoomProjectFiles(roomId, roomName, userId, defaultAudioFile)
   
-  // 2. 收集所有音频文件
-  const allAudioFiles = []
-  if (defaultAudioFile) allAudioFiles.push(defaultAudioFile)
-  allAudioFiles.push(...additionalAudioFiles)
+  // 2. 不再生成 .odb 包 - 让前端在创建项目后自动保存
+  // 收集所有音频文件
+  // const allAudioFiles = []
+  // if (defaultAudioFile) allAudioFiles.push(defaultAudioFile)
+  // allAudioFiles.push(...additionalAudioFiles)
   
-  // 3. 生成 .odb 包（如果有音频文件）
-  let projectBundle: Buffer | undefined
-  if (allAudioFiles.length > 0) {
-    try {
-      projectBundle = await generateOpenDAWBundle(roomId, basicFiles.projectJson, allAudioFiles)
-    } catch (error) {
-      console.error('Failed to generate .odb bundle:', error)
-    }
-  }
-  
+  // 3. 返回 projectBundle 为 undefined
   return {
     ...basicFiles,
-    projectBundle
+    projectBundle: undefined
   }
 } 

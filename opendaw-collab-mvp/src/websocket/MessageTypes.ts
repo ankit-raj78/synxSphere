@@ -34,6 +34,10 @@ export type CollabMessageType =
   | 'REGION_MOVED'
   | 'REGION_RESIZED'
   | 'TIMELINE_CHANGE'
+  // Update system messages
+  | 'TIMELINE_UPDATE'
+  | 'TIMELINE_SNAPSHOT_REQUEST'
+  | 'TIMELINE_SNAPSHOT_RESPONSE'
 
 export interface UserJoinData {
   username?: string
@@ -296,4 +300,24 @@ export const createCollabMessage = {
     timestamp: Date.now(),
     data
   })
+}
+
+// Timeline Update System interfaces
+export interface TimelineUpdateData {
+  updates: Array<{
+    type: string
+    data: number[]
+    debug?: string
+  }>
+}
+
+export interface TimelineSnapshotRequestData {
+  originalRequesterId?: string // 原始请求者ID（用于服务器转发）
+}
+
+export interface TimelineSnapshotResponseData {
+  snapshot?: number[]  // BoxGraph 序列化数据（旧格式）
+  updates?: any[]      // NewUpdate 数组（新格式）
+  boxCount: number     // Box 总数
+  requesterId?: string // 请求者ID（用于服务器转发）
 }

@@ -15,6 +15,10 @@ export class WSClient {
   onSyncResponse?: (events?: CollabMessage[]) => void
   onRegionCreated?: (payload: { regionId: string; trackId: string; startTime: number; duration: number; sampleId?: string }, fromUser: string) => void
   onClipCreated?: (payload: { clipId: string; trackId: string; startTime: number; duration: number; sampleId?: string }, fromUser: string) => void
+  // Timeline sync callbacks
+  onTimelineUpdate?: (data: any) => void
+  onTimelineSnapshotResponse?: (data: any) => void
+  onTimelineSnapshotRequest?: (requesterId?: string) => void
   private isConnecting = false
   private heartbeatInterval: NodeJS.Timeout | null = null
 
@@ -97,16 +101,13 @@ export class WSClient {
   }
 
   send(message: CollabMessage): boolean {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      try {
-        this.ws.send(JSON.stringify(message))
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      const messageStr = JSON.stringify(message)
+      console.log(`[WSClient] Sending message: ${message.type}`, message)
+      this.ws.send(messageStr)
         return true
-      } catch (error) {
-        console.error('Error sending WebSocket message:', error)
-        return false
-      }
     } else {
-      console.warn('WebSocket not connected, message not sent:', message.type)
+      console.warn(`[WSClient] WebSocket not connected, message not sent: ${message.type}`)
       return false
     }
   }
@@ -168,7 +169,29 @@ export class WSClient {
           this.onClipCreated?.({ clipId, trackId, startTime, duration, sampleId }, message.userId)
           return
         }
+        
+        case 'TIMELINE_UPDATE':
+          if (this.onTimelineUpdate && message.userId !== this.userId) {
+            console.log('[WSClient] Timeline update received')
+            this.onTimelineUpdate(message.data)
+          }
+          return
           
+        case 'TIMELINE_SNAPSHOT_RESPONSE':
+          if (this.onTimelineSnapshotResponse) {
+            console.log('[WSClient] Timeline snapshot response received')
+            this.onTimelineSnapshotResponse(message.data)
+          }
+          return
+          
+        case 'TIMELINE_SNAPSHOT_REQUEST':
+          if (this.onTimelineSnapshotRequest) {
+            console.log('[WSClient] Timeline snapshot requested')
+            // 使用data中的originalRequesterId，如果没有则fallback到message.userId
+            const requesterId = message.data?.originalRequesterId || message.userId
+            this.onTimelineSnapshotRequest(requesterId)
+          }
+          return
       }
       
       console.log(`No handler for message type: ${message.type}`)
