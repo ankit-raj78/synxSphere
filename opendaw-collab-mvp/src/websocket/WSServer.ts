@@ -80,6 +80,7 @@ export class WSServer {
       case 'SAMPLE_SYNC':
       case 'PROJECT_SAVED':
       case 'PROJECT_LOADED':
+      case 'PROJECT_UPDATED':
       case 'REGION_CREATED':
       case 'REGION_DELETED':
       case 'REGION_MOVED':

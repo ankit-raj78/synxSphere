@@ -21,6 +21,7 @@ export type CollabMessageType =
   | 'SAMPLE_SYNC'
   | 'PROJECT_SAVED'
   | 'PROJECT_LOADED'
+  | 'PROJECT_UPDATED'
   | 'SYNC_REQUEST'
   | 'SYNC_RESPONSE'
   | 'ERROR'
