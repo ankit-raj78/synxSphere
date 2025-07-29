@@ -143,6 +143,25 @@ services:
       - collaboration
     restart: unless-stopped
 
+  # Audio Analysis Service (development mode)
+  audio-service:
+    image: node:18-alpine
+    container_name: opendaw_audio_service_dev
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+      - SERVICE_PORT=3006
+    ports:
+      - "3006:3006"
+      - "9232:9232"  # Debug port
+    volumes:
+      - ./services/audio-service:/app
+      - /app/node_modules
+      - ./uploads:/app/uploads  # Mount uploads directory
+    command: sh -c "apk add --no-cache ffmpeg && npm install && npm run dev"
+    restart: unless-stopped
+
   # Development tools
   adminer:
     image: adminer:latest
