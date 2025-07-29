@@ -81,6 +81,12 @@ services:
       - .env.docker
     environment:
       - NODE_ENV=development
+      - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=opendaw
+      - POSTGRES_PASSWORD=collaboration
+      - POSTGRES_DB=opendaw_collab
     ports:
       - "8000:3000"
       - "9230:9230"  # Debug port
