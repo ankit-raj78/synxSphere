@@ -131,7 +131,6 @@ export async function GET(
     
     // Handle path resolution for different upload formats
     let containerPath: string
-    let hostPath: string
     
     if (filePath.startsWith('/uploads/rooms/')) {
       // Room-specific uploads: /uploads/rooms/{roomId}/{filename}
@@ -152,13 +151,6 @@ export async function GET(
     }
     
     console.log('Container file path:', containerPath)
-    console.log('Host file path:', hostPath)
-    console.log('Extracted filename:', filename)
-    
-    // Create fallback search pattern for filename mismatches
-    const originalNameClean = audioFile.originalName.replace(/[^\w\-_\.]/g, '_').replace(/[\s]+/g, '_')
-    const searchPattern = `*${originalNameClean.substring(0, 20)}*` // Use first 20 chars of original name
-    console.log('Search pattern for fallback:', searchPattern)
 
     try {
       let fileBuffer: Buffer
