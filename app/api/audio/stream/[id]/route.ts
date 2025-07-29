@@ -45,22 +45,17 @@ export async function GET(
                   new URL(request.url).searchParams.get('auth') // Support token in URL parameters
     
     if (!token) {
-      console.error('No authentication token provided')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
-    
-    // Verify token and get user
-    const tokenData = verifyToken(token)
-    if (!tokenData) {
-      console.error('Invalid authentication token')
+
+    const user = await verifyToken(token)
+    if (!user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
     
-    const user = { id: tokenData.id }
-    
     console.log('User authenticated:', user.id, 'requesting file:', params.id)
 
-    // Query for audio file using Prisma - allow access if user owns it OR if it's in a room where user is a member
+        // First, try to find the file in the AudioFile table (OpenDAW integration)
     let audioFile = await prisma.audioFile.findFirst({
       where: {
         id: params.id,
@@ -82,78 +77,78 @@ export async function GET(
       }
     })
     
-    // If not found in AudioFile table, check audio_tracks table using metadata.audioFileId
-    if (!audioFile) {
+    let filePath: string
+    let mimeType: string
+    let fileName: string
+    
+    if (audioFile) {
+      console.log('File found in AudioFile table')
+      filePath = audioFile.filePath
+      mimeType = audioFile.mimeType
+      fileName = audioFile.originalName || audioFile.filename
+    } else {
       console.log('File not found in AudioFile table, checking audio_tracks table...')
-      const audioTrack = await prisma.$queryRaw`
-        SELECT * FROM audio_tracks 
-        WHERE metadata->>'audioFileId' = ${params.id}
-        LIMIT 1
-      `
       
-      if (Array.isArray(audioTrack) && audioTrack.length > 0) {
-        const track = audioTrack[0] as any
-        console.log('Found in audio_tracks table:', track.id, track.name)
-        
-        // Create a compatible audioFile object from audio_tracks data
-        audioFile = {
-          id: track.id,
-          userId: track.uploader_id,
-          filename: track.name,
-          originalName: track.name,
-          filePath: track.file_path,
-          fileSize: null,
-          mimeType: track.file_path.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav',
-          duration: track.duration,
-          sampleRate: null,
-          channels: null,
-          bitRate: null,
-          format: track.file_path.endsWith('.mp3') ? 'MP3' : 'WAV',
-          isProcessed: false,
-          isPublic: false,
-          roomId: track.room_id,
-          metadata: track.metadata,
-          createdAt: track.uploaded_at,
-          updatedAt: track.uploaded_at,
-          room: null
-        } as any
+      // If not found in AudioFile, try audio_tracks table (room collaboration system)
+      const audioTrack = await prisma.audioTrack.findFirst({
+        where: {
+          id: params.id,
+          room: {
+            participants: {
+              some: {
+                userId: user.id
+              }
+            }
+          }
+        },
+        include: {
+          room: true
+        }
+      })
+      
+      if (audioTrack) {
+        console.log('File found in audio_tracks table')
+        filePath = audioTrack.filePath || ''
+        // Determine mime type from file extension if not stored
+        const extension = filePath.split('.').pop()?.toLowerCase()
+        mimeType = extension === 'mp3' ? 'audio/mpeg' : 
+                  extension === 'wav' ? 'audio/wav' :
+                  extension === 'ogg' ? 'audio/ogg' :
+                  extension === 'flac' ? 'audio/flac' : 'audio/wav'
+        fileName = audioTrack.name
+      } else {
+        console.log('File not found in either AudioFile or audio_tracks tables')
+        return NextResponse.json({ 
+          error: 'File not found or access denied',
+          details: `File ID ${params.id} not found in any audio table`
+        }, { status: 404 })
       }
     }
     
-    console.log('Database query result:', audioFile ? 'File found' : 'File not found')
+    console.log('Audio file path from DB:', filePath)
+    console.log('Detected mime type:', mimeType)
+    console.log('File name:', fileName)
     
-    if (!audioFile) {
-      return NextResponse.json({ error: 'File not found or access denied' }, { status: 404 })
-    }
-    console.log('Audio file path from DB:', audioFile.filePath)
-    
-    // Handle path resolution - both container and host system paths
+    // Handle path resolution for different upload formats
     let containerPath: string
     let hostPath: string
     
-    // Extract filename from database path
-    let filename: string
-    if (audioFile.filePath.startsWith('/uploads/rooms/')) {
+    if (filePath.startsWith('/uploads/rooms/')) {
       // Room-specific uploads: /uploads/rooms/{roomId}/{filename}
-      const pathParts = audioFile.filePath.split('/')
-      filename = pathParts[pathParts.length - 1] // Get the last part (filename)
-      containerPath = `/app/public${audioFile.filePath}`
-      // For host system, files are stored in flat uploads directory
-      hostPath = `/Users/ankitraj2/Documents/GitHub/synxSphere/uploads/${filename}`
-    } else if (audioFile.filePath.startsWith('/uploads/')) {
-      // Direct uploads: /uploads/{filename}
-      filename = audioFile.filePath.replace('/uploads/', '')
-      containerPath = `/app/public${audioFile.filePath}`
-      hostPath = `/Users/ankitraj2/Documents/GitHub/synxSphere/uploads/${filename}`
-    } else if (audioFile.filePath.startsWith('/app/uploads/')) {
-      // Direct container uploads: /app/uploads/{filename}
-      filename = audioFile.filePath.replace('/app/uploads/', '')
-      containerPath = audioFile.filePath  // Already has /app prefix
-      hostPath = `/Users/ankitraj2/Documents/GitHub/synxSphere/uploads/${filename}`
+      containerPath = `/app/public${filePath}`
+    } else if (filePath.startsWith('/app/uploads/')) {
+      // Direct app uploads: /app/uploads/{filename}
+      containerPath = filePath
+    } else if (filePath.startsWith('/uploads/')) {
+      // General uploads: /uploads/{filename}
+      containerPath = `/app/public${filePath}`
     } else {
-      // Other formats not supported
-      console.error('Unsupported file path format:', audioFile.filePath)
-      return NextResponse.json({ error: 'File path format not supported' }, { status: 400 })
+      // Unsupported format
+      console.error('Unsupported file path format:', filePath)
+      return NextResponse.json({ 
+        error: 'File path format not supported',
+        details: `Unsupported path format: ${filePath}`
+      }, { status: 400 })
     }
     
     console.log('Container file path:', containerPath)
@@ -170,91 +165,27 @@ export async function GET(
       try {
         // First try the container path (for Docker environment)
         fileBuffer = await readFile(containerPath)
-        console.log('File read successfully from container path, size:', fileBuffer.length, 'bytes')
-      } catch (containerError) {
-        console.log('File not found at container path:', containerPath)
-        console.log('Trying host path:', hostPath)
-        try {
-          // Fallback to host system path
-          fileBuffer = await readFile(hostPath)
-          console.log('File read successfully from host path, size:', fileBuffer.length, 'bytes')
-        } catch (hostError) {
-          console.error('File not found at either path, trying fallback search...')
-          console.error('Container path error:', containerError)
-          console.error('Host path error:', hostError)
-          
-          // Last resort: search for files that match the original name pattern
-          try {
-            const { readdir } = require('fs/promises')
-            // Try to use container path first, then host path as fallback
-            let uploadsDir = '/app/uploads'
-            try {
-              await readdir(uploadsDir)
-              console.log(`Using container uploads directory: ${uploadsDir}`)
-            } catch (containerDirError) {
-              uploadsDir = '/Users/ankitraj2/Documents/GitHub/synxSphere/uploads'
-              console.log(`Container path failed, trying host path: ${uploadsDir}`)
-            }
-            
-            const files = await readdir(uploadsDir)
-            
-            console.log(`🔍 Searching for files matching "${audioFile.originalName}" in ${files.length} files`)
-            
-            // Look for files that contain key parts of the original name
-            const originalNameParts = audioFile.originalName.toLowerCase()
-              .replace(/[^\w\s]/g, '_')  // Replace special chars with underscores
-              .split(/[\s_-]+/)           // Split on spaces, underscores, dashes
-              .filter(part => part.length > 2) // Only use parts longer than 2 chars
-            
-            console.log(`🔍 Search parts from "${audioFile.originalName}":`, originalNameParts)
-            
-            let matchingFile = null
-            let bestMatchScore = 0
-            
-            for (const file of files) {
-              if (!file.toLowerCase().endsWith('.wav') && !file.toLowerCase().endsWith('.mp3')) continue
-              
-              const fileLower = file.toLowerCase()
-              let matchScore = 0
-              
-              // Count how many parts of the original name appear in the filename
-              for (const part of originalNameParts) {
-                if (fileLower.includes(part)) {
-                  matchScore++
-                }
-              }
-              
-              console.log(`🔍 File "${file}" matches ${matchScore}/${originalNameParts.length} parts`)
-              
-              if (matchScore > bestMatchScore) {
-                bestMatchScore = matchScore
-                matchingFile = file
-              }
-            }
-            
-            // Require at least half the parts to match for a valid match
-            const requiredMatches = Math.max(1, Math.floor(originalNameParts.length / 2))
-            
-            if (matchingFile && bestMatchScore >= requiredMatches) {
-              const fallbackPath = `${uploadsDir}/${matchingFile}`
-              console.log(`✅ Found best matching file: "${matchingFile}" (score: ${bestMatchScore}/${originalNameParts.length})`)
-              fileBuffer = await readFile(fallbackPath)
-              console.log('File read successfully from fallback search, size:', fileBuffer.length, 'bytes')
-            } else {
-              console.error(`❌ No adequate matches found. Best was "${matchingFile}" with score ${bestMatchScore}/${originalNameParts.length} (required: ${requiredMatches})`)
-              return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
-            }
-          } catch (searchError) {
-            console.error('Fallback search failed:', searchError)
-            return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
-          }
-        }
+        console.log('File read successfully from path, size:', fileBuffer.length, 'bytes')
+      } catch (pathError: any) {
+        console.error('File not found at path:', containerPath)
+        console.error('Path error details:', pathError.message)
+        
+        return NextResponse.json({ 
+          error: 'File not accessible',
+          details: `Physical file not found at path: ${containerPath}`,
+          fileId: params.id,
+          expectedPath: containerPath
+        }, { status: 404 })
       }
+      
+      // Encode filename properly for Content-Disposition header
+      const encodedFileName = encodeURIComponent(fileName)
       
       return new NextResponse(fileBuffer, {
         headers: {
-          'Content-Type': audioFile.mimeType || 'audio/wav',
+          'Content-Type': mimeType || 'audio/wav',
           'Content-Length': fileBuffer.length.toString(),
+          'Content-Disposition': `inline; filename*=UTF-8''${encodedFileName}`,
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'public, max-age=3600',
           'Access-Control-Allow-Origin': '*',
@@ -262,12 +193,23 @@ export async function GET(
           'Access-Control-Allow-Headers': 'Authorization, Content-Type'
         }
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error reading audio file:', error)
-      return NextResponse.json({ error: 'File not accessible' }, { status: 404 })
+      return NextResponse.json({ 
+        error: 'File not accessible',
+        details: error.message || 'Unknown error occurred while reading file'
+      }, { status: 404 })
     }
-  } catch (error) {
-    console.error('Error streaming audio:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (error: any) {
+    console.error('=== AUDIO STREAM ERROR ===')
+    console.error('Error streaming audio for ID:', params.id)
+    console.error('Error details:', error)
+    console.error('Error stack:', error.stack)
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message || 'Unknown internal error occurred'
+    }, { status: 500 })
+  } finally {
+    console.log('=== AUDIO STREAM REQUEST END ===')
   }
 }
