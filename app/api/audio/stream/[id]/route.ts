@@ -61,7 +61,7 @@ export async function GET(
     console.log('User authenticated:', user.id, 'requesting file:', params.id)
 
     // Query for audio file using Prisma - allow access if user owns it OR if it's in a room where user is a member
-    const audioFile = await prisma.audioFile.findFirst({
+    let audioFile = await prisma.audioFile.findFirst({
       where: {
         id: params.id,
         OR: [
@@ -81,6 +81,44 @@ export async function GET(
         room: true
       }
     })
+    
+    // If not found in AudioFile table, check audio_tracks table using metadata.audioFileId
+    if (!audioFile) {
+      console.log('File not found in AudioFile table, checking audio_tracks table...')
+      const audioTrack = await prisma.$queryRaw`
+        SELECT * FROM audio_tracks 
+        WHERE metadata->>'audioFileId' = ${params.id}
+        LIMIT 1
+      `
+      
+      if (Array.isArray(audioTrack) && audioTrack.length > 0) {
+        const track = audioTrack[0] as any
+        console.log('Found in audio_tracks table:', track.id, track.name)
+        
+        // Create a compatible audioFile object from audio_tracks data
+        audioFile = {
+          id: track.id,
+          userId: track.uploader_id,
+          filename: track.name,
+          originalName: track.name,
+          filePath: track.file_path,
+          fileSize: null,
+          mimeType: track.file_path.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav',
+          duration: track.duration,
+          sampleRate: null,
+          channels: null,
+          bitRate: null,
+          format: track.file_path.endsWith('.mp3') ? 'MP3' : 'WAV',
+          isProcessed: false,
+          isPublic: false,
+          roomId: track.room_id,
+          metadata: track.metadata,
+          createdAt: track.uploaded_at,
+          updatedAt: track.uploaded_at,
+          room: null
+        } as any
+      }
+    }
     
     console.log('Database query result:', audioFile ? 'File found' : 'File not found')
     
