@@ -30,7 +30,9 @@ export async function GET(
     }
 
     // First try to fetch real tracks from database
+    // Check both audioTrack and audioFile tables
     try {
+      // Fetch AudioTrack records (legacy room tracks)
       const audioTracks = await prisma.audioTrack.findMany({
         where: { roomId: params.id },
         include: {
@@ -45,8 +47,28 @@ export async function GET(
         orderBy: { uploadedAt: 'desc' }
       })
 
+      // Fetch AudioFile records that have been moved to this room
+      const audioFiles = await prisma.audioFile.findMany({
+        where: { roomId: params.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+
+      console.log(`Found ${audioTracks.length} audioTracks and ${audioFiles.length} audioFiles for room ${params.id}`)
+
+      const allTracks = []
+
+      // Process AudioTrack records
       if (audioTracks.length > 0) {
-        const realTracks = audioTracks.map((track: any) => ({
+        const trackRecords = audioTracks.map((track: any) => ({
           id: track.id,
           name: track.name,
           originalName: track.originalName || track.name,
@@ -59,7 +81,7 @@ export async function GET(
           filePath: track.filePath,
           fileSize: track.fileSize || 0,
           mimeType: track.mimeType || 'audio/mpeg',
-          audioFileId: track.metadata?.audioFileId || track.id, // Extract audioFileId from metadata JSON
+          audioFileId: track.metadata?.audioFileId || track.id,
           isPlaying: false,
           isMuted: false,
           isSolo: false,
@@ -74,14 +96,57 @@ export async function GET(
             distortion: 0
           },
           color: generateTrackColor(),
-          uploadedAt: track.uploadedAt
+          uploadedAt: track.uploadedAt,
+          source: 'audioTrack'
         }))
-
-        console.log(`✅ Found ${realTracks.length} real tracks for room ${params.id}`)
-        return NextResponse.json({ tracks: realTracks })
+        allTracks.push(...trackRecords)
       }
 
-      console.log(`📋 No real tracks found for room ${params.id}, falling back to mock data`)
+      // Process AudioFile records (moved to room files)
+      if (audioFiles.length > 0) {
+        const fileRecords = audioFiles.map((file: any) => ({
+          id: file.id,
+          name: file.originalName,
+          originalName: file.originalName,
+          uploadedBy: {
+            id: file.user.id,
+            username: file.user.username || file.user.email?.split('@')[0] || 'User',
+            avatar: null
+          },
+          duration: file.duration ? `${Math.floor(Number(file.duration) / 60)}:${Math.floor(Number(file.duration) % 60).toString().padStart(2, '0')}` : "0:00",
+          filePath: file.filePath,
+          fileSize: Number(file.fileSize) || 0,
+          mimeType: file.mimeType || 'audio/mpeg',
+          audioFileId: file.id, // For moved files, the audioFileId is the file ID itself
+          isPlaying: false,
+          isMuted: false,
+          isSolo: false,
+          isLocked: false,
+          volume: 1.0,
+          pan: 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            lowpass: 0,
+            highpass: 0,
+            distortion: 0
+          },
+          color: generateTrackColor(),
+          uploadedAt: file.createdAt,
+          source: 'audioFile'
+        }))
+        allTracks.push(...fileRecords)
+      }
+
+      if (allTracks.length > 0) {
+        // Sort all tracks by upload date (newest first)
+        allTracks.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+        
+        console.log(`✅ Found ${allTracks.length} total tracks for room ${params.id}`)
+        return NextResponse.json({ tracks: allTracks })
+      }
+
+      console.log(`📋 No tracks found for room ${params.id}, falling back to mock data`)
     } catch (dbError) {
       console.error('Database error fetching tracks:', dbError)
       console.log('📋 Database unavailable, using mock data')

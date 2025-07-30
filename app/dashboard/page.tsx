@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Music, Upload, Users, Brain, Activity, Play, Settings, 
-  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut, Trash2, ArrowRight, Bell
+  Plus, TrendingUp, Clock, Star, Mic, Headphones, Volume2, LogOut, Trash2, ArrowRight, Bell, FolderOpen
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import RoomRecommendations, { RoomRecommendationsRef } from '../../components/RoomRecommendations'
@@ -12,6 +12,7 @@ import FileUpload from '../../components/FileUpload'
 import AudioPlayer from '../../components/AudioPlayer'
 import RoomCreation from '../../components/RoomCreation'
 import ConfirmationModal from '../../components/ConfirmationModal'
+import MoveToRoomModal from '../../components/MoveToRoomModal'
 import { formatDate, formatDateTime } from '../../lib/date-utils'
 import { deleteRoomWithConfirmation, RoomDeletionSummary } from '../../lib/room-management'
 import { Toaster } from 'react-hot-toast'
@@ -42,6 +43,7 @@ interface AudioFile {
   filename: string
   originalName: string
   createdAt: string
+  roomId?: string | null
   audioFeatures?: any
   analysisStatus: 'pending' | 'processing' | 'completed' | 'failed'
 }
@@ -58,6 +60,8 @@ export default function DashboardPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [joinRequestCount, setJoinRequestCount] = useState(0)
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
+  const [showMoveToRoomModal, setShowMoveToRoomModal] = useState(false)
+  const [selectedFileForMove, setSelectedFileForMove] = useState<AudioFile | null>(null)
   const roomRecommendationsRef = useRef<RoomRecommendationsRef>(null)
 
   useEffect(() => {
@@ -194,6 +198,22 @@ export default function DashboardPage() {
     } finally {
       setDeletingRoomId(null)
     }
+  }
+
+  const handleMoveToRoom = (file: AudioFile) => {
+    setSelectedFileForMove(file)
+    setShowMoveToRoomModal(true)
+  }
+
+  const handleFileMoved = (fileId: string, roomId: string) => {
+    // Update the file in the audioFiles state to reflect it's now in a room
+    setAudioFiles(prev => prev.map(file => 
+      file.id === fileId 
+        ? { ...file, roomId: roomId }
+        : file
+    ))
+    setShowMoveToRoomModal(false)
+    setSelectedFileForMove(null)
   }
 
   const handleFileUpload = async (files: File[]) => {
@@ -347,8 +367,11 @@ export default function DashboardPage() {
                 <div className="card">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400">Uploaded Tracks</p>
-                      <p className="text-3xl font-bold">{audioFiles.length}</p>
+                      <p className="text-gray-400">Personal Tracks</p>
+                      <p className="text-3xl font-bold">{audioFiles.filter(f => !f.roomId).length}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {audioFiles.filter(f => f.roomId).length} in rooms
+                      </p>
                     </div>
                     <Activity className="w-8 h-8 text-primary-400" />
                   </div>
@@ -532,7 +555,10 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {audioFiles.slice(0, 5).map((file: AudioFile) => (
+                    {audioFiles
+                      .filter(file => !file.roomId) // Only show files not already in rooms
+                      .slice(0, 5)
+                      .map((file: AudioFile) => (
                       <div key={file.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
@@ -554,13 +580,59 @@ export default function DashboardPage() {
                               Processing
                             </span>
                           )}
+                          <button
+                            onClick={() => handleMoveToRoom(file)}
+                            className="flex items-center space-x-1 px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs rounded transition-colors"
+                            title="Move to Room"
+                          >
+                            <FolderOpen className="w-3 h-3" />
+                            <span>Move to Room</span>
+                          </button>
+                          <AudioPlayer fileId={file.id} />
+                        </div>
+                      </div>
+                    ))}
+                    {audioFiles.filter(file => !file.roomId).length === 0 && audioFiles.length > 0 && (
+                      <div className="text-center py-4">
+                        <p className="text-gray-400 text-sm">All your files have been moved to rooms</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Files in Rooms */}
+              {audioFiles.filter(f => f.roomId).length > 0 && (
+                <div className="card">
+                  <h3 className="text-xl font-bold mb-4">Files in Collaboration Rooms</h3>
+                  <div className="space-y-3">
+                    {audioFiles
+                      .filter(file => file.roomId)
+                      .slice(0, 5)
+                      .map((file: AudioFile) => (
+                      <div key={file.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg border border-gray-600">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-500 rounded-lg flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{file.originalName}</p>
+                            <p className="text-sm text-gray-400">
+                              In collaboration room • {formatDateTime(file.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded">
+                            In Room
+                          </span>
                           <AudioPlayer fileId={file.id} />
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -832,7 +904,7 @@ export default function DashboardPage() {
                     {audioFiles
                       .filter(f => f.analysisStatus === 'completed')                      .map((file) => (
                         <div key={file.id} className="bg-gray-700 rounded-lg p-4">
-                          <h4 className="font-semibold mb-3">{file.original_name}</h4>
+                          <h4 className="font-semibold mb-3">{file.originalName}</h4>
                           {file.audioFeatures && (
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
@@ -1057,6 +1129,19 @@ export default function DashboardPage() {
             </div>
           </div>
         </motion.div>
+
+      {/* Move to Room Modal */}
+      {selectedFileForMove && (
+        <MoveToRoomModal
+          isOpen={showMoveToRoomModal}
+          onClose={() => {
+            setShowMoveToRoomModal(false)
+            setSelectedFileForMove(null)
+          }}
+          audioFile={selectedFileForMove}
+          onFileMoved={handleFileMoved}
+        />
+      )}
 
       {/* Delete Account Confirmation Modal */}
       <ConfirmationModal
