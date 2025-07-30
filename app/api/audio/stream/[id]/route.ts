@@ -40,37 +40,13 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid file ID' }, { status: 400 })
     }
     
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '') || 
-                  new URL(request.url).searchParams.get('auth') // Support token in URL parameters
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-    }
-    
-    console.log('User authenticated:', user.id, 'requesting file:', params.id)
+    // REMOVED AUTHENTICATION - Allow public access to audio streaming
+    console.log('No authentication required for audio streaming')
 
         // First, try to find the file in the AudioFile table (OpenDAW integration)
     let audioFile = await prisma.audioFile.findFirst({
       where: {
-        id: params.id,
-        OR: [
-          { userId: user.id },
-          {
-            room: {
-              participants: {
-                some: {
-                  userId: user.id
-                }
-              }
-            }
-          }
-        ]
+        id: params.id
       },
       include: {
         room: true
@@ -92,14 +68,7 @@ export async function GET(
       // If not found in AudioFile, try audio_tracks table (room collaboration system)
       const audioTrack = await prisma.audioTrack.findFirst({
         where: {
-          id: params.id,
-          room: {
-            participants: {
-              some: {
-                userId: user.id
-              }
-            }
-          }
+          id: params.id
         },
         include: {
           room: true

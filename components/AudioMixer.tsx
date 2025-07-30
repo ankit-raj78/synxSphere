@@ -20,6 +20,7 @@ interface AudioTrack {
   }
   duration: number
   waveform: number[]
+  audioFileId?: string
   file?: File
   audioBuffer?: AudioBuffer
   gainNode?: GainNode
@@ -529,7 +530,7 @@ export default function AudioMixer({
 
                     {/* Audio Player */}
                     <div className="mb-2">
-                      <AudioPlayer fileId={track.id} className="w-full" />
+                      <AudioPlayer fileId={track.audioFileId || track.id} className="w-full" />
                     </div>
 
                     {/* Effects Panel */}

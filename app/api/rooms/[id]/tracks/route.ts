@@ -29,7 +29,66 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Mock data for now - in production this would fetch from database
+    // First try to fetch real tracks from database
+    try {
+      const audioTracks = await prisma.audioTrack.findMany({
+        where: { roomId: params.id },
+        include: {
+          uploader: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { uploadedAt: 'desc' }
+      })
+
+      if (audioTracks.length > 0) {
+        const realTracks = audioTracks.map((track: any) => ({
+          id: track.id,
+          name: track.name,
+          originalName: track.originalName || track.name,
+          uploadedBy: {
+            id: track.uploader.id,
+            username: track.uploader.username || track.uploader.email?.split('@')[0] || 'User',
+            avatar: null
+          },
+          duration: track.duration || "0:00",
+          waveform: track.waveform || [],
+          filePath: track.filePath,
+          fileSize: track.fileSize || 0,
+          mimeType: track.mimeType || 'audio/mpeg',
+          audioFileId: track.metadata?.audioFileId || track.id, // Extract audioFileId from metadata JSON
+          isPlaying: false,
+          isMuted: false,
+          isSolo: false,
+          isLocked: false,
+          volume: 1.0,
+          pan: 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            lowpass: 0,
+            highpass: 0,
+            distortion: 0
+          },
+          color: generateTrackColor(),
+          uploadedAt: track.uploadedAt
+        }))
+
+        console.log(`✅ Found ${realTracks.length} real tracks for room ${params.id}`)
+        return NextResponse.json({ tracks: realTracks })
+      }
+
+      console.log(`📋 No real tracks found for room ${params.id}, falling back to mock data`)
+    } catch (dbError) {
+      console.error('Database error fetching tracks:', dbError)
+      console.log('📋 Database unavailable, using mock data')
+    }
+
+    // Fallback to mock data if no real tracks or database error
     const mockTracks = [
       {
         id: 'track-1',

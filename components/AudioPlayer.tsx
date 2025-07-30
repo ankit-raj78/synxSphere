@@ -49,91 +49,68 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
       if (!audioRef.current.src) {
         setLoading(true)
         try {
-          const token = localStorage.getItem('token')
           console.log('Fetching audio stream for fileId:', fileId)
           
-          const response = await fetch(`/api/audio/stream/${fileId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          })
+          // Simplified approach: Set the audio src directly to the API endpoint
+          const audioStreamUrl = `/api/audio/stream/${fileId}`
+          console.log('Setting audio src to:', audioStreamUrl)
           
-          console.log('Audio stream response:', response.status, response.statusText)
-          console.log('Response content-type:', response.headers.get('content-type'))
-          console.log('Response content-length:', response.headers.get('content-length'))
-            if (response.ok) {
-            // For large files, use response URL directly instead of converting to Blob
-            const contentLength = parseInt(response.headers.get('content-length') || '0')
-            if (contentLength > 20 * 1024 * 1024) { // Use direct URL for files above 20MB
-              console.log('Large file detected, using direct streaming')
-              
-              // Set API URL directly, let browser handle streaming
-              const directUrl = `/api/audio/stream/${fileId}?auth=${encodeURIComponent(token || '')}`
-              audioRef.current.src = directUrl
-              audioRef.current.load()
-              console.log('Audio element loaded with direct URL')
+          audioRef.current.src = audioStreamUrl
+          audioRef.current.load()
+          
+          console.log('Audio element src set and loaded')
+          setLoading(false)
+          
+          // Try to play after loading
+          try {
+            console.log('Attempting to play audio...')
+            await audioRef.current.play()
+            setIsPlaying(true)
+            console.log('Audio playback started successfully')
+          } catch (playError) {
+            console.error('Error playing audio:', playError)
+            if ((playError as Error).name === 'NotAllowedError') {
+              console.log('Autoplay blocked - user interaction required')
+              setError('Click play to start audio')
             } else {
-              console.log('Starting blob conversion...')
-              const blob = await response.blob()
-              console.log('Blob created, size:', blob.size, 'type:', blob.type)
-              const audioUrl = URL.createObjectURL(blob)
-              console.log('Audio src set:', audioUrl.substring(0, 50) + '...')
-              
-              // Set src and load the audio
-              audioRef.current.src = audioUrl
-              audioRef.current.load()
-              console.log('Audio element loaded with blob URL')
+              setError('Cannot play audio')
             }
-            
-            // Wait for audio to be ready, then play
-            try {
-              console.log('Audio loaded, attempting to play...')
-              await audioRef.current.play()
-              setIsPlaying(true)
-              console.log('Audio playback started successfully')
-            } catch (playError) {
-              console.error('Error playing audio:', playError)
-              // Handle autoplay restrictions
-              if ((playError as Error).name === 'NotAllowedError') {
-                console.log('Autoplay blocked - user interaction required')
-                setError('Click play to start audio')
-              } else {
-                setError('Cannot play audio')
-              }
-            }
-            
-          } else {
-            const errorText = await response.text()
-            console.error('Audio stream error:', errorText)
-            setError('Failed to load audio')
           }
         } catch (error) {
-          console.error('Error loading audio:', error)
-          console.error('Error details:', {
-            message: (error as Error).message,
-            name: (error as Error).name,
-            stack: (error as Error).stack
-          })
-          
-          setError(`Network error: ${(error as Error).message || 'Unknown error'}`)
-        } finally {
+          console.error('Error setting up audio:', error)
+          setError(`Setup error: ${(error as Error).message || 'Unknown error'}`)
           setLoading(false)
         }
       } else {
         // Audio already loaded, just play
         try {
           console.log('Audio already loaded, playing...')
+          
+          // Check if audio has a valid source before attempting to play
+          if (!audioRef.current.src || audioRef.current.src === '') {
+            console.error('No audio source available')
+            setError('No audio source loaded')
+            return
+          }
+          
           await audioRef.current.play()
           setIsPlaying(true)
           console.log('Audio playback started successfully')
         } catch (error) {
           console.error('Error playing audio:', error)
-          // Handle autoplay restrictions
+          
+          // Handle different types of playback errors
           if ((error as Error).name === 'NotAllowedError') {
             console.log('Autoplay blocked - user interaction required')
             setError('Click play to start audio')
+          } else if ((error as Error).name === 'NotSupportedError') {
+            console.log('Audio format not supported or no valid source')
+            setError('Audio format not supported')
+            // Clear the invalid source and reset
+            audioRef.current.src = ''
+            audioRef.current.load()
           } else {
-            setError('Cannot play audio')
+            setError(`Cannot play audio: ${(error as Error).message}`)
           }
         }
       }
@@ -179,9 +156,50 @@ export default function AudioPlayer({ fileId, className = '' }: AudioPlayerProps
 
   const handleError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     console.error('Audio error event:', e)
+    console.error('Audio element error code:', audioRef.current?.error?.code)
+    console.error('Audio element error message:', audioRef.current?.error?.message)
+    console.error('Audio element src:', audioRef.current?.src)
+    console.error('Audio element readyState:', audioRef.current?.readyState)
+    console.error('Audio element networkState:', audioRef.current?.networkState)
+    console.error('Expected audio src should be:', `/api/audio/stream/${fileId}`)
+    console.error('Current window location:', window.location.href)
+    
+    // HTML5 audio error codes:
+    // 1 = MEDIA_ERR_ABORTED - fetching process aborted by user
+    // 2 = MEDIA_ERR_NETWORK - error occurred when downloading
+    // 3 = MEDIA_ERR_DECODE - error occurred when decoding
+    // 4 = MEDIA_ERR_SRC_NOT_SUPPORTED - audio/video not supported
+    
+    const errorCode = audioRef.current?.error?.code
+    let errorMessage = 'Audio playback error'
+    
+    switch (errorCode) {
+      case 1:
+        errorMessage = 'Audio loading was aborted'
+        break
+      case 2:
+        errorMessage = 'Network error while loading audio'
+        break
+      case 3:
+        errorMessage = 'Error decoding audio file'
+        break
+      case 4:
+        errorMessage = 'Audio format not supported or invalid src'
+        // If the src is wrong, try to reset it
+        if (audioRef.current && audioRef.current.src !== `/api/audio/stream/${fileId}`) {
+          console.log('Detected wrong src, attempting to fix...')
+          audioRef.current.src = `/api/audio/stream/${fileId}`
+          audioRef.current.load()
+          return // Don't set error yet, give it another chance
+        }
+        break
+      default:
+        errorMessage = `Audio error (code: ${errorCode})`
+    }
+    
     setLoading(false)
     setIsPlaying(false)
-    setError('Audio playback error')
+    setError(errorMessage)
   }
 
   const handlePlay = () => {
