@@ -67,7 +67,8 @@ export interface BoxDeletedData {
 }
 
 export interface BoxOwnershipData {
-  boxUuid: string
+  trackboxUuid?: string
+  audiounitboxUuid?: string
   ownerId: string
 }
 

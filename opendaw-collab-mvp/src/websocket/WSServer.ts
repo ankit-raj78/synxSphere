@@ -204,7 +204,14 @@ export class WSServer {
 
   private async sendSyncResponse(ws: WebSocket, projectId: string, userId: string): Promise<void> {
     try {
-      const ownership = await this.db.getProjectOwnership(projectId)
+      const ownershipData = await this.db.getProjectOwnership(projectId)
+      
+      // 将新格式转换为旧格式以保持兼容性
+      const ownership: Record<string, string> = {
+        ...ownershipData.trackBoxes,
+        ...ownershipData.audioUnitBoxes
+      }
+      
       // Get active users from in-memory client list instead of database
       const activeUsers = Array.from(this.clients.values())
         .filter(client => client.projectId === projectId)
@@ -216,6 +223,7 @@ export class WSServer {
       
       console.log(`📊 Active users for project ${projectId}:`, activeUsers)
       console.log(`📊 Sending sync response to user ${userId} with ${events?.length || 0} events`)
+      console.log(`📊 Ownership data:`, ownershipData)
       
       const syncResponse = createCollabMessage.syncResponse(projectId, userId, {
         ownership,

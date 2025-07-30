@@ -11,14 +11,21 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Box ownership table - tracks which user owns which AudioUnitBox
+-- Box ownership table - tracks which user owns which TrackBox or AudioUnitBox
 CREATE TABLE IF NOT EXISTS box_ownership (
   project_id VARCHAR(255) NOT NULL,
-  box_uuid VARCHAR(255) NOT NULL,
+  trackbox_uuid VARCHAR(255),
+  audiounitbox_uuid VARCHAR(255),
   owner_id VARCHAR(255) NOT NULL,
   owned_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (project_id, box_uuid)
-  -- Removed foreign key constraint for MVP simplicity
+  room_id VARCHAR(255),
+  -- Ensure at least one UUID is provided
+  CONSTRAINT check_uuid_presence CHECK (
+    (trackbox_uuid IS NOT NULL AND audiounitbox_uuid IS NULL) OR 
+    (trackbox_uuid IS NULL AND audiounitbox_uuid IS NOT NULL)
+  ),
+  -- Composite primary key based on which UUID is present
+  PRIMARY KEY (project_id, COALESCE(trackbox_uuid, audiounitbox_uuid))
 );
 
 -- Box locks table - simple locking mechanism to prevent conflicts
@@ -45,6 +52,8 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_box_ownership_project ON box_ownership(project_id);
 CREATE INDEX IF NOT EXISTS idx_box_ownership_owner ON box_ownership(owner_id);
+CREATE INDEX IF NOT EXISTS idx_box_ownership_trackbox ON box_ownership(trackbox_uuid) WHERE trackbox_uuid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_box_ownership_audiounitbox ON box_ownership(audiounitbox_uuid) WHERE audiounitbox_uuid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_box_locks_project ON box_locks(project_id);
 CREATE INDEX IF NOT EXISTS idx_box_locks_expires ON box_locks(expires_at);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_project ON user_sessions(project_id);
