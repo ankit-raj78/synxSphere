@@ -295,6 +295,69 @@ export async function POST(
         uploadedAt: audioTrack.uploadedAt
       }
 
+      // Background processing to extract audio metadata for the track
+      setTimeout(async () => {
+        try {
+          console.log(`📊 [Room Upload] Starting metadata extraction for track ${audioTrack.id}`)
+          
+          // Call audio service to analyze the file
+          const audioServiceUrl = 'http://audio-service:3006/analyze'
+          const trackFilePath = audioTrack.filePath
+          
+          if (!trackFilePath) {
+            console.error(`❌ [Room Upload] No file path for track ${audioTrack.id}`)
+            return
+          }
+          
+          const fullFilePath = path.join(process.cwd(), 'public', trackFilePath)
+          
+          const response = await fetch(audioServiceUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              filePath: fullFilePath
+            })
+          })
+
+          if (response.ok) {
+            const response_data = await response.json()
+            console.log(`✅ [Room Upload] Audio metadata extracted for track ${audioTrack.id}:`, response_data)
+            
+            const metadata = response_data.metadata
+            
+            // Update the audio_tracks record with metadata
+            await prisma.audioTrack.update({
+              where: { id: audioTrack.id },
+              data: {
+                duration: `${Math.floor(metadata.duration / 60)}:${Math.floor(metadata.duration % 60).toString().padStart(2, '0')}`
+              }
+            })
+            
+            // Also update the linked AudioFile record
+            await prisma.audioFile.update({
+              where: { id: audioFile.id },
+              data: {
+                duration: metadata.duration,
+                sampleRate: metadata.sampleRate,
+                channels: metadata.channels,
+                bitRate: metadata.bitRate,
+                format: metadata.format,
+                isProcessed: true
+              }
+            })
+            
+            console.log(`✅ [Room Upload] Updated metadata for track ${audioTrack.id} and file ${audioFile.id}`)
+          } else {
+            const error = await response.text()
+            console.error(`❌ [Room Upload] Audio analysis failed for track ${audioTrack.id}:`, error)
+          }
+        } catch (error) {
+          console.error(`❌ [Room Upload] Background processing error for track ${audioTrack.id}:`, error)
+        }
+      }, 1000) // 1 second delay to ensure file is written
+
       return NextResponse.json({ 
         message: 'File uploaded successfully',
         track 
