@@ -40,8 +40,8 @@ interface User {
 interface AudioFile {
   id: string
   filename: string
-  original_name: string
-  created_at: string
+  originalName: string
+  createdAt: string
   audioFeatures?: any
   analysisStatus: 'pending' | 'processing' | 'completed' | 'failed'
 }
@@ -94,16 +94,24 @@ export default function DashboardPage() {
       })
 
       if (response.ok) {
-        const files = await response.json()
-        console.log('Loaded audio files:', files) // Debug log
-        files.forEach((file: AudioFile, index: number) => {
-          console.log(`File ${index}:`, {
-            id: file.id,
-            original_name: file.original_name,
-            created_at: file.created_at
+        const data = await response.json()
+        console.log('Loaded audio files:', data) // Debug log
+        
+        // Extract the files array from the response
+        const files = data.files || data // Handle both {files: [...]} and [...] formats
+        
+        if (Array.isArray(files)) {
+          files.forEach((file: AudioFile, index: number) => {
+            console.log(`File ${index}:`, {
+              id: file.id,
+              originalName: file.originalName,
+              createdAt: file.createdAt
+            })
           })
-        })
-        setAudioFiles(files)
+          setAudioFiles(files)
+        } else {
+          console.error('Files data is not an array:', files)
+        }
       }
     } catch (error) {
       console.error('Error loading files:', error)    } finally {
@@ -530,8 +538,8 @@ export default function DashboardPage() {
                           <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
                             <Music className="w-5 h-5 text-white" />
                           </div>                          <div>
-                            <p className="font-medium">{file.original_name}</p>                            <p className="text-sm text-gray-400">
-                              {formatDateTime(file.created_at)}
+                            <p className="font-medium">{file.originalName}</p>                            <p className="text-sm text-gray-400">
+                              {formatDateTime(file.createdAt)}
                             </p>
                           </div>
                         </div>

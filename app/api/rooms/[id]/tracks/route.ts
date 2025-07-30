@@ -56,7 +56,6 @@ export async function GET(
             avatar: null
           },
           duration: track.duration || "0:00",
-          waveform: track.waveform || [],
           filePath: track.filePath,
           fileSize: track.fileSize || 0,
           mimeType: track.mimeType || 'audio/mpeg',
@@ -100,7 +99,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.1) * 0.5 + 0.5),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -127,7 +125,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.random() * 0.8 + 0.2),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -154,7 +151,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.05) * 0.7 + 0.3),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -181,7 +177,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.cos(i * 0.08) * 0.6 + 0.4),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
