@@ -595,11 +595,84 @@ export async function DELETE(
       return NextResponse.json({ error: 'Track ID required' }, { status: 400 })
     }
 
-    // In production, this would delete from database
+    const roomId = params.id
+
+    // Verify room access and get room details
+    const room = await prisma.room.findFirst({
+      where: { id: roomId },
+      include: {
+        participants: {
+          where: { userId: tokenData.id }
+        }
+      }
+    })
+
+    if (!room) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 })
+    }
+
+    // Check if user is room creator or participant
+    const isCreator = room.creatorId === tokenData.id
+    const isParticipant = room.participants.length > 0
+
+    if (!isCreator && !isParticipant) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Try to delete from audioTrack table first
+    let deletedFromAudioTrack = false
+    try {
+      const audioTrack = await prisma.audioTrack.findFirst({
+        where: {
+          id: trackId,
+          roomId: roomId
+        }
+      })
+
+      if (audioTrack) {
+        // Check if user owns the track or is room creator
+        if (audioTrack.uploaderId !== tokenData.id && !isCreator) {
+          return NextResponse.json({ error: 'You can only delete your own tracks' }, { status: 403 })
+        }
+
+        await prisma.audioTrack.delete({
+          where: { id: trackId }
+        })
+        deletedFromAudioTrack = true
+      }
+    } catch (error) {
+      console.log('Track not found in audioTrack table, checking audioFile table')
+    }
+
+    // If not found in audioTrack, try audioFile table
+    if (!deletedFromAudioTrack) {
+      const audioFile = await prisma.audioFile.findFirst({
+        where: {
+          id: trackId,
+          roomId: roomId
+        }
+      })
+
+      if (!audioFile) {
+        return NextResponse.json({ error: 'Track not found in this room' }, { status: 404 })
+      }
+
+      // Check if user owns the file or is room creator
+      if (audioFile.userId !== tokenData.id && !isCreator) {
+        return NextResponse.json({ error: 'You can only delete your own tracks' }, { status: 403 })
+      }
+
+      // Remove from room (set roomId to null) instead of deleting entirely
+      await prisma.audioFile.update({
+        where: { id: trackId },
+        data: { roomId: null }
+      })
+    }
+
     return NextResponse.json({ 
       success: true, 
       trackId,
-      message: 'Track deleted successfully' 
+      message: 'Track removed from room successfully' 
     })
   } catch (error) {
     console.error('Error deleting track:', error)

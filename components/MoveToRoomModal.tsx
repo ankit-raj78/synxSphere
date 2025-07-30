@@ -136,7 +136,7 @@ export default function MoveToRoomModal({
                 <div>
                   <h2 className="text-xl font-bold text-white">Move to Room</h2>
                   <p className="text-sm text-gray-400 mt-1">
-                    Move "{audioFile.originalName}" to a collaboration room
+                    Move &quot;{audioFile.originalName}&quot; to a collaboration room
                   </p>
                 </div>
                 <button

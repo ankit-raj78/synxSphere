@@ -205,6 +205,45 @@ export default function DashboardPage() {
     setShowMoveToRoomModal(true)
   }
 
+  const handleDeleteFile = async (fileId: string, filename: string) => {
+    if (!confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/audio/delete?id=${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Delete response:', result)
+        
+        // Remove file from local state immediately
+        setAudioFiles(prev => prev.filter(file => file.id !== fileId))
+        
+        // Show success message
+        const toast = await import('react-hot-toast')
+        toast.default.success(`"${filename}" deleted successfully`)
+        
+        console.log(`File ${fileId} removed from UI state`)
+      } else {
+        const error = await response.json()
+        console.error('Delete failed:', error)
+        const toast = await import('react-hot-toast')
+        toast.default.error(error.error || 'Failed to delete file')
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error)
+      const toast = await import('react-hot-toast')
+      toast.default.error('An error occurred while deleting the file')
+    }
+  }
+
   const handleFileMoved = (fileId: string, roomId: string) => {
     // Update the file in the audioFiles state to reflect it's now in a room
     setAudioFiles(prev => prev.map(file => 
@@ -588,6 +627,14 @@ export default function DashboardPage() {
                             <FolderOpen className="w-3 h-3" />
                             <span>Move to Room</span>
                           </button>
+                          <button
+                            onClick={() => handleDeleteFile(file.id, file.originalName)}
+                            className="flex items-center space-x-1 px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs rounded transition-colors"
+                            title="Delete File"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
                           <AudioPlayer fileId={file.id} />
                         </div>
                       </div>
@@ -626,6 +673,14 @@ export default function DashboardPage() {
                           <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded">
                             In Room
                           </span>
+                          <button
+                            onClick={() => handleDeleteFile(file.id, file.originalName)}
+                            className="flex items-center space-x-1 px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs rounded transition-colors"
+                            title="Delete File"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
                           <AudioPlayer fileId={file.id} />
                         </div>
                       </div>
