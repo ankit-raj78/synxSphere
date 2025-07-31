@@ -57,7 +57,7 @@ export class WSServer {
   }
 
   private async handleMessage(ws: WebSocket, message: CollabMessage): Promise<void> {
-    console.log(`Received message: ${message.type} from ${message.userId}`)
+    console.log(`[WSServer] Received message: ${message.type} from user ${message.userId}`)
 
     switch (message.type) {
       case 'USER_JOIN':
@@ -75,11 +75,83 @@ export class WSServer {
       case 'BOX_OWNERSHIP_RELEASED':
       case 'BOX_LOCKED':
       case 'BOX_UNLOCKED':
+      case 'DRAG_TRACK':
+      case 'UPDATE_TRACK':
+      case 'SAMPLE_SYNC':
+      case 'PROJECT_SAVED':
+      case 'PROJECT_LOADED':
+      case 'PROJECT_UPDATED':
+      case 'REGION_CREATED':
+      case 'REGION_DELETED':
+      case 'REGION_MOVED':
+      case 'REGION_RESIZED':
+      case 'CLIP_CREATED':
+      case 'CLIP_DELETED':
+      case 'CLIP_MOVED':
+      case 'CLIP_RESIZED':
+      case 'TIMELINE_UPDATE':
+        // Persist event
+        try { await this.db.saveEvent(message) } catch {}
         await this.broadcastToProject(message)
         break
       
       case 'SYNC_REQUEST':
         await this.handleSyncRequest(ws, message)
+        break
+      
+      case 'TIMELINE_SNAPSHOT_REQUEST':
+        // 转发快照请求给房间内的第一个其他用户
+        const projectClients = Array.from(this.clients.values()).filter(
+          client => client.projectId === message.projectId && 
+                    client.userId !== message.userId
+        )
+        
+        if (projectClients.length > 0) {
+          // 选择第一个其他用户来提供快照
+          const provider = projectClients[0]
+          console.log(`[WSServer] Forwarding snapshot request from ${message.userId} to ${provider.userId}`)
+          
+          // 转发原始消息，只在data中添加originalRequesterId
+          this.sendToClient(provider.ws, {
+            ...message, // 保持原始消息结构
+            data: {
+              ...message.data,
+              originalRequesterId: message.userId // 原始请求者ID
+            }
+          })
+        } else {
+          // 如果没有其他用户，发送空快照
+          console.log('[WSServer] No other users to provide snapshot, sending empty response')
+          this.sendToClient(ws, {
+            type: 'TIMELINE_SNAPSHOT_RESPONSE',
+            projectId: message.projectId,
+            userId: 'server',
+            timestamp: Date.now(),
+            data: {
+              updates: [], // 使用新格式
+              boxCount: 0
+            }
+          })
+        }
+        break
+      
+      case 'TIMELINE_SNAPSHOT_RESPONSE':
+        // 将快照响应转发给原始请求者
+        // 快照响应应该包含原始请求者的ID
+        const targetUserId = message.data.requesterId || message.userId
+        const requesterClients = Array.from(this.clients.values()).filter(
+          client => client.projectId === message.projectId && 
+                    client.userId === targetUserId
+        )
+        
+        if (requesterClients.length > 0) {
+          console.log(`[WSServer] Forwarding snapshot response to original requester ${targetUserId}`)
+          requesterClients.forEach(client => {
+            this.sendToClient(client.ws, message)
+          })
+        } else {
+          console.log(`[WSServer] Could not find original snapshot requester ${targetUserId}`)
+        }
         break
       
       default:
@@ -139,13 +211,17 @@ export class WSServer {
         .map(client => client.userId)
         .filter((userId, index, arr) => arr.indexOf(userId) === index) // Remove duplicates
       
-      console.log(`� �📊 Active users for project ${projectId}:`, activeUsers)
-      console.log(`🔥 📊 Sending sync response to user ${userId}`)
+      // Get historical events for this project
+      const events = await this.db.getEvents(projectId)
+      
+      console.log(`📊 Active users for project ${projectId}:`, activeUsers)
+      console.log(`📊 Sending sync response to user ${userId} with ${events?.length || 0} events`)
       
       const syncResponse = createCollabMessage.syncResponse(projectId, userId, {
         ownership,
         locks: {}, // TODO: implement locks
-        activeUsers
+        activeUsers,
+        events // Include historical events
       })
       
       this.sendToClient(ws, syncResponse)

@@ -23,6 +23,47 @@ export class OverlayManager {
     this.setupMutationObserver()
     this.injectStyles()
     this.createUI()
+    
+    // Add current user to the list
+    this.addCurrentUser()
+  }
+
+  private addCurrentUser(): void {
+    // Add the current user with a clean name
+    const currentUserName = this.getCurrentUserName()
+    this.addUser(this.currentUserId, {
+      name: `${currentUserName} (You)`,
+      isActive: true
+    })
+    console.log(`👤 [OverlayManager] Added current user: ${currentUserName}`)
+    
+    // Update project info
+    this.updateProjectInfo(`Project ${this.projectId.slice(0, 8)}`)
+  }
+
+  private getCurrentUserName(): string {
+    // Try to get current user name from various sources
+    if (typeof window !== 'undefined') {
+      const globalUser = (window as any).currentUser
+      if (globalUser && globalUser.name) {
+        return globalUser.name
+      }
+      
+      try {
+        const savedUserInfo = localStorage.getItem('userInfo')
+        if (savedUserInfo) {
+          const userInfo = JSON.parse(savedUserInfo)
+          if (userInfo.name) {
+            return userInfo.name
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    
+    // Generate a simple, clean friendly name
+    return this.generateFriendlyName(this.currentUserId)
   }
 
   private injectStyles(): void {
@@ -45,29 +86,276 @@ export class OverlayManager {
       .box-owned-by-others { border-left: 4px solid var(--owner-color, #ef4444) !important; opacity: 0.8; }
       .box-locked { pointer-events: none !important; filter: grayscale(0.5); opacity: 0.6; }
       .box-owned-by-others input, .box-owned-by-others button { pointer-events: none !important; opacity: 0.6; }
+      
+      /* Collapsible Collaboration Panel Styles */
+      .collaboration-panel {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(17, 24, 39, 0.95);
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        z-index: 10000;
+        border: 1px solid #374151;
+        min-width: 180px;
+        max-width: 250px;
+        backdrop-filter: blur(8px);
+        transition: all 0.3s ease;
+      }
+      
+      .collaboration-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid #374151;
+        background: rgba(55, 65, 81, 0.3);
+      }
+      
+      .collaboration-header h3 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: #e5e7eb;
+      }
+      
+      .collapse-btn, .connection-collapse-btn {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        cursor: pointer;
+        font-size: 14px;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 3px;
+        transition: background-color 0.2s ease;
+      }
+      
+      .collapse-btn:hover, .connection-collapse-btn:hover {
+        background: rgba(107, 114, 128, 0.2);
+        color: #e5e7eb;
+      }
+      
+      .collaboration-content {
+        padding: 8px 12px;
+        transition: all 0.3s ease;
+      }
+      
+      .collaboration-panel.collapsed {
+        min-width: auto;
+      }
+      
+      .user-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      
+      .user-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 11px;
+      }
+      
+      .user-avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        background: #374151;
+        color: #9ca3af;
+      }
+      
+      .upload-status {
+        margin-top: 8px;
+        padding: 6px;
+        background: rgba(16, 185, 129, 0.1);
+        border-radius: 4px;
+        border: 1px solid #10b981;
+      }
+      
+      .upload-indicator {
+        font-size: 11px;
+        color: #10b981;
+        text-align: center;
+      }
+      
+      /* Connection Status Styles */
+      .connection-status {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 12px;
+        z-index: 10000;
+        min-width: 150px;
+        backdrop-filter: blur(8px);
+        transition: all 0.3s ease;
+      }
+      
+      .connection-status.connected {
+        border: 1px solid #10b981;
+      }
+      
+      .connection-status.disconnected {
+        border: 1px solid #ef4444;
+      }
+      
+      .connection-status.connecting {
+        border: 1px solid #f59e0b;
+      }
+      
+      .connection-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+      }
+      
+      .connection-text {
+        font-weight: 600;
+      }
+      
+      .connection-status.connected .connection-text {
+        color: #10b981;
+      }
+      
+      .connection-status.disconnected .connection-text {
+        color: #ef4444;
+      }
+      
+      .connection-status.connecting .connection-text {
+        color: #f59e0b;
+      }
+      
+      .connection-details {
+        padding: 8px 12px;
+        border-top: 1px solid #374151;
+        transition: all 0.3s ease;
+      }
+      
+      .connection-info div {
+        margin: 4px 0;
+        font-size: 11px;
+        color: #d1d5db;
+      }
+      
+      .connection-info span {
+        color: white;
+        font-weight: 500;
+      }
+      
+      .user-name {
+        font-weight: 500;
+        color: #e5e7eb;
+      }
+      
+      .user-status {
+        font-size: 10px;
+        color: #9ca3af;
+      }
+      
+      .collab-notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #1f2937;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        z-index: 10001;
+        font-size: 13px;
+        border-left: 3px solid #3b82f6;
+      }
     `
     document.head.appendChild(style)
   }
 
   private createUI(): void {
+    // Re-enable UI elements with collapsible functionality
     this.createCollaborationPanel()
     this.createConnectionStatus()
+    
+    console.log('✅ [OverlayManager] Collapsible collaboration UI elements created')
   }
 
   private createCollaborationPanel(): void {
     this.collaborationPanel = document.createElement('div')
     this.collaborationPanel.className = 'collaboration-panel'
     this.collaborationPanel.innerHTML = `
-      <h3>Collaborators</h3>
-      <ul class="user-list" id="user-list"></ul>
+      <div class="collaboration-header">
+        <h3>Collaborators</h3>
+        <button class="collapse-btn" title="Toggle Panel">−</button>
+      </div>
+      <div class="collaboration-content">
+        <ul class="user-list" id="user-list"></ul>
+        <div class="upload-status" id="upload-status" style="display: none;">
+          <div class="upload-indicator">📤 Uploading...</div>
+        </div>
+      </div>
     `
+    
+    // Add click handler for collapse functionality
+    const collapseBtn = this.collaborationPanel.querySelector('.collapse-btn') as HTMLButtonElement
+    const content = this.collaborationPanel.querySelector('.collaboration-content') as HTMLElement
+    
+    if (collapseBtn && content) {
+      collapseBtn.addEventListener('click', () => {
+        const isCollapsed = content.style.display === 'none'
+        content.style.display = isCollapsed ? 'block' : 'none'
+        collapseBtn.textContent = isCollapsed ? '−' : '+'
+        this.collaborationPanel?.classList.toggle('collapsed', !isCollapsed)
+      })
+    }
+    
     document.body.appendChild(this.collaborationPanel)
   }
 
   private createConnectionStatus(): void {
     this.connectionStatus = document.createElement('div')
     this.connectionStatus.className = 'connection-status disconnected'
-    this.connectionStatus.textContent = 'Disconnected'
+    this.connectionStatus.innerHTML = `
+      <div class="connection-header">
+        <span class="connection-text">Disconnected</span>
+        <button class="connection-collapse-btn" title="Toggle Status">−</button>
+      </div>
+      <div class="connection-details" style="display: none;">
+        <div class="connection-info">
+          <div>Project: <span id="project-info">Loading...</span></div>
+          <div>Status: <span id="detailed-status">Initializing</span></div>
+        </div>
+      </div>
+    `
+    
+    // Add click handler for collapse functionality
+    const collapseBtn = this.connectionStatus.querySelector('.connection-collapse-btn') as HTMLButtonElement
+    const details = this.connectionStatus.querySelector('.connection-details') as HTMLElement
+    
+    if (collapseBtn && details) {
+      collapseBtn.addEventListener('click', () => {
+        const isCollapsed = details.style.display === 'none'
+        details.style.display = isCollapsed ? 'block' : 'none'
+        collapseBtn.textContent = isCollapsed ? '−' : '+'
+        this.connectionStatus?.classList.toggle('expanded', !isCollapsed)
+      })
+    }
+    
     document.body.appendChild(this.connectionStatus)
   }
 
@@ -193,20 +481,62 @@ export class OverlayManager {
   updateConnectionStatus(status: 'connected' | 'connecting' | 'disconnected'): void {
     if (this.connectionStatus) {
       this.connectionStatus.className = `connection-status ${status}`
-      this.connectionStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1)
+      const statusText = this.connectionStatus.querySelector('.connection-text') as HTMLElement
+      if (statusText) {
+        statusText.textContent = status.charAt(0).toUpperCase() + status.slice(1)
+      }
+    }
+  }
+
+  // Methods for file upload status
+  showUploadStatus(message: string = 'Uploading files...'): void {
+    const uploadStatus = document.getElementById('upload-status') as HTMLElement
+    const uploadIndicator = uploadStatus?.querySelector('.upload-indicator') as HTMLElement
+    
+    if (uploadStatus && uploadIndicator) {
+      uploadIndicator.textContent = `📤 ${message}`
+      uploadStatus.style.display = 'block'
+    }
+  }
+
+  hideUploadStatus(): void {
+    const uploadStatus = document.getElementById('upload-status') as HTMLElement
+    if (uploadStatus) {
+      uploadStatus.style.display = 'none'
+    }
+  }
+
+  updateProjectInfo(projectName: string): void {
+    const projectInfo = document.getElementById('project-info') as HTMLElement
+    if (projectInfo) {
+      projectInfo.textContent = projectName
     }
   }
 
   addUser(userId: string, userInfo: Partial<UserInfo>): void {
+    console.log(`👤 [OverlayManager] Adding user: ${userId}`, userInfo)
+    
+    // Create a clean display name
+    let displayName = userInfo.name || this.generateFriendlyName(userId)
+    
     const user: UserInfo = {
       id: userId,
-      name: userInfo.name || `User ${userId.slice(0, 8)}`,
-      color: userInfo.color || this.generateUserColor(userId),
+      name: displayName,
+      color: '#6b7280', // Neutral gray color for everyone
       isActive: true
     }
     
+    console.log(`👤 [OverlayManager] Created user object:`, user)
     this.users.set(userId, user)
     this.updateUserList()
+  }
+
+  private generateFriendlyName(userId: string): string {
+    // Generate a simple, clean name based on user ID
+    const names = ['Alex', 'Sam', 'Casey', 'Jordan', 'Taylor', 'Morgan', 'Riley', 'Avery', 'Blake', 'Drew']
+    const shortId = userId.slice(0, 8)
+    const nameIndex = parseInt(shortId, 16) % names.length
+    return names[nameIndex]
   }
 
   removeUser(userId: string): void {
@@ -229,8 +559,11 @@ export class OverlayManager {
   }
 
   handleCollaborationMessage(message: CollabMessage): void {
+    console.log(`📨 [OverlayManager] Handling collaboration message:`, message)
+    
     switch (message.type) {
       case 'USER_JOIN':
+        console.log(`👤 [OverlayManager] USER_JOIN - userId: ${message.userId}, data:`, message.data)
         this.addUser(message.userId, message.data)
         this.showNotification(`${this.getUserName(message.userId)} joined`)
         break
@@ -278,21 +611,27 @@ export class OverlayManager {
 
   private updateUserList(): void {
     const userList = document.getElementById('user-list')
-    if (!userList) return
+    if (!userList) {
+      console.log('🔇 [OverlayManager] User list element not found')
+      return
+    }
 
+    console.log(`🔄 [OverlayManager] Updating user list with ${this.users.size} users`)
     userList.innerHTML = ''
     
     this.users.forEach(user => {
       const li = document.createElement('li')
       li.className = 'user-item'
+      
       li.innerHTML = `
-        <div class="user-avatar" style="background-color: ${user.color}">
-          ${user.name.charAt(0).toUpperCase()}
+        <div class="user-avatar">
+          👤
         </div>
         <span class="user-name">${user.name}</span>
-        <span class="user-status">${user.isActive ? 'active' : 'away'}</span>
+        <span class="user-status">online</span>
       `
       userList.appendChild(li)
+      console.log(`👤 [OverlayManager] Added user to list: ${user.name}`)
     })
   }
 

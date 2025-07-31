@@ -1,10 +1,10 @@
-# OpenDAW Collaboration System - Development Setup
+# OpenDAW Collaboration System - Production Build Setup
 # 
-# This docker-compose file is optimized for development:
-# - Hot reload for all services
-# - Debug ports exposed
-# - Volume mounts for source code
-# - Development tools included
+# This docker-compose file uses production builds for performance:
+# - Production builds for all services
+# - Optimized assets and bundling
+# - Volume mounts for source code updates
+# - Development database access
 #
 # Usage:
 #   docker-compose -f docker-compose.dev.yml up -d
@@ -44,14 +44,14 @@ services:
     volumes:
       - redis_dev_data:/data
 
-  # Collaboration Server (development mode)
+  # Collaboration Server (production build)
   collaboration:
     image: node:18-alpine
     container_name: opendaw_collaboration_dev
     working_dir: /app
     environment:
-      - NODE_ENV=development
-      - LOG_LEVEL=debug
+      - NODE_ENV=production
+      - LOG_LEVEL=info
       - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
       - REDIS_URL=redis://redis:6379
       - WS_PORT=3005
@@ -60,7 +60,6 @@ services:
     ports:
       - "3004:3003"
       - "3005:3005"
-      - "9229:9229"  # Debug port
     volumes:
       - ./opendaw-collab-mvp:/app
       - /app/node_modules
@@ -69,10 +68,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    command: sh -c "apk add --no-cache postgresql-client && chmod +x /app/wait-for-postgres.sh && /app/wait-for-postgres.sh postgres 5432 npm install && npm run dev"
+    command: sh -c "apk add --no-cache postgresql-client && chmod +x /app/wait-for-postgres.sh && /app/wait-for-postgres.sh postgres 5432 && npm install --include=dev && npx tsc && node dist/server/index.js"
     restart: unless-stopped
 
-  # SynxSphere Dashboard (development mode)
+  # SynxSphere Dashboard (production build)
   synxsphere:
     image: node:18-alpine
     container_name: opendaw_synxsphere_dev
@@ -80,25 +79,28 @@ services:
     env_file:
       - .env.docker
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=opendaw
+      - POSTGRES_PASSWORD=collaboration
+      - POSTGRES_DB=opendaw_collab
     ports:
       - "8000:3000"
-      - "9230:9230"  # Debug port
     volumes:
       - .:/app
       - /app/node_modules
-      - /app/openDAW
-      - /app/opendaw-collab-mvp
     depends_on:
       - collaboration
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "apk add --no-cache ffmpeg && npm install --include=dev && npm run build && npm start"
     restart: unless-stopped
 
-  # OpenDAW Studio (development mode - served by Vite)
+  # OpenDAW Studio (production build)
   opendaw:
     image: node:18-alpine
     container_name: opendaw_studio_dev
-    working_dir: /app/studio
+    working_dir: /app
     environment:
       - NODE_ENV=development
       - NODE_OPTIONS=--experimental-global-webcrypto
@@ -112,14 +114,23 @@ services:
       - WS_PORT=3005
       - HTTP_PORT=3003
     ports:
-      - "8080:8080"  # Vite dev server
-      - "9231:9231"  # Debug port
+      - "8080:8080"
     volumes:
       - ./openDAW:/app
       - /app/node_modules
+      - ./opendaw-collab-mvp:/app/opendaw-collab-mvp
+      - ./localhost.pem:/app/localhost.pem
+      - ./localhost-key.pem:/app/localhost-key.pem
     depends_on:
       - collaboration
-    command: sh -c "ls -la /app/ && chmod +x /app/start-opendaw-http.sh && sh /app/start-opendaw-http.sh"
+    command: >
+      sh -c "
+        npm install --include=dev &&
+        cd studio &&
+        npm install &&
+        npx vite build --mode production &&
+        node server.js
+      "
     restart: unless-stopped
 
   # HTTPS proxy for collaboration server
@@ -134,6 +145,35 @@ services:
       - ./openDAW/localhost-key.pem:/etc/ssl/private/localhost-key.pem
     depends_on:
       - collaboration
+    restart: unless-stopped
+
+  # Audio Analysis Service (production build)
+  audio-service:
+    image: node:18-alpine
+    container_name: opendaw_audio_service_dev
+    working_dir: /app
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - SERVICE_PORT=3006
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=opendaw_collab
+      - POSTGRES_USER=opendaw
+      - POSTGRES_PASSWORD=collaboration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "3006:3006"
+    volumes:
+      - ./services/audio-service:/app
+      - /app/node_modules
+      - ./uploads:/app/uploads  # Mount uploads directory
+      - ./public:/app/public    # Mount public directory for room uploads
+    depends_on:
+      - postgres
+      - redis
+    command: sh -c "apk add --no-cache ffmpeg && npm install --include=dev && npm install -g ts-node && ts-node --transpile-only src/index-standalone.ts"
     restart: unless-stopped
 
   # Development tools

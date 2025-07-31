@@ -72,7 +72,8 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       message: 'File deleted successfully',
-      deletedFile: deletedFile
+      fileId: String(deletedFile.id),
+      filename: String(deletedFile.originalName || deletedFile.filename)
     }, { status: 200 })
 
   } catch (error) {

@@ -112,7 +112,10 @@ export class CollaborationManager {
     this.ws.onMessage('SYNC_RESPONSE', (message) => {
       this.overlay!.handleCollaborationMessage(message)
     })
-
+    this.ws.onMessage('REGION_CREATED', (message) => {
+      console.error('Recieved region message received', message.data)
+      this.overlay!.handleCollaborationMessage(message)
+    })
     this.ws.onMessage('ERROR', (message) => {
       console.error('[Collaboration] Server error:', message.data)
       this.overlay!.updateConnectionStatus('disconnected')

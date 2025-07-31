@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg'
+import { CollabMessage } from "../websocket/MessageTypes"
 
 export interface BoxOwnership {
   projectId: string
@@ -201,10 +202,82 @@ export class DatabaseService {
     try {
       await this.pool.query('SELECT 1')
       return true
-    } catch (error) {
-      console.error('Database ping failed:', error)
+    } catch {
       return false
     }
+  }
+
+  // ---------- Collaboration additions ----------
+  /**
+   * Persist a collaboration event to collaboration_events table and optionally update tracks table
+   */
+  async saveEvent(event: CollabMessage): Promise<void> {
+      const client = await this.pool.connect()
+      try {
+          await client.query('BEGIN')
+          await client.query(
+              `INSERT INTO collaboration_events (project_id, user_id, type, payload)
+               VALUES ($1, $2, $3, $4)`,
+              [event.projectId, event.userId, event.type, event.data]
+          )
+
+          if (event.type === 'DRAG_TRACK') {
+              const { trackId, newIndex } = event.data as { trackId: string; newIndex: number }
+              await client.query(
+                  `INSERT INTO tracks (project_id, track_id, position)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (project_id, track_id)
+                   DO UPDATE SET position = $3, updated_at = NOW()`,
+                  [event.projectId, trackId, newIndex]
+              )
+          }
+          if (event.type === 'UPDATE_TRACK') {
+              const { track } = event.data as { track: any }
+              await client.query(
+                  `INSERT INTO tracks (project_id, track_id, position, volume, pan)
+                   VALUES ($1, $2, COALESCE($3,0), COALESCE($4,1.0), COALESCE($5,0))
+                   ON CONFLICT (project_id, track_id)
+                   DO UPDATE SET position = COALESCE($3, tracks.position),
+                                    volume   = COALESCE($4, tracks.volume),
+                                    pan      = COALESCE($5, tracks.pan),
+                                    updated_at = NOW()`,
+                  [event.projectId, track.id, track.position, track.volume, track.pan]
+              )
+          }
+
+          await client.query('COMMIT')
+      } catch (err) {
+          await client.query('ROLLBACK')
+          console.error('Error saving collaboration event:', err)
+          throw err
+      } finally {
+          client.release()
+      }
+  }
+
+  /**
+   * Direct utility to update track state without full event
+   */
+  async updateTrackState(projectId: string, track: { id: string; position: number; volume?: number; pan?: number }): Promise<void> {
+      const { id, position, volume, pan } = track
+      await this.pool.query(
+          `INSERT INTO tracks (project_id, track_id, position, volume, pan)
+           VALUES ($1, $2, $3, COALESCE($4,1.0), COALESCE($5,0))
+           ON CONFLICT (project_id, track_id)
+           DO UPDATE SET position=$3, volume=COALESCE($4, tracks.volume), pan=COALESCE($5, tracks.pan), updated_at=NOW()`,
+          [projectId, id, position, volume, pan]
+      )
+  }
+
+  async getEvents(projectId: string, since?: number): Promise<CollabMessage[]> {
+      const rows = await this.pool.query(
+          `SELECT type as "type", project_id as "projectId", user_id as "userId", ts as "timestamp", payload as "data"
+           FROM collaboration_events
+           WHERE project_id = $1 AND ($2::bigint IS NULL OR extract(epoch from ts)*1000 > $2)
+           ORDER BY id ASC`,
+          [projectId, since ?? null]
+      )
+      return rows.rows as CollabMessage[]
   }
 
   // Project persistence methods

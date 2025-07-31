@@ -1,0 +1,23 @@
+    audioData: ArrayBuffer,
+    peaks: ArrayBuffer,
+    metadata: AudioFileMetadata
+  ): Promise<void> {
+    // Use dynamic import to avoid circular dependencies
+    // TODO: Fix module path resolution in Docker container
+    // const { AudioStorage } = await import('../../openDAW/studio/src/audio/AudioStorage')
+    
+    // Temporary workaround - log the operation without storing
+    console.log('AudioStorage would store:', { peaks: peaks?.length, metadata })
+    
+    // Generate a simple UUID for now - in production, use proper UUID generation
+    const uuidString = crypto.randomUUID()
+    // Convert to UUID format expected by AudioStorage
+    const uuid = new Uint8Array(16) // Placeholder - would need proper UUID conversion
+    
+    // Batch OPFS operations to reduce I/O overhead (disabled temporarily)
+    // const operations = [
+    //   AudioStorage.store(uuid, audioData as any, peaks, metadata as any)
+    // ]
+    
+    // await Promise.all(operations)
+  }

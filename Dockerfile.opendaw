@@ -9,8 +9,8 @@ COPY openDAW/ ./openDAW/
 # Change to studio directory
 WORKDIR /app/openDAW/studio
 
-# Install dependencies
-RUN npm ci
+# Install dependencies including devDependencies for build process
+RUN npm ci --include=dev
 
 # Create public directory and build-info.json for vite plugin  
 RUN mkdir -p public && echo '{"date":"'$(date +%s)'000","uuid":"opendaw-production","env":"production"}' > public/build-info.json

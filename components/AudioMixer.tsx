@@ -19,7 +19,7 @@ interface AudioTrack {
     avatar?: string
   }
   duration: number
-  waveform: number[]
+  audioFileId?: string
   file?: File
   audioBuffer?: AudioBuffer
   gainNode?: GainNode
@@ -187,21 +187,6 @@ export default function AudioMixer({
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const getWaveformPath = (waveform: number[], width: number, height: number) => {
-    if (!waveform || waveform.length === 0) return ''
-    
-    const step = width / waveform.length
-    let path = `M 0 ${height / 2}`
-    
-    waveform.forEach((value, index) => {
-      const x = index * step
-      const y = height / 2 + (value - 0.5) * height * 0.8
-      path += ` L ${x} ${y}`
-    })
-    
-    return path
   }
 
   const handleExportMix = async () => {
@@ -434,31 +419,6 @@ export default function AudioMixer({
                       </div>
                     </div>
 
-                    {/* Waveform */}
-                    <div className="h-12 bg-gray-800 rounded-lg relative overflow-hidden mb-2">
-                      <svg width="100%" height="100%" className="absolute inset-0">
-                        <path
-                          d={getWaveformPath(track.waveform, 400, 48)}
-                          stroke={`url(#gradient-${track.id})`}
-                          strokeWidth="1"
-                          fill="none"
-                          opacity="0.8"
-                        />
-                        <defs>
-                          <linearGradient id={`gradient-${track.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" className={`text-${trackColors[index % trackColors.length].split('-')[1]}-400`} stopColor="currentColor" />
-                            <stop offset="100%" className={`text-${trackColors[index % trackColors.length].split('-')[1]}-600`} stopColor="currentColor" />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                      
-                      {/* Playback progress overlay */}
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-white/20 transition-all"
-                        style={{ width: `${track.duration > 0 ? (currentTime / track.duration) * 100 : 0}%` }}
-                      />
-                    </div>
-
                     {/* Track Controls */}
                     <div className="flex items-center space-x-3 mb-2">
                       {/* Selection checkbox */}
@@ -529,7 +489,7 @@ export default function AudioMixer({
 
                     {/* Audio Player */}
                     <div className="mb-2">
-                      <AudioPlayer fileId={track.id} className="w-full" />
+                      <AudioPlayer fileId={track.audioFileId || track.id} className="w-full" />
                     </div>
 
                     {/* Effects Panel */}

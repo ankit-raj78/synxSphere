@@ -485,6 +485,7 @@ export class DatabaseService {
     description?: string
     projectData?: any
     projectBinary?: Buffer
+    projectBundle?: Buffer
     syncVersion?: number
   }) {
     return prisma.studioProject.create({
@@ -495,6 +496,7 @@ export class DatabaseService {
         description: data.description,
         projectData: data.projectData || {},
         projectBinary: data.projectBinary,
+        projectBundle: data.projectBundle,
         syncVersion: data.syncVersion || 0
       }
     })

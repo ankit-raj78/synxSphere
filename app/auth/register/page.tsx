@@ -11,6 +11,11 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [validationErrors, setValidationErrors] = useState({
+    email: '',
+    password: '',
+    confirmPassword: ''
+  })
   
   const [formData, setFormData] = useState({
     email: '',
@@ -22,6 +27,36 @@ export default function RegisterPage() {
     experience: '',
     collaborationGoals: [] as string[]
   })
+
+  // Validation functions
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!email) return 'Email is required'
+    if (!emailRegex.test(email)) return 'Please enter a valid email address'
+    return ''
+  }
+
+  const validatePassword = (password: string) => {
+    const minLength = password.length >= 8
+    const hasUpperCase = /[A-Z]/.test(password)
+    const hasLowerCase = /[a-z]/.test(password)
+    const hasNumber = /\d/.test(password)
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+
+    if (!password) return 'Password is required'
+    if (!minLength) return 'Password must be at least 8 characters long'
+    if (!hasUpperCase) return 'Password must contain at least one uppercase letter'
+    if (!hasLowerCase) return 'Password must contain at least one lowercase letter'
+    if (!hasNumber) return 'Password must contain at least one number'
+    if (!hasSpecialChar) return 'Password must contain at least one special character'
+    return ''
+  }
+
+  const validateConfirmPassword = (password: string, confirmPassword: string) => {
+    if (!confirmPassword) return 'Please confirm your password'
+    if (password !== confirmPassword) return 'Passwords do not match'
+    return ''
+  }
 
   const instruments = [
     'Guitar', 'Bass', 'Drums', 'Piano', 'Keyboard', 'Vocals', 'Violin', 'Saxophone', 
@@ -46,10 +81,29 @@ export default function RegisterPage() {
   ]
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }))
+
+    // Real-time validation
+    let newValidationErrors = { ...validationErrors }
+    
+    if (name === 'email') {
+      newValidationErrors.email = validateEmail(value)
+    } else if (name === 'password') {
+      newValidationErrors.password = validatePassword(value)
+      // Also re-validate confirm password if it exists
+      if (formData.confirmPassword) {
+        newValidationErrors.confirmPassword = validateConfirmPassword(value, formData.confirmPassword)
+      }
+    } else if (name === 'confirmPassword') {
+      newValidationErrors.confirmPassword = validateConfirmPassword(formData.password, value)
+    }
+    
+    setValidationErrors(newValidationErrors)
   }
 
   const handleArrayToggle = (array: string, value: string) => {
@@ -63,12 +117,25 @@ export default function RegisterPage() {
 
   const handleNext = () => {
     if (step === 1) {
-      if (!formData.email || !formData.username || !formData.password) {
-        setError('Please fill in all required fields')
+      // Validate all fields
+      const emailError = validateEmail(formData.email)
+      const passwordError = validatePassword(formData.password)
+      const confirmPasswordError = validateConfirmPassword(formData.password, formData.confirmPassword)
+      
+      setValidationErrors({
+        email: emailError,
+        password: passwordError,
+        confirmPassword: confirmPasswordError
+      })
+
+      // Check for any validation errors
+      if (emailError || passwordError || confirmPasswordError) {
+        setError('Please fix the validation errors above')
         return
       }
-      if (formData.password !== formData.confirmPassword) {
-        setError('Passwords do not match')
+
+      if (!formData.username) {
+        setError('Username is required')
         return
       }
     }
@@ -148,11 +215,14 @@ export default function RegisterPage() {
                   type="email"
                   name="email"
                   required
-                  className="input-field pl-10"
+                  className={`input-field pl-10 ${validationErrors.email ? 'border-red-500 focus:border-red-500' : ''}`}
                   placeholder="Email address"
                   value={formData.email}
                   onChange={handleInputChange}
                 />
+                {validationErrors.email && (
+                  <p className="mt-1 text-sm text-red-400">{validationErrors.email}</p>
+                )}
               </div>
 
               <div className="relative">
@@ -174,11 +244,14 @@ export default function RegisterPage() {
                   type="password"
                   name="password"
                   required
-                  className="input-field pl-10"
-                  placeholder="Password"
+                  className={`input-field pl-10 ${validationErrors.password ? 'border-red-500 focus:border-red-500' : ''}`}
+                  placeholder="Password (min 8 chars, 1 uppercase, 1 number, 1 special char)"
                   value={formData.password}
                   onChange={handleInputChange}
                 />
+                {validationErrors.password && (
+                  <p className="mt-1 text-sm text-red-400">{validationErrors.password}</p>
+                )}
               </div>
 
               <div className="relative">
@@ -187,11 +260,41 @@ export default function RegisterPage() {
                   type="password"
                   name="confirmPassword"
                   required
-                  className="input-field pl-10"
+                  className={`input-field pl-10 ${validationErrors.confirmPassword ? 'border-red-500 focus:border-red-500' : ''}`}
                   placeholder="Confirm Password"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                 />
+                {validationErrors.confirmPassword && (
+                  <p className="mt-1 text-sm text-red-400">{validationErrors.confirmPassword}</p>
+                )}
+              </div>
+
+              {/* Password Requirements */}
+              <div className="mt-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                <p className="text-sm font-medium text-gray-300 mb-2">Password Requirements:</p>
+                <div className="grid grid-cols-1 gap-1 text-xs">
+                  <div className={`flex items-center space-x-2 ${formData.password.length >= 8 ? 'text-green-400' : 'text-gray-400'}`}>
+                    <span>{formData.password.length >= 8 ? '✓' : '○'}</span>
+                    <span>At least 8 characters</span>
+                  </div>
+                  <div className={`flex items-center space-x-2 ${/[A-Z]/.test(formData.password) ? 'text-green-400' : 'text-gray-400'}`}>
+                    <span>{/[A-Z]/.test(formData.password) ? '✓' : '○'}</span>
+                    <span>One uppercase letter</span>
+                  </div>
+                  <div className={`flex items-center space-x-2 ${/[a-z]/.test(formData.password) ? 'text-green-400' : 'text-gray-400'}`}>
+                    <span>{/[a-z]/.test(formData.password) ? '✓' : '○'}</span>
+                    <span>One lowercase letter</span>
+                  </div>
+                  <div className={`flex items-center space-x-2 ${/\d/.test(formData.password) ? 'text-green-400' : 'text-gray-400'}`}>
+                    <span>{/\d/.test(formData.password) ? '✓' : '○'}</span>
+                    <span>One number</span>
+                  </div>
+                  <div className={`flex items-center space-x-2 ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) ? 'text-green-400' : 'text-gray-400'}`}>
+                    <span>{/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) ? '✓' : '○'}</span>
+                    <span>One special character</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}

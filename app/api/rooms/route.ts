@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { verifyToken } from '@/lib/auth'
 
 import { prisma, DatabaseService } from '@/lib/prisma'
-import { createDefaultAudioFileForRoom, createRoomProjectFiles } from '@/lib/audio-utils'
+import { createDefaultAudioFileForRoom, createCompleteRoomProjectFiles } from '@/lib/audio-utils'
 
 
 export async function GET(request: NextRequest) {
@@ -22,13 +22,6 @@ export async function GET(request: NextRequest) {
 
     try {      // Try to fetch rooms from PostgreSQL using Prisma
       const rooms = await prisma.room.findMany({
-        where: {
-          name: {
-            not: {
-              contains: 'test'
-            }
-          }
-        },
         include: {
           creator: {
             select: {
@@ -178,11 +171,11 @@ export async function POST(request: NextRequest) {
         )
         console.log(`✅ Default audio file created:`, defaultAudioFile ? 'success' : 'none')
 
-        console.log(`📁 Creating project files for room ${newRoom.id}...`)
-        // Create complete project files (.json, .od, .odsl)
-        const projectFiles = createRoomProjectFiles(
+        console.log(`📁 Creating complete project files with bundle for room ${newRoom.id}...`)
+        // Create complete project files (.json, .od, .odsl, .odb)
+        const projectFiles = await createCompleteRoomProjectFiles(
           newRoom.id,
-          `test${newRoom.id}`,
+          `Room ${newRoom.id}`,
           tokenData.id,
           defaultAudioFile
         )
@@ -197,6 +190,7 @@ export async function POST(request: NextRequest) {
           description: `Studio project for ${newRoom.name}`,
           projectData: projectFiles.projectJson,
           projectBinary: projectFiles.projectBinary,
+          projectBundle: projectFiles.projectBundle,
           syncVersion: 0
         })
         console.log(`✅ Studio project created with ID: ${studioProject.id}`)
@@ -230,7 +224,7 @@ export async function POST(request: NextRequest) {
         console.log(`   - Binary .od file: ${projectFiles.projectBinary.length} bytes`)
         console.log(`   - Sync log .odsl file: ${projectFiles.syncLog.length} bytes`)
       } catch (studioError) {
-        console.error('❌ Failed to create studio project files for room:', studioError)
+        console.error('❌ Failed to create studio project files for room:', studioError as Error)
         
         // Studio project creation is critical - if it fails, clean up and fail room creation
         try {
@@ -243,7 +237,7 @@ export async function POST(request: NextRequest) {
         
         return NextResponse.json({ 
           error: 'Failed to create studio project for room', 
-          details: studioError.message 
+          details: (studioError as Error).message 
         }, { status: 500 })
       }
 
@@ -261,7 +255,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(responseRoom, { status: 201 })
-    } catch (dbError) {    console.log('Database not available for room creation, using mock response:', dbError)
+    } catch (dbError) {    console.log('Database not available for room creation, using mock response:', dbError as Error)
       
       // Generate a proper UUID for fallback
       const { v4: uuidv4 } = require('uuid')
@@ -422,7 +416,7 @@ export async function DELETE(request: NextRequest) {
       console.error('❌ Database error during room deletion:', dbError)
       return NextResponse.json({ 
         error: 'Failed to delete room from database', 
-        details: dbError.message 
+        details: (dbError as Error).message 
       }, { status: 500 })
     }
 

@@ -107,7 +107,7 @@ export async function deleteRoomWithConfirmation(
 
     return result
 
-  } catch (error) {
+  } catch (error:any) {
     // Show error toast
     toast.error(
       `Failed to delete room "${roomName}": ${error.message}`,

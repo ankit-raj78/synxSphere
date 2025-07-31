@@ -4,10 +4,55 @@ import { NextRequest, NextResponse } from 'next/server'
 // This route requires authentication and should not be statically generated
 export const dynamic = 'force-dynamic'
 import { DatabaseService } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 
 import { verifyToken } from '@/lib/auth'
 
 import { analyzeAudioFeatures } from '@/lib/audio-analysis'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
+
+// Audio metadata extraction using ffprobe
+async function extractAudioMetadata(filePath: string): Promise<{
+  duration: number;
+  sampleRate: number;
+  channels: number;
+  bitRate: number;
+  format: string;
+  codec: string;
+}> {
+  try {
+    console.log('🎵 [AUDIO-EXTRACT] Starting metadata extraction for:', filePath);
+    
+    const { stdout } = await execAsync(`ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`);
+    const metadata = JSON.parse(stdout);
+    
+    console.log('🎵 [AUDIO-EXTRACT] Raw ffprobe metadata:', JSON.stringify(metadata, null, 2));
+    
+    const audioStream = metadata.streams.find((stream: any) => stream.codec_type === 'audio');
+    
+    if (!audioStream) {
+      throw new Error('No audio stream found in file');
+    }
+
+    const result = {
+      duration: parseFloat(metadata.format.duration || '0'),
+      sampleRate: parseInt(audioStream.sample_rate || '0'),
+      channels: parseInt(audioStream.channels || '0'),
+      bitRate: parseInt(audioStream.bit_rate || metadata.format.bit_rate || '0'),
+      format: metadata.format.format_name || 'unknown',
+      codec: audioStream.codec_name || 'unknown'
+    };
+
+    console.log('🎵 [AUDIO-EXTRACT] Extracted metadata:', result);
+    return result;
+  } catch (error) {
+    console.error('🎵 [AUDIO-EXTRACT] Error extracting metadata:', error);
+    throw error;
+  }
+}
 
 import { writeFile, mkdir } from 'fs/promises'
 
@@ -141,16 +186,41 @@ export async function POST(request: NextRequest) {
           // ✅ SECURE - Start audio analysis in the background using Prisma
           setTimeout(async () => {
             try {
-              console.log(`Starting audio analysis for: ${filename}`)
-              const features = await analyzeAudioFeatures(filepath)
+              console.log(`🎵 [UPLOAD] Starting audio metadata extraction for: ${filename}`)
+              const metadata = await extractAudioMetadata(filepath)
               
-              // Store analysis results if available
-              if (features) {
-                console.log('Audio analysis completed:', features)
-              }
+              // Update database record with extracted metadata using direct Prisma
+              const updatedAudioFile = await prisma.audioFile.update({
+                where: { id: audioFile.id },
+                data: {
+                  duration: metadata.duration,
+                  sampleRate: metadata.sampleRate,
+                  channels: metadata.channels,
+                  bitRate: metadata.bitRate,
+                  format: metadata.format,
+                  isProcessed: true
+                }
+              })
+              
+              console.log('🎵 [UPLOAD] Audio metadata extraction completed and database updated:', {
+                fileId: audioFile.id,
+                duration: metadata.duration,
+                sampleRate: metadata.sampleRate,
+                channels: metadata.channels
+              })
             } catch (error) {
-              console.error('Error analyzing audio:', error)
-              // Analysis failure doesn't affect upload success
+              console.error('🎵 [UPLOAD] Error extracting audio metadata:', error)
+              // Mark as processing failed but don't fail the upload
+              try {
+                await prisma.audioFile.update({
+                  where: { id: audioFile.id },
+                  data: {
+                    isProcessed: false
+                  }
+                })
+              } catch (dbError) {
+                console.error('🎵 [UPLOAD] Error updating processing status:', dbError)
+              }
             }
           }, 1000)
 

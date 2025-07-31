@@ -29,7 +29,130 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Mock data for now - in production this would fetch from database
+    // First try to fetch real tracks from database
+    // Check both audioTrack and audioFile tables
+    try {
+      // Fetch AudioTrack records (legacy room tracks)
+      const audioTracks = await prisma.audioTrack.findMany({
+        where: { roomId: params.id },
+        include: {
+          uploader: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { uploadedAt: 'desc' }
+      })
+
+      // Fetch AudioFile records that have been moved to this room
+      const audioFiles = await prisma.audioFile.findMany({
+        where: { roomId: params.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+
+      console.log(`Found ${audioTracks.length} audioTracks and ${audioFiles.length} audioFiles for room ${params.id}`)
+
+      const allTracks = []
+
+      // Process AudioTrack records
+      if (audioTracks.length > 0) {
+        const trackRecords = audioTracks.map((track: any) => ({
+          id: track.id,
+          name: track.name,
+          originalName: track.originalName || track.name,
+          uploadedBy: {
+            id: track.uploader.id,
+            username: track.uploader.username || track.uploader.email?.split('@')[0] || 'User',
+            avatar: null
+          },
+          duration: track.duration || "0:00",
+          filePath: track.filePath,
+          fileSize: track.fileSize || 0,
+          mimeType: track.mimeType || 'audio/mpeg',
+          audioFileId: track.metadata?.audioFileId || track.id,
+          isPlaying: false,
+          isMuted: false,
+          isSolo: false,
+          isLocked: false,
+          volume: 1.0,
+          pan: 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            lowpass: 0,
+            highpass: 0,
+            distortion: 0
+          },
+          color: generateTrackColor(),
+          uploadedAt: track.uploadedAt,
+          source: 'audioTrack'
+        }))
+        allTracks.push(...trackRecords)
+      }
+
+      // Process AudioFile records (moved to room files)
+      if (audioFiles.length > 0) {
+        const fileRecords = audioFiles.map((file: any) => ({
+          id: file.id,
+          name: file.originalName,
+          originalName: file.originalName,
+          uploadedBy: {
+            id: file.user.id,
+            username: file.user.username || file.user.email?.split('@')[0] || 'User',
+            avatar: null
+          },
+          duration: file.duration ? `${Math.floor(Number(file.duration) / 60)}:${Math.floor(Number(file.duration) % 60).toString().padStart(2, '0')}` : "0:00",
+          filePath: file.filePath,
+          fileSize: Number(file.fileSize) || 0,
+          mimeType: file.mimeType || 'audio/mpeg',
+          audioFileId: file.id, // For moved files, the audioFileId is the file ID itself
+          isPlaying: false,
+          isMuted: false,
+          isSolo: false,
+          isLocked: false,
+          volume: 1.0,
+          pan: 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            lowpass: 0,
+            highpass: 0,
+            distortion: 0
+          },
+          color: generateTrackColor(),
+          uploadedAt: file.createdAt,
+          source: 'audioFile'
+        }))
+        allTracks.push(...fileRecords)
+      }
+
+      if (allTracks.length > 0) {
+        // Sort all tracks by upload date (newest first)
+        allTracks.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+        
+        console.log(`✅ Found ${allTracks.length} total tracks for room ${params.id}`)
+        return NextResponse.json({ tracks: allTracks })
+      }
+
+      console.log(`📋 No tracks found for room ${params.id}, falling back to mock data`)
+    } catch (dbError) {
+      console.error('Database error fetching tracks:', dbError)
+      console.log('📋 Database unavailable, using mock data')
+    }
+
+    // Fallback to mock data if no real tracks or database error
     const mockTracks = [
       {
         id: 'track-1',
@@ -41,7 +164,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.1) * 0.5 + 0.5),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -68,7 +190,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.random() * 0.8 + 0.2),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -95,7 +216,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.sin(i * 0.05) * 0.7 + 0.3),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -122,7 +242,6 @@ export async function GET(
           avatar: null
         },
         duration: 212.5,
-        waveform: Array.from({ length: 200 }, (_, i) => Math.cos(i * 0.08) * 0.6 + 0.4),
         isPlaying: false,
         isMuted: false,
         isSolo: false,
@@ -295,6 +414,69 @@ export async function POST(
         uploadedAt: audioTrack.uploadedAt
       }
 
+      // Background processing to extract audio metadata for the track
+      setTimeout(async () => {
+        try {
+          console.log(`📊 [Room Upload] Starting metadata extraction for track ${audioTrack.id}`)
+          
+          // Call audio service to analyze the file
+          const audioServiceUrl = 'http://audio-service:3006/analyze'
+          const trackFilePath = audioTrack.filePath
+          
+          if (!trackFilePath) {
+            console.error(`❌ [Room Upload] No file path for track ${audioTrack.id}`)
+            return
+          }
+          
+          const fullFilePath = path.join(process.cwd(), 'public', trackFilePath)
+          
+          const response = await fetch(audioServiceUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              filePath: fullFilePath
+            })
+          })
+
+          if (response.ok) {
+            const response_data = await response.json()
+            console.log(`✅ [Room Upload] Audio metadata extracted for track ${audioTrack.id}:`, response_data)
+            
+            const metadata = response_data.metadata
+            
+            // Update the audio_tracks record with metadata
+            await prisma.audioTrack.update({
+              where: { id: audioTrack.id },
+              data: {
+                duration: `${Math.floor(metadata.duration / 60)}:${Math.floor(metadata.duration % 60).toString().padStart(2, '0')}`
+              }
+            })
+            
+            // Also update the linked AudioFile record
+            await prisma.audioFile.update({
+              where: { id: audioFile.id },
+              data: {
+                duration: metadata.duration,
+                sampleRate: metadata.sampleRate,
+                channels: metadata.channels,
+                bitRate: metadata.bitRate,
+                format: metadata.format,
+                isProcessed: true
+              }
+            })
+            
+            console.log(`✅ [Room Upload] Updated metadata for track ${audioTrack.id} and file ${audioFile.id}`)
+          } else {
+            const error = await response.text()
+            console.error(`❌ [Room Upload] Audio analysis failed for track ${audioTrack.id}:`, error)
+          }
+        } catch (error) {
+          console.error(`❌ [Room Upload] Background processing error for track ${audioTrack.id}:`, error)
+        }
+      }, 1000) // 1 second delay to ensure file is written
+
       return NextResponse.json({ 
         message: 'File uploaded successfully',
         track 
@@ -413,11 +595,84 @@ export async function DELETE(
       return NextResponse.json({ error: 'Track ID required' }, { status: 400 })
     }
 
-    // In production, this would delete from database
+    const roomId = params.id
+
+    // Verify room access and get room details
+    const room = await prisma.room.findFirst({
+      where: { id: roomId },
+      include: {
+        participants: {
+          where: { userId: tokenData.id }
+        }
+      }
+    })
+
+    if (!room) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 })
+    }
+
+    // Check if user is room creator or participant
+    const isCreator = room.creatorId === tokenData.id
+    const isParticipant = room.participants.length > 0
+
+    if (!isCreator && !isParticipant) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Try to delete from audioTrack table first
+    let deletedFromAudioTrack = false
+    try {
+      const audioTrack = await prisma.audioTrack.findFirst({
+        where: {
+          id: trackId,
+          roomId: roomId
+        }
+      })
+
+      if (audioTrack) {
+        // Check if user owns the track or is room creator
+        if (audioTrack.uploaderId !== tokenData.id && !isCreator) {
+          return NextResponse.json({ error: 'You can only delete your own tracks' }, { status: 403 })
+        }
+
+        await prisma.audioTrack.delete({
+          where: { id: trackId }
+        })
+        deletedFromAudioTrack = true
+      }
+    } catch (error) {
+      console.log('Track not found in audioTrack table, checking audioFile table')
+    }
+
+    // If not found in audioTrack, try audioFile table
+    if (!deletedFromAudioTrack) {
+      const audioFile = await prisma.audioFile.findFirst({
+        where: {
+          id: trackId,
+          roomId: roomId
+        }
+      })
+
+      if (!audioFile) {
+        return NextResponse.json({ error: 'Track not found in this room' }, { status: 404 })
+      }
+
+      // Check if user owns the file or is room creator
+      if (audioFile.userId !== tokenData.id && !isCreator) {
+        return NextResponse.json({ error: 'You can only delete your own tracks' }, { status: 403 })
+      }
+
+      // Remove from room (set roomId to null) instead of deleting entirely
+      await prisma.audioFile.update({
+        where: { id: trackId },
+        data: { roomId: null }
+      })
+    }
+
     return NextResponse.json({ 
       success: true, 
       trackId,
-      message: 'Track deleted successfully' 
+      message: 'Track removed from room successfully' 
     })
   } catch (error) {
     console.error('Error deleting track:', error)
