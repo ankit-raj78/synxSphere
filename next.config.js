@@ -43,6 +43,14 @@ const nextConfig = {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   },
   
+  // API configuration
+  api: {
+    bodyParser: {
+      sizeLimit: '100mb', // Increase body size limit for large project uploads
+    },
+    responseLimit: '100mb',
+  },
+  
   // Headers for security and performance
   async headers() {
     return [
