@@ -20,11 +20,17 @@
     "noUnusedParameters": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "typeRoots": ["./node_modules/@types", "../shared/types"]
+    "typeRoots": ["./node_modules/@types", "../shared/types"],
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["../shared/*"],
+      "@lib/*": ["../../lib/*"]
+    }
   },
   "include": [
     "src/**/*",
-    "../shared/**/*"
+    "../shared/**/*",
+    "../../lib/**/*"
   ],
   "exclude": [
     "node_modules",
