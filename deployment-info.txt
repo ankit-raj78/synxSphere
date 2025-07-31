@@ -1,0 +1,29 @@
+🚀 SynxSphere 5-Day AWS Deployment Information
+==============================================
+
+📋 Deployment Details:
+- Instance ID: i-079bce74ecbdeba78
+- Instance Type: t3.medium
+- Public IP: 13.222.253.91
+- Region: us-east-1
+- S3 Bucket: synxsphere-audio-1753942130
+
+🔑 Access Information:
+- SSH Command: ssh -i synxsphere-key.pem ec2-user@13.222.253.91
+- Key File: synxsphere-key.pem
+
+🌐 Application URLs (after deployment):
+- Next.js Dashboard: http://13.222.253.91:3000
+- Collaboration Server: http://13.222.253.91:3003
+- OpenDAW Studio: http://13.222.253.91:8000
+
+💰 Estimated 5-Day Cost: ~$13.67
+
+⚠️ IMPORTANT REMINDERS:
+1. This is a 5-day deployment - set a reminder to terminate!
+2. Terminate command: aws ec2 terminate-instances --instance-ids i-079bce74ecbdeba78 --region us-east-1
+3. Delete S3 bucket: aws s3 rb s3://synxsphere-audio-1753942130 --force
+4. Delete key pair: aws ec2 delete-key-pair --key-name synxsphere-key --region us-east-1
+
+📅 Termination Date: 
+
