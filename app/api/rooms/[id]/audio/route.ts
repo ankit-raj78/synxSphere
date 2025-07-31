@@ -34,7 +34,7 @@ export async function GET(
     const audioFiles = await DatabaseService.getRoomAudioFiles(roomId)
     
     // Convert to the format expected by OpenDAW
-    const formattedFiles = audioFiles.map(file => ({
+    const formattedFiles = audioFiles.map((file: any) => ({
       id: file.id,
       filename: file.filename,
       originalName: file.originalName,
