@@ -106,7 +106,7 @@ services:
       - NODE_OPTIONS=--experimental-global-webcrypto
       - VITE_API_URL=https://localhost:8443/api
       - VITE_WS_URL=wss://localhost:8443/ws
-      - VITE_SYNXSPHERE_URL=http://localhost:8000
+      - VITE_SYNXSPHERE_URL=https://184.73.115.98:8443
       - VITE_COLLABORATION_WS_URL=wss://localhost:8443/ws
       - VITE_COLLABORATION_HTTP_URL=http://collaboration:3003
       - DATABASE_URL=postgresql://opendaw:collaboration@postgres:5432/opendaw_collab

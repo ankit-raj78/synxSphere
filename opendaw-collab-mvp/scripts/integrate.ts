@@ -72,8 +72,13 @@ async function integrateCollaboration() {
     console.log('👉 Restart OpenDAW server to see collaboration features')
     console.log('')
     console.log('🧪 Test URLs:')
+    console.log('Local:')
     console.log('User 1: https://localhost:8080/?projectId=test&userId=alice&collaborative=true&userName=Alice')
     console.log('User 2: https://localhost:8080/?projectId=test&userId=bob&collaborative=true&userName=Bob')
+    console.log('')
+    console.log('AWS Production:')
+    console.log('User 1: https://184.73.115.98:8080/?projectId=test&userId=alice&collaborative=true&userName=Alice')
+    console.log('User 2: https://184.73.115.98:8080/?projectId=test&userId=bob&collaborative=true&userName=Bob')
 }
 
 function createCollaborativeAgents(originalContent: string): string {

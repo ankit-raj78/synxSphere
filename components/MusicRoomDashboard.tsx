@@ -1,5 +1,7 @@
 'use client'
 
+import { getOpenDAWUrl } from '@/lib/opendaw-url';
+
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
@@ -526,7 +528,8 @@ export default function MusicRoomDashboard({ roomId, userId }: MusicRoomDashboar
                   
                   // Include auth token for database access
                   const authToken = token ? btoa(token) : '' // Base64 encode token for URL
-                  const url = `https://localhost:8080?collaborative=true&projectId=room-${roomId}&userId=${userId}&userName=${encodeURIComponent(userName)}&auth_token=${authToken}`;
+                  const baseOpenDAWUrl = getOpenDAWUrl();
+                  const url = `${baseOpenDAWUrl}?collaborative=true&projectId=room-${roomId}&userId=${userId}&userName=${encodeURIComponent(userName)}&auth_token=${authToken}`;
                   const newWindow = window.open(url, '_blank', 'width=1200,height=800');
                   if (!newWindow) {
                     alert('Please allow popups to open OpenDAW Studio');
