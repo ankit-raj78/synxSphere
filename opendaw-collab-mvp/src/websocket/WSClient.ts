@@ -214,7 +214,7 @@ export class WSClient {
           data: {}
         })
       }
-    }, 30000) // Send heartbeat every 30 seconds
+    }, 10000) // Send heartbeat every 30 seconds
   }
 
   private stopHeartbeat(): void {

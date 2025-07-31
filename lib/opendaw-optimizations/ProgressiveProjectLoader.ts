@@ -108,7 +108,7 @@ export class ProgressiveProjectLoader {
     // Load bundle with timeout protection
     const session = await Promise.race([
       Projects.importBundle(service, bundleBuffer),
-      this.createTimeoutPromise(30000, 'Bundle loading timeout')
+      this.createTimeoutPromise(10000, 'Bundle loading timeout')
     ])
     
     this.reportProgress('samples', 70, 'Verifying samples')
