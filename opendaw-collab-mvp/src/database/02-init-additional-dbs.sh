@@ -7,8 +7,7 @@ set -e
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
     -- Create the default user database to prevent connection errors
     -- (When a user connects without specifying a database, PostgreSQL tries to connect to a database with the same name as the user)
-    SELECT 'CREATE DATABASE opendaw'
-    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'opendaw');
+    CREATE DATABASE opendaw;
     
     -- Grant permissions to the opendaw user
     GRANT ALL PRIVILEGES ON DATABASE opendaw TO opendaw;
@@ -26,7 +25,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     
     -- Switch to collaboration DB and create collaboration tables
     \c opendaw_collab;
-    \i /app/opendaw-collab-mvp/src/database/03-collaboration.sql;
+    \i /docker-entrypoint-initdb.d/03-collaboration.sql;
 EOSQL
 
 echo "✅ Additional databases and permissions configured"
