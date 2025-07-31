@@ -22,13 +22,6 @@ export async function GET(request: NextRequest) {
 
     try {      // Try to fetch rooms from PostgreSQL using Prisma
       const rooms = await prisma.room.findMany({
-        where: {
-          name: {
-            not: {
-              contains: 'test'
-            }
-          }
-        },
         include: {
           creator: {
             select: {
@@ -244,7 +237,7 @@ export async function POST(request: NextRequest) {
         
         return NextResponse.json({ 
           error: 'Failed to create studio project for room', 
-          details: studioError.message 
+          details: (studioError as Error).message 
         }, { status: 500 })
       }
 
@@ -423,7 +416,7 @@ export async function DELETE(request: NextRequest) {
       console.error('❌ Database error during room deletion:', dbError)
       return NextResponse.json({ 
         error: 'Failed to delete room from database', 
-        details: dbError.message 
+        details: (dbError as Error).message 
       }, { status: 500 })
     }
 

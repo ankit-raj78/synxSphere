@@ -106,9 +106,25 @@ export async function GET(
     // Include projectBundle if it exists
     let boxGraphData = null
     if (studioProject.projectBundle) {
-      // Convert Buffer to array for JSON transmission
-      boxGraphData = Array.from(studioProject.projectBundle)
-      console.log('[Studio Project API] Including projectBundle:', boxGraphData.length, 'bytes')
+      const bundleSize = studioProject.projectBundle.length
+      console.log('[Studio Project API] Bundle size:', bundleSize, 'bytes')
+      
+      if (bundleSize > 50 * 1024 * 1024) { // 50MB threshold - send as base64
+        console.log('[Studio Project API] Large bundle detected, encoding as base64')
+        const uint8Array = new Uint8Array(studioProject.projectBundle)
+        let binaryString = ''
+        const chunkSize = 8192
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.subarray(i, i + chunkSize)
+          binaryString += String.fromCharCode.apply(null, Array.from(chunk))
+        }
+        boxGraphData = btoa(binaryString)
+        console.log('[Studio Project API] Base64 bundle size:', boxGraphData.length, 'characters')
+      } else {
+        // Use array format for smaller bundles (backward compatibility)
+        boxGraphData = Array.from(studioProject.projectBundle)
+        console.log('[Studio Project API] Array bundle size:', boxGraphData.length, 'bytes')
+      }
     }
 
     // Return simplified response to avoid JSON size issues
@@ -143,8 +159,11 @@ export async function GET(
           filePath: file.filePath,
           fileSize: file.fileSize,
           mimeType: file.mimeType,
-          duration: file.duration
-          // Remove metadata, sampleRate, channels, format to reduce size
+          duration: file.duration,
+          sampleRate: file.sampleRate,
+          channels: file.channels,
+          format: file.format,
+          metadata: null // Remove large metadata to reduce size
         }))
       }
       
@@ -168,10 +187,10 @@ export async function GET(
     }
   } catch (error) {
     console.error('[Studio Project API] Error fetching studio project:', error)
-    console.error('[Studio Project API] Error stack:', error.stack)
+    console.error('[Studio Project API] Error stack:', error instanceof Error ? error.stack : 'No stack trace available')
     return NextResponse.json({ 
       error: 'Internal server error', 
-      details: error.message,
+      details: error instanceof Error ? error.message : 'Unknown error',
       roomId: params.id 
     }, { status: 500 })
   }
@@ -207,11 +226,31 @@ export async function PUT(
     // Get the existing studio project
     const studioProject = await DatabaseService.getRoomStudioProject(roomId)
     
-    // Convert boxGraphData array back to Buffer if provided
+    // Convert boxGraphData back to Buffer if provided
     let projectBundle = undefined
-    if (body.boxGraphData && Array.isArray(body.boxGraphData)) {
-      projectBundle = Buffer.from(body.boxGraphData)
-      console.log('[Studio Project API] Received boxGraphData:', projectBundle.length, 'bytes')
+    if (body.boxGraphData) {
+      if (Array.isArray(body.boxGraphData)) {
+        // Legacy array format
+        projectBundle = Buffer.from(body.boxGraphData)
+        console.log('[Studio Project API] Received boxGraphData (array):', projectBundle.length, 'bytes')
+      } else if (typeof body.boxGraphData === 'string') {
+        // New base64 format for large bundles
+        try {
+          const binaryString = atob(body.boxGraphData)
+          const bytes = new Uint8Array(binaryString.length)
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i)
+          }
+          projectBundle = Buffer.from(bytes)
+          console.log('[Studio Project API] Received boxGraphData (base64):', projectBundle.length, 'bytes')
+        } catch (base64Error) {
+          console.error('[Studio Project API] Failed to decode base64 bundle:', base64Error)
+          return NextResponse.json({ error: 'Invalid base64 bundle data' }, { status: 400 })
+        }
+      } else {
+        console.error('[Studio Project API] Unknown boxGraphData format:', typeof body.boxGraphData)
+        return NextResponse.json({ error: 'Invalid bundle data format' }, { status: 400 })
+      }
     }
     
     if (!studioProject) {
