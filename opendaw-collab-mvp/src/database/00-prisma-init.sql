@@ -4,3 +4,6 @@
 
 -- Apply the main Prisma migration
 \i /docker-entrypoint-initdb.d/prisma-migration.sql
+
+-- Apply the collaboration schema with functions and stored procedures
+\i /docker-entrypoint-initdb.d/schema.sql
