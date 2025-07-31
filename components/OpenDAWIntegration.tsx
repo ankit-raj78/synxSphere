@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { getOpenDAWUrl, getOpenDAWOrigin } from '@/lib/opendaw-url';
 
 interface OpenDAWIntegrationProps {
   /** Width of the iframe */
@@ -87,8 +88,10 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
     // Start the openDAW development server
     const startOpenDAW = async () => {
       try {
+        const baseOpenDAWUrl = getOpenDAWUrl();
+        
         // Check if openDAW server is already running
-        const response = await fetch('https://localhost:8080', { 
+        const response = await fetch(baseOpenDAWUrl, { 
           mode: 'no-cors',
           method: 'HEAD'
         });
@@ -96,7 +99,7 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
         console.log('🚀 OpenDAW server check completed, building URL...');
         
         // Build openDAW URL with room parameters
-        let openDAWUrl = 'https://localhost:8080'
+        let openDAWUrl = baseOpenDAWUrl
         
         if (roomId) {
           const token = localStorage.getItem('token');
@@ -137,7 +140,7 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
             console.warn('⚠️ No token found in localStorage!');
           }
           
-          openDAWUrl = `https://localhost:8080?${params.toString()}`;
+          openDAWUrl = `${baseOpenDAWUrl}?${params.toString()}`;
           console.log('🔗 Opening openDAW with room parameters:', openDAWUrl);
         }
         
@@ -193,7 +196,8 @@ const OpenDAWIntegration: React.FC<OpenDAWIntegrationProps> = ({
   // Listen for messages from the iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin === 'https://localhost:8080') {
+      const openDAWOrigin = getOpenDAWOrigin();
+      if (event.origin === openDAWOrigin) {
         // Handle messages from openDAW
         console.log('Message from OpenDAW:', event.data);
         

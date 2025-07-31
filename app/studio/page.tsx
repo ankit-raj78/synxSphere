@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getOpenDAWUrl } from '@/lib/opendaw-url';
 
 interface UserInfo {
   id: string;
@@ -153,7 +154,8 @@ export default function StudioPage() {
               
               <button 
                 onClick={() => {
-                  window.open('https://localhost:8080', '_blank');
+                  const openDAWUrl = getOpenDAWUrl();
+                  window.open(openDAWUrl, '_blank');
                 }}
                 className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors"
               >

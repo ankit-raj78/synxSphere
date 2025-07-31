@@ -3,6 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import OpenDAWIntegration, { useOpenDAWIntegration } from '@/components/OpenDAWIntegration';
+import { getOpenDAWUrl } from '@/lib/opendaw-url';
 
 const OpenDAWContent: React.FC = () => {
   const searchParams = useSearchParams();
@@ -108,7 +109,8 @@ const OpenDAWContent: React.FC = () => {
             <button 
               className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
               onClick={() => {
-                const newWindow = window.open('https://localhost:8080', '_blank');
+                const openDAWUrl = getOpenDAWUrl();
+                const newWindow = window.open(openDAWUrl, '_blank');
                 if (!newWindow) {
                   alert('Please allow popups to open OpenDAW in a new window');
                 }
