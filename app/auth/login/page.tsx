@@ -72,7 +72,7 @@ export default function LoginPage() {
             <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
               <Music className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold">SyncSphere</span>
+            <span className="text-2xl font-bold">SyncTown</span>
           </div>
           <h2 className="text-3xl font-bold">Welcome Back</h2>
           <p className="mt-2 text-gray-400">Sign in to continue your musical journey</p>

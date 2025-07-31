@@ -67,7 +67,7 @@ export default function StudioPage() {
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         <header className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">Welcome to SyncSphere Studio</h1>
+          <h1 className="text-4xl font-bold mb-4">Welcome to SyncTown Studio</h1>
           <p className="text-xl text-gray-300">Choose your preferred studio environment</p>
           <p className="text-sm text-gray-400 mt-2">Hello, {userInfo?.username}!</p>
         </header>

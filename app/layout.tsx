@@ -4,7 +4,7 @@ import { Inter } from 'next/font/google'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'SyncSphere - AI-Powered Music Collaboration',
+  title: 'SyncTown - AI-Powered Music Collaboration',
   description: 'Discover your perfect musical collaborators through intelligent AI matching and create amazing music together.',
 }
 

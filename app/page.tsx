@@ -64,7 +64,7 @@ export default function HomePage() {
               <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
                 <Music className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold">SyncSphere</span>
+              <span className="text-xl font-bold">SyncTown</span>
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/auth/login" className="text-gray-300 hover:text-white transition-colors">
@@ -209,7 +209,7 @@ export default function HomePage() {
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">How SyncSphere Works</h2>
+            <h2 className="text-4xl font-bold mb-4">How SyncTown Works</h2>
             <p className="text-xl text-gray-300">
               Four simple steps to find your perfect musical match
             </p>
@@ -294,9 +294,9 @@ export default function HomePage() {
             <div className="w-6 h-6 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
               <Music className="w-4 h-4 text-white" />
             </div>
-            <span className="text-lg font-semibold">SyncSphere</span>
+            <span className="text-lg font-semibold">SyncTown</span>
           </div>
-          <p>&copy; 2025 SyncSphere. AI-Powered Music Collaboration Platform.</p>
+          <p>&copy; 2025 SyncTown. AI-Powered Music Collaboration Platform.</p>
         </div>
       </footer>
     </div>
