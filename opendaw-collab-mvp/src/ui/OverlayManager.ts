@@ -50,8 +50,11 @@ export class OverlayManager {
   }
 
   private createUI(): void {
-    this.createCollaborationPanel()
-    this.createConnectionStatus()
+    // 🚀 PERFORMANCE: Disable visual overlays to improve startup speed and reduce clutter
+    // this.createCollaborationPanel()  // DISABLED - Visual overlay not needed for functionality
+    // this.createConnectionStatus()    // DISABLED - Connection status handled elsewhere
+    
+    console.log('🔇 [OverlayManager] Visual UI elements disabled for better performance')
   }
 
   private createCollaborationPanel(): void {
@@ -277,6 +280,10 @@ export class OverlayManager {
   }
 
   private updateUserList(): void {
+    // 🚀 PERFORMANCE: Skip UI updates since collaboration panel is disabled
+    console.log('🔇 [OverlayManager] User list update skipped (UI disabled)')
+    return
+    
     const userList = document.getElementById('user-list')
     if (!userList) return
 
