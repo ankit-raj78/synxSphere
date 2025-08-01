@@ -12,11 +12,10 @@ export function getOpenDAWUrl(): string {
     const hostname = window.location.hostname;
     
     // If we're on AWS (detecting by IP or hostname)
-    if (hostname.includes('184.73.115.98') || 
-        hostname.includes('amazonaws.com') || 
-        hostname.includes('ec2') ||
-        (hostname !== 'localhost' && hostname !== '127.0.0.1')) {
-      return 'https://184.73.115.98:8080';
+    if (hostname.includes('app.synctown.ai') || 
+        hostname.includes('localhost') || 
+        hostname === '127.0.0.1') {
+      return 'https://app.synctown.ai:8080';
     }
   }
 

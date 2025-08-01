@@ -77,8 +77,8 @@ async function integrateCollaboration() {
     console.log('User 2: https://localhost:8080/?projectId=test&userId=bob&collaborative=true&userName=Bob')
     console.log('')
     console.log('AWS Production:')
-    console.log('User 1: https://184.73.115.98:8080/?projectId=test&userId=alice&collaborative=true&userName=Alice')
-    console.log('User 2: https://184.73.115.98:8080/?projectId=test&userId=bob&collaborative=true&userName=Bob')
+    console.log('User 1: https://app.synctown.ai:8080/?projectId=test&userId=alice&collaborative=true&userName=Alice')
+    console.log('User 2: https://app.synctown.ai:8080/?projectId=test&userId=bob&collaborative=true&userName=Bob')
 }
 
 function createCollaborativeAgents(originalContent: string): string {
